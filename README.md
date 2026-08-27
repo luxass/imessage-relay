@@ -4,8 +4,8 @@
 [![GitHub downloads][downloads-src]][downloads-href]
 [![CI][ci-src]][ci-href]
 
-Expose Apple Messages as a local HTTP API on macOS. Read history, search
-messages, and send texts from one native Swift binary.
+Expose Apple Messages as a local HTTP API on macOS. Read and search chat
+history, and send texts from one native Swift binary.
 
 Reads go directly to `~/Library/Messages/chat.db`. Sends use Messages.app's
 AppleScript interface. The relay does not use private frameworks or process
@@ -53,7 +53,7 @@ From another terminal, check that the relay can read the Messages database:
 
 ```sh
 curl -s localhost:8080/status | jq
-curl -s 'localhost:8080/chats?limit=3' | jq
+curl -s 'localhost:8080/chats?limit=3' | jq '.items'
 ```
 
 Use a chat `id` to read its messages:
@@ -81,6 +81,11 @@ curl -s -X POST localhost:8080/send \
 > See the [API reference](docs/api.md) for all endpoints, query parameters,
 > cursor behavior, and response details.
 
+Opaque chat and message-history cursors belong to the database fingerprint returned by
+`/status`. The current `v3:` fingerprint identifies the `chat.db` filesystem
+instance and remains stable across normal message inserts. Clients upgrading
+from an older fingerprint format must reset stored cursors once.
+
 ## Configuration
 
 The server accepts these command-line options:
@@ -96,8 +101,12 @@ The server accepts these command-line options:
 | `RELAY_ALLOWED_RECIPIENTS` | Unset | Comma-separated send allowlist |
 | `RELAY_TOKEN` | Unset | Bearer token required on every request |
 
-The server binds to `127.0.0.1` unless you pass `--hostname`. An empty send
-allowlist denies every send. Set `RELAY_TOKEN` to require authentication.
+The server binds to loopback by default. You can pass `--hostname 0.0.0.0` or
+another hostname for remote access. Set `RELAY_TOKEN` whenever untrusted clients
+can reach the relay, and use TLS termination because plain HTTP exposes bearer
+tokens and message data in transit.
+
+An empty send allowlist denies every send.
 
 ## Development
 

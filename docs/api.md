@@ -13,15 +13,19 @@ Authorization: Bearer <token>
 
 The API returns `401` when the header is missing or invalid.
 
+For remote access, set `RELAY_TOKEN` and terminate TLS in front of the relay.
+Plain HTTP exposes bearer tokens and message data in transit. The relay permits
+non-loopback hostnames because network exposure is an operator deployment
+decision.
+
 ## Endpoints
 
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `GET` | `/status` | Report the server, database, and sender status. |
-| `GET` | `/chats` | List recent chats. |
+| `GET` | `/chats` | Page through chats. |
+| `GET` | `/chats/:id` | Read one chat. |
 | `GET` | `/chats/:id/messages` | Read messages from one chat. |
-| `GET` | `/messages/after` | Poll for messages after a row ID. |
-| `GET` | `/messages/search` | Search plain-text messages. |
 | `POST` | `/send` | Send a text message. |
 | `GET` | `/attachments/:rowid` | Download an attachment. |
 
@@ -32,68 +36,88 @@ GET /status
 ```
 
 Returns the server version, database readiness and fingerprint, and sender
-capabilities. A row ID cursor belongs to one database fingerprint. Discard
-stored cursors if the fingerprint changes.
+status. `sender.capabilities` lists supported operations. `sender.available`
+reports whether the configured sender executable exists and is executable.
+`sender.automation_permission` is `unknown` because this endpoint never launches
+the sender or triggers an Automation permission prompt.
+
+Opaque chat and message-history cursors belong to one database fingerprint. Discard
+stored cursors if the fingerprint changes. Fingerprints beginning with `v3:`
+identify the `chat.db` filesystem instance and remain stable when messages are
+inserted. Replacing the file or resetting its durable identity changes the
+fingerprint.
+
+Clients upgrading from the older content-derived fingerprint format must reset
+their stored cursor once. After that transition, routine inserts do not require
+another reset. Do not assume that restoring a backup preserves the fingerprint.
+Database filesystem paths and raw database errors are not included.
 
 ## Chats
 
 ```http
-GET /chats?limit=20&unread_only=false
+GET /chats?limit=20&unread_only=false&cursor=
 ```
 
 | Parameter | Default | Description |
 | --- | --- | --- |
 | `limit` | `20` | Maximum number of chats to return. |
 | `unread_only` | `false` | Return only chats with unread messages. |
+| `cursor` | Unset | Opaque cursor returned by the previous page. |
+
+```json
+{"items":[],"has_more":false}
+```
+
+The response includes `items`, `has_more`, and `next_cursor` when another page
+exists. Chats with messages sort by last-message date descending, then chat row
+ID descending. Chats without messages follow, ordered by chat row ID
+descending. The server clamps `limit` to `1...200`.
+
+### Chat detail
+
+```http
+GET /chats/:id
+```
+
+Returns the chat object for the positive chat row ID. The API returns `404` if
+the chat does not exist.
 
 ## Chat messages
 
 ```http
-GET /chats/:id/messages?limit=50&before=&attachments=false&include_reactions=false
+GET /chats/:id/messages?limit=50&cursor=&attachments=false&include_reactions=false&q=&match=
 ```
 
 `:id` is the positive chat row ID returned by `/chats`.
+The API returns `404` if the chat does not exist.
 
 | Parameter | Default | Description |
 | --- | --- | --- |
 | `limit` | `50` | Maximum number of messages to return. |
-| `before` | Unset | Return messages before this row ID. |
+| `cursor` | Unset | Opaque cursor returned by the previous page. |
 | `attachments` | `false` | Include attachment metadata. |
 | `include_reactions` | `false` | Include reactions as message rows. |
+| `q` | Unset | Filter this chat's plain-text message content. |
+| `match` | Unset | Use `exact` for a case-insensitive exact match. Otherwise, `q` is a contains match. |
 
-## Poll for messages
+The response includes `items`, `has_more`, and `next_cursor` when another page
+exists. Each page is ordered chronologically. Following `next_cursor` traverses
+older messages. The server clamps `limit` to `1...500`.
 
-```http
-GET /messages/after?since_rowid=42&chat_id=&limit=100&attachments=false&include_reactions=false
+```json
+{"items":[],"has_more":false}
 ```
 
-`since_rowid` is required and must be a non-negative integer.
-
-| Parameter | Default | Description |
-| --- | --- | --- |
-| `since_rowid` | Required | Return messages after this row ID. |
-| `chat_id` | Unset | Restrict results to one chat. |
-| `limit` | `100` | Maximum number of messages to return. |
-| `attachments` | `false` | Include attachment metadata. |
-| `include_reactions` | `false` | Include reactions as message rows. |
-
-The response contains `messages`, `next_rowid`, and `has_more`. Pass
-`next_rowid` as `since_rowid` on the next request. If `has_more` is `true`,
-request the next page immediately.
-
-## Search messages
-
-```http
-GET /messages/search?q=hello&match=contains&limit=50
-```
-
-| Parameter | Default | Description |
-| --- | --- | --- |
-| `q` | Required | Non-empty search text. |
-| `match` | `contains` | Use `exact` for an exact match. Any other value uses a contains match. |
-| `limit` | `50` | Maximum number of messages to return. |
-
-Search covers only content in the database's plain-text `text` column.
+Page cursors are opaque, URL-safe, and versioned. Pass `next_cursor` unchanged
+to the same endpoint. Do not parse it or construct one from dates or row IDs. A
+chat cursor is bound to `unread_only`. A chat-message cursor is bound to the
+chat ID, attachment mode, reaction mode, exact `q` text, and `match` mode without
+storing the search text in the cursor.
+All cursor types are bound to the database fingerprint. The API returns `400` if a
+cursor is malformed, belongs to another route or query, uses an unsupported
+version, or refers to a replaced database. Start again without `cursor` after
+that response. Inserts made during traversal can change page boundaries; a
+single traversal assumes stable database contents.
 
 ## Send a message
 
@@ -126,7 +150,9 @@ allowlist. Matching is case-insensitive and ignores phone-number formatting.
 | `500` | The outcome is uncertain. | Do not retry automatically. |
 
 Sending supports text only. The relay cannot send files or reactions through
-the public Messages.app automation interface.
+the public Messages.app automation interface. The request accepts only
+`chat_id`, `to`, and `text`; every other field is rejected with `400`. `text`
+must contain at least one non-whitespace character.
 
 ## Download an attachment
 
@@ -138,6 +164,10 @@ GET /attachments/:rowid
 The response body contains the attachment bytes and uses the stored MIME type
 as its `Content-Type`. The API returns `404` if either the attachment record or
 its backing file is missing.
+
+Attachment metadata contains `id`, `transfer_name`, `mime_type`, `uti`,
+`total_bytes`, `is_sticker`, and `missing`. Local `filename` and
+`original_path` values are not included.
 
 ## Message details
 
