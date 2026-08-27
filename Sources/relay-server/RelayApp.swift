@@ -23,7 +23,7 @@ struct RelayApp {
         )
 
         // Loopback only.
-        var app = Application(
+        let app = Application(
             router: router,
             configuration: ApplicationConfiguration(address: .hostname("127.0.0.1", port: config.port))
         )
