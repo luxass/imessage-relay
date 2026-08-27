@@ -16,18 +16,23 @@ final class StoreProvider: @unchecked Sendable {
     }
 
     func withStore<T>(_ body: (MessageStore) throws -> T) throws -> T {
+        try body(resolvedStore())
+    }
+
+    private func resolvedStore() throws -> MessageStore {
         lock.lock()
         defer { lock.unlock() }
-        if store == nil {
-            store = try MessageStore(path: path)
+        if let store {
+            return store
         }
-        return try body(store!)
+        let opened = try MessageStore(path: path)
+        store = opened
+        return opened
     }
 
     func status() -> DatabaseStatus {
         do {
-            _ = try withStore { try $0.status() }
-            return store!.status()
+            return try resolvedStore().status()
         } catch {
             return .init(
                 ready: false,

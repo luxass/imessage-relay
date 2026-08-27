@@ -7,7 +7,6 @@ struct ServerConfig: Sendable {
     /// When set, every request must carry `Authorization: Bearer <token>`.
     let token: String?
     let databasePath: String
-    let port: Int
 
     static func fromEnvironment(
         _ environment: [String: String] = ProcessInfo.processInfo.environment
@@ -20,13 +19,17 @@ struct ServerConfig: Sendable {
         return ServerConfig(
             allowedRecipients: Set(recipients),
             token: environment["RELAY_TOKEN"].flatMap { $0.isEmpty ? nil : $0 },
-            databasePath: (configuredPath as NSString).expandingTildeInPath,
-            port: environment["RELAY_PORT"].flatMap(Int.init) ?? 8080
+            databasePath: (configuredPath as NSString).expandingTildeInPath
         )
     }
 
-    func sendPolicy() -> SendPolicy {
-        SendPolicy(allowedRecipients: allowedRecipients)
+    /// Every actual recipient must be allowlisted. An empty allowlist denies
+    /// every send, including sends with no resolved recipients.
+    func allowsAll(recipients: [String]) -> Bool {
+        guard !allowedRecipients.isEmpty, !recipients.isEmpty else { return false }
+        return recipients.allSatisfy {
+            allowedRecipients.contains(Self.normalizeRecipient($0))
+        }
     }
 
     /// Recipients are compared loosely: case-insensitive, and phone numbers

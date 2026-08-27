@@ -9,22 +9,22 @@ let package = Package(
     products: [
         .executable(name: "relay-server", targets: ["relay-server"]),
         .library(name: "RelayCore", targets: ["RelayCore"]),
-        .library(name: "RelaySender", targets: ["RelaySender"]),
     ],
     dependencies: [
         .package(url: "https://github.com/hummingbird-project/hummingbird.git", from: "2.4.0"),
         .package(url: "https://github.com/apple/swift-nio.git", from: "2.80.0"),
+        .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.8.2"),
     ],
     targets: [
         .target(name: "RelayCore"),
-        .target(name: "RelaySender", dependencies: ["RelayCore"]),
         .executableTarget(
             name: "relay-server",
             dependencies: [
                 .product(name: "Hummingbird", package: "hummingbird"),
+                .product(name: "HummingbirdRouter", package: "hummingbird"),
                 .product(name: "NIOCore", package: "swift-nio"),
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 "RelayCore",
-                "RelaySender",
             ]
         ),
         .testTarget(name: "RelayCoreTests", dependencies: ["RelayCore"]),

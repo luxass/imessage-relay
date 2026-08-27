@@ -1,4 +1,6 @@
 public struct Attachment: Codable, Sendable {
+    /// SQLite `attachment.ROWID`, used by `GET /attachments/:rowid`.
+    public var id: Int64
     /// Path on disk as recorded by Messages (may be missing from disk).
     public var filename: String
     public var transferName: String
@@ -11,6 +13,7 @@ public struct Attachment: Codable, Sendable {
     public var missing: Bool
 
     enum CodingKeys: String, CodingKey {
+        case id
         case filename
         case transferName = "transfer_name"
         case mimeType = "mime_type"
@@ -22,6 +25,7 @@ public struct Attachment: Codable, Sendable {
     }
 
     public init(
+        id: Int64,
         filename: String,
         transferName: String,
         mimeType: String,
@@ -31,6 +35,7 @@ public struct Attachment: Codable, Sendable {
         originalPath: String?,
         missing: Bool
     ) {
+        self.id = id
         self.filename = filename
         self.transferName = transferName
         self.mimeType = mimeType
@@ -43,6 +48,7 @@ public struct Attachment: Codable, Sendable {
 
     public func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
         try c.encode(filename, forKey: .filename)
         try c.encode(transferName, forKey: .transferName)
         try c.encode(mimeType, forKey: .mimeType)

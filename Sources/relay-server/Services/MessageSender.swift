@@ -1,28 +1,48 @@
 import Foundation
 
-/// Sends through Messages.app's AppleScript surface — the same transport imsg
-/// and BlueBubbles use in practice on stock macOS.
-///
-/// Requires Automation → Messages permission (TCC prompts on first send).
-/// Limitations: text only (attachment sends are rejected), no delivery GUID
-/// observation, and a hang (e.g. Messages showing a sign-in dialog) is cut off
-/// at `timeout` seconds.
-public struct AppleScriptSender: MessageSender {
-    public let timeout: TimeInterval
+struct SendRequest: Sendable {
+    let chatID: Int64?
+    let chatGuid: String?
+    let to: String?
+    let text: String?
+    let file: String?
+    let service: String?
+}
 
-    /// osascript binary path; injectable for testing.
+struct SendResult: Encodable, Sendable {
+    let ok: Bool
+    let guid: String?
+}
+
+enum SenderError: Error, CustomStringConvertible {
+    case unavailable(String)
+    case uncertain(detail: String)
+    case notStarted(detail: String)
+
+    var description: String {
+        switch self {
+        case .unavailable(let detail): detail
+        case .uncertain(let detail): "Send may have completed; do not retry blindly. \(detail)"
+        case .notStarted(let detail): "Send was never started (retry safe). \(detail)"
+        }
+    }
+}
+
+struct MessageSender: Sendable {
+    let timeout: TimeInterval
+
     private let osascriptPath: String
 
-    public init(timeout: TimeInterval = 30, osascriptPath: String = "/usr/bin/osascript") {
+    init(timeout: TimeInterval = 30, osascriptPath: String = "/usr/bin/osascript") {
         self.timeout = timeout
         self.osascriptPath = osascriptPath
     }
 
-    public var capabilities: [String] { ["text"] }
+    var capabilities: [String] { ["text"] }
 
-    public func send(_ request: SendRequest) async throws -> SendResult {
+    func send(_ request: SendRequest) async throws -> SendResult {
         guard let text = request.text, !text.isEmpty else {
-            throw SenderError.unavailable("AppleScriptSender supports text only; file sends are not implemented.")
+            throw SenderError.unavailable("Only text sends are supported; file sends are not implemented.")
         }
 
         let script: String
@@ -38,15 +58,11 @@ public struct AppleScriptSender: MessageSender {
 
         let exitCode = try await runOscript(script)
         guard exitCode == 0 else {
-            // AppleScript errors happen before dispatch in practice, so this
-            // is treated as retry-safe (not_started disposition).
             throw SenderError.notStarted(detail: "osascript exited \(exitCode). " +
-                "If this is the first send from this process, approve the Automation → Messages prompt.")
+                "If this is the first send from this process, approve the Automation > Messages prompt.")
         }
         return SendResult(ok: true, guid: nil)
     }
-
-    // MARK: - Script building
 
     static func directSendScript(handle: String, text: String) -> String {
         """
@@ -66,13 +82,10 @@ public struct AppleScriptSender: MessageSender {
         """
     }
 
-    /// Escapes a value for embedding in an AppleScript double-quoted string.
     static func escape(_ value: String) -> String {
         value.replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
     }
-
-    // MARK: - Process execution
 
     private func runOscript(_ script: String) async throws -> Int32 {
         let process = Process()
@@ -83,7 +96,6 @@ public struct AppleScriptSender: MessageSender {
 
         try process.run()
 
-        // Cut the process loose if Messages blocks in a dialog.
         let deadline = DispatchTime.now() + timeout
         DispatchQueue.global().asyncAfter(deadline: deadline) {
             if process.isRunning {

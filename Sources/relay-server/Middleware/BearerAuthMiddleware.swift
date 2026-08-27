@@ -4,11 +4,7 @@ import Hummingbird
 /// Requires `Authorization: Bearer <token>` on every request. Installed only
 /// when RELAY_TOKEN is configured; otherwise the loopback binding is the only
 /// gate.
-struct BearerAuthMiddleware: MiddlewareProtocol {
-    typealias Input = Request
-    typealias Output = Response
-    typealias Context = BasicRequestContext
-
+struct BearerAuthMiddleware<Context: RequestContext>: RouterMiddleware {
     private let token: String
 
     init(token: String) {

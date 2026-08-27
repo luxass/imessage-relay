@@ -4,9 +4,8 @@
 [![GitHub downloads][downloads-src]][downloads-href]
 [![CI][ci-src]][ci-href]
 
-Expose Apple Messages as a local HTTP and SSE API on macOS. Read history,
-search messages, follow incoming messages, and send texts from one native
-Swift binary.
+Expose Apple Messages as a local HTTP API on macOS. Read history, search
+messages, and send texts from one native Swift binary.
 
 Reads go directly to `~/Library/Messages/chat.db`. Sends use Messages.app's
 AppleScript interface. The relay does not use private frameworks or process
@@ -57,11 +56,10 @@ curl -s localhost:8080/status | jq
 curl -s 'localhost:8080/chats?limit=3' | jq
 ```
 
-Use a chat `id` to read its messages or follow new ones:
+Use a chat `id` to read its messages:
 
 ```sh
 curl -s 'localhost:8080/chats/42/messages?limit=10' | jq
-curl -N 'localhost:8080/messages/stream?chat_id=42'
 ```
 
 Sending is disabled until you set `RELAY_ALLOWED_RECIPIENTS`. The first send
@@ -85,16 +83,21 @@ curl -s -X POST localhost:8080/send \
 
 ## Configuration
 
+The server accepts these command-line options:
+
+| Option | Default | Purpose |
+| --- | --- | --- |
+| `--hostname` | `127.0.0.1` | Listen hostname |
+| `--port` | `8080` | Listen port |
+
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `RELAY_CHAT_DB_PATH` | `~/Library/Messages/chat.db` | Messages database path |
-| `RELAY_PORT` | `8080` | Loopback listen port |
 | `RELAY_ALLOWED_RECIPIENTS` | Unset | Comma-separated send allowlist |
 | `RELAY_TOKEN` | Unset | Bearer token required on every request |
 
-The server always binds to `127.0.0.1`. An empty send allowlist denies every
-send. Set `RELAY_TOKEN` to prevent other processes on the Mac from calling the
-API.
+The server binds to `127.0.0.1` unless you pass `--hostname`. An empty send
+allowlist denies every send. Set `RELAY_TOKEN` to require authentication.
 
 ## Development
 

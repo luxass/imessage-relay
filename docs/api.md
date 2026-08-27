@@ -1,7 +1,7 @@
 # API reference
 
-`relay-server` exposes an HTTP API at `http://127.0.0.1:8080` by default. Set
-`RELAY_PORT` to use another loopback port.
+`relay-server` exposes an HTTP API at `http://127.0.0.1:8080` by default. Pass
+`--port <port>` or `--hostname <hostname>` to change the listen address.
 
 ## Authentication
 
@@ -22,7 +22,6 @@ The API returns `401` when the header is missing or invalid.
 | `GET` | `/chats/:id/messages` | Read messages from one chat. |
 | `GET` | `/messages/after` | Poll for messages after a row ID. |
 | `GET` | `/messages/search` | Search plain-text messages. |
-| `GET` | `/messages/stream` | Follow messages as server-sent events. |
 | `POST` | `/send` | Send a text message. |
 | `GET` | `/attachments/:rowid` | Download an attachment. |
 
@@ -96,25 +95,6 @@ GET /messages/search?q=hello&match=contains&limit=50
 
 Search covers only content in the database's plain-text `text` column.
 
-## Stream messages
-
-```http
-GET /messages/stream?since_rowid=&chat_id=&include_reactions=false
-```
-
-The endpoint returns a server-sent event stream. It sends a `ready` event on
-connection, `message` events for new messages, and keepalive comments while
-idle.
-
-| Parameter | Default | Description |
-| --- | --- | --- |
-| `since_rowid` | Current row ID | Start after this row ID. |
-| `chat_id` | Unset | Restrict events to one chat. |
-| `include_reactions` | `false` | Include reactions as message events. |
-
-Polling and streaming use the same row ID cursor. Pass a stored cursor when
-reconnecting to receive messages that arrived while disconnected.
-
 ## Send a message
 
 ```http
@@ -134,10 +114,9 @@ Send to either an address or an existing chat:
 {"chat_id":42,"text":"hello"}
 ```
 
-`RELAY_ALLOWED_RECIPIENTS` must match the direct address or one of the chat's
-candidate targets. Chat targets include the chat GUID, identifier, and
-participants. Matching is case-insensitive and ignores phone-number
-formatting.
+`RELAY_ALLOWED_RECIPIENTS` must match the direct address or every participant
+in an existing chat. Group sends are denied when any participant is not on the
+allowlist. Matching is case-insensitive and ignores phone-number formatting.
 
 | Status | Meaning | Retry guidance |
 | --- | --- | --- |
