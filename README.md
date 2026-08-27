@@ -1,0 +1,121 @@
+# imessage-relay
+
+[![GitHub release][release-src]][release-href]
+[![GitHub downloads][downloads-src]][downloads-href]
+[![CI][ci-src]][ci-href]
+
+Expose Apple Messages as a local HTTP and SSE API on macOS. Read history,
+search messages, follow incoming messages, and send texts from one native
+Swift binary.
+
+Reads go directly to `~/Library/Messages/chat.db`. Sends use Messages.app's
+AppleScript interface. The relay does not use private frameworks or process
+injection.
+
+## Install
+
+Download the universal binary for Apple silicon and Intel Macs:
+
+```sh
+curl -fsSL -o relay-server.tgz \
+  https://github.com/luxass/imessage-relay/releases/latest/download/relay-server-macos-universal.tar.gz
+tar xzf relay-server.tgz
+./relay-server
+```
+
+The binary requires macOS 14 or newer. It is ad hoc signed and not notarized.
+
+<details>
+<summary>Build from source</summary><br/>
+
+Building requires Swift 6.1 or newer.
+
+```sh
+git clone https://github.com/luxass/imessage-relay.git
+cd imessage-relay
+swift build
+.build/debug/relay-server
+```
+
+<br/></details>
+
+## Usage
+
+Grant the terminal or service that runs `relay-server` **Full Disk Access** in
+**System Settings > Privacy & Security**, then restart that process.
+
+Start the relay:
+
+```sh
+relay-server
+```
+
+From another terminal, check that the relay can read the Messages database:
+
+```sh
+curl -s localhost:8080/status | jq
+curl -s 'localhost:8080/chats?limit=3' | jq
+```
+
+Use a chat `id` to read its messages or follow new ones:
+
+```sh
+curl -s 'localhost:8080/chats/42/messages?limit=10' | jq
+curl -N 'localhost:8080/messages/stream?chat_id=42'
+```
+
+Sending is disabled until you set `RELAY_ALLOWED_RECIPIENTS`. The first send
+also prompts for **Automation > Messages** permission.
+
+```sh
+RELAY_ALLOWED_RECIPIENTS="+12025550123,mom@icloud.com" relay-server
+```
+
+From another terminal, send a message:
+
+```sh
+curl -s -X POST localhost:8080/send \
+  -H 'Content-Type: application/json' \
+  -d '{"to":"+12025550123","text":"hello"}'
+```
+
+> [!TIP]
+> See the [API reference](docs/api.md) for all endpoints, query parameters,
+> cursor behavior, and response details.
+
+## Configuration
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `RELAY_CHAT_DB_PATH` | `~/Library/Messages/chat.db` | Messages database path |
+| `RELAY_PORT` | `8080` | Loopback listen port |
+| `RELAY_ALLOWED_RECIPIENTS` | Unset | Comma-separated send allowlist |
+| `RELAY_TOKEN` | Unset | Bearer token required on every request |
+
+The server always binds to `127.0.0.1`. An empty send allowlist denies every
+send. Set `RELAY_TOKEN` to prevent other processes on the Mac from calling the
+API.
+
+## Development
+
+Install [`just`](https://github.com/casey/just) and
+[SwiftLint](https://github.com/realm/SwiftLint), then run:
+
+```sh
+just lint
+just test
+just build
+```
+
+## 📄 License
+
+Published under [MIT License](./LICENSE).
+
+<!-- Badges -->
+
+[release-src]: https://img.shields.io/github/v/release/luxass/imessage-relay?style=flat&colorA=18181B&colorB=4169E1
+[release-href]: https://github.com/luxass/imessage-relay/releases/latest
+[downloads-src]: https://img.shields.io/github/downloads/luxass/imessage-relay/total?style=flat&colorA=18181B&colorB=4169E1
+[downloads-href]: https://github.com/luxass/imessage-relay/releases
+[ci-src]: https://img.shields.io/github/actions/workflow/status/luxass/imessage-relay/ci.yml?branch=main&style=flat&label=ci&colorA=18181B&colorB=4169E1
+[ci-href]: https://github.com/luxass/imessage-relay/actions/workflows/ci.yml

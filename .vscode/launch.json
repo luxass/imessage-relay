@@ -1,0 +1,24 @@
+{
+  "configurations": [
+    {
+      "type": "swift",
+      "request": "launch",
+      "args": [],
+      "cwd": "${workspaceFolder:imessage-relay}",
+      "name": "Debug relay-server",
+      "target": "relay-server",
+      "configuration": "debug",
+      "preLaunchTask": "swift: Build Debug relay-server"
+    },
+    {
+      "type": "swift",
+      "request": "launch",
+      "args": [],
+      "cwd": "${workspaceFolder:imessage-relay}",
+      "name": "Release relay-server",
+      "target": "relay-server",
+      "configuration": "release",
+      "preLaunchTask": "swift: Build Release relay-server"
+    }
+  ]
+}
