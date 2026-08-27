@@ -49,15 +49,24 @@ public struct Attachment: Codable, Sendable {
     public func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(id, forKey: .id)
-        try c.encode(filename, forKey: .filename)
         try c.encode(transferName, forKey: .transferName)
         try c.encode(mimeType, forKey: .mimeType)
         try c.encode(uti, forKey: .uti)
         try c.encode(totalBytes, forKey: .totalBytes)
         try c.encode(isSticker, forKey: .isSticker)
-        if let originalPath {
-            try c.encode(originalPath, forKey: .originalPath)
-        }
         try c.encode(missing, forKey: .missing)
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(Int64.self, forKey: .id)
+        filename = try c.decodeIfPresent(String.self, forKey: .filename) ?? ""
+        transferName = try c.decode(String.self, forKey: .transferName)
+        mimeType = try c.decode(String.self, forKey: .mimeType)
+        uti = try c.decode(String.self, forKey: .uti)
+        totalBytes = try c.decode(Int64.self, forKey: .totalBytes)
+        isSticker = try c.decode(Bool.self, forKey: .isSticker)
+        originalPath = try c.decodeIfPresent(String.self, forKey: .originalPath)
+        missing = try c.decode(Bool.self, forKey: .missing)
     }
 }

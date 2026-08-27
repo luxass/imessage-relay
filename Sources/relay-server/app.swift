@@ -1,5 +1,6 @@
 import ArgumentParser
 import Hummingbird
+import RelayCore
 
 @main
 struct HummingbirdArguments: AsyncParsableCommand {
@@ -10,11 +11,15 @@ struct HummingbirdArguments: AsyncParsableCommand {
     var port: Int = 8080
 
     func run() async throws {
-        let app = try await buildApplication(
+        let serverConfig = ServerConfig.fromEnvironment()
+        let app = buildApplication(
             configuration: .init(
                 address: .hostname(self.hostname, port: self.port),
                 serverName: "imessage-relay"
-            )
+            ),
+            serverConfig: serverConfig,
+            store: MessageStore(path: serverConfig.databasePath),
+            sender: MessageSender()
         )
         try await app.runService()
     }

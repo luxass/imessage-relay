@@ -1,7 +1,80 @@
 import Foundation
+import NIOPosix
 import SQLite3
+import Darwin
+
+private final class AttachmentDescriptor: @unchecked Sendable {
+    let value: Int32
+
+    init(_ value: Int32) { self.value = value }
+    deinit { close(value) }
+}
+
+private func openRegularAttachment(at fileURL: URL) -> (descriptor: Int32, byteCount: Int64)? {
+    let descriptor = open(fileURL.path, O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
+    guard descriptor >= 0 else { return nil }
+    var status = stat()
+    guard fstat(descriptor, &status) == 0,
+          status.st_mode & S_IFMT == S_IFREG,
+          status.st_size >= 0 else {
+        close(descriptor)
+        return nil
+    }
+    return (descriptor, status.st_size)
+}
 
 extension MessageStore {
+    public struct AttachmentResource: Sendable {
+        private static let maximumChunkLength = 128 * 1024
+
+        public let fileURL: URL
+        public let mimeType: String
+        public let byteCount: Int64
+        private let descriptor: AttachmentDescriptor
+        private let threadPool: NIOThreadPool
+
+        init(
+            fileURL: URL,
+            mimeType: String,
+            descriptorValue: Int32,
+            byteCount: Int64,
+            threadPool: NIOThreadPool
+        ) {
+            self.fileURL = fileURL
+            self.mimeType = mimeType
+            descriptor = AttachmentDescriptor(descriptorValue)
+            self.byteCount = byteCount
+            self.threadPool = threadPool
+        }
+
+        public func readChunk(atOffset offset: Int64, upToCount count: Int) async throws -> Data {
+            guard offset >= 0, count > 0 else { return Data() }
+            let byteCount = byteCount
+            let descriptor = descriptor
+            return try await threadPool.runIfActive {
+                var data = Data(count: min(
+                    Self.maximumChunkLength,
+                    count,
+                    Int(max(0, byteCount - offset))
+                ))
+                let bytesRead = try data.withUnsafeMutableBytes { bytes -> Int in
+                    guard let baseAddress = bytes.baseAddress, !bytes.isEmpty else { return 0 }
+                    let result = pread(descriptor.value, baseAddress, bytes.count, offset)
+                    guard result >= 0 else {
+                        throw CocoaError(
+                            .fileReadUnknown,
+                            userInfo: [NSUnderlyingErrorKey: POSIXError(.init(rawValue: errno)!)]
+                        )
+                    }
+                    return result
+                }
+                data.count = bytesRead
+                return data
+            }
+        }
+
+    }
+
     public struct AttachmentFile: Sendable {
         public let data: Data
         public let mimeType: String
@@ -12,7 +85,13 @@ extension MessageStore {
         }
     }
 
-    public func attachmentData(rowid: Int64) throws -> AttachmentFile? {
+}
+
+extension SQLiteMessageStore {
+    func attachmentResource(
+        rowid: Int64,
+        threadPool: NIOThreadPool
+    ) throws -> MessageStore.AttachmentResource? {
         guard schema.hasTable("attachment"), schema.hasColumn("filename", in: "attachment") else {
             return nil
         }
@@ -34,11 +113,16 @@ extension MessageStore {
         }
         guard let descriptor else { return nil }
 
-        let path = (descriptor.path as NSString).expandingTildeInPath
-        guard let data = FileManager.default.contents(atPath: path) else { return nil }
-        return AttachmentFile(
-            data: data,
-            mimeType: descriptor.mimeType.isEmpty ? "application/octet-stream" : descriptor.mimeType
+        let fileURL = URL(fileURLWithPath: (descriptor.path as NSString).expandingTildeInPath)
+        guard let opened = openRegularAttachment(at: fileURL) else {
+            return nil
+        }
+        return MessageStore.AttachmentResource(
+            fileURL: fileURL,
+            mimeType: descriptor.mimeType.isEmpty ? "application/octet-stream" : descriptor.mimeType,
+            descriptorValue: opened.descriptor,
+            byteCount: opened.byteCount,
+            threadPool: threadPool
         )
     }
 

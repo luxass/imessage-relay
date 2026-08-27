@@ -4,10 +4,9 @@ import SQLite3
 /// SQLite's SQLITE_TRANSIENT is not exposed to Swift.
 let sqliteTransient = unsafeBitCast(OpaquePointer(bitPattern: -1), to: sqlite3_destructor_type.self)
 
-/// Owns the read-only SQLite handle and serializes statement execution.
+/// Owns a read-only SQLite handle serialized by SQLite's FULLMUTEX mode.
 final class SQLiteReadConnection: @unchecked Sendable {
     private var database: OpaquePointer?
-    private let lock = NSLock()
 
     init(path: String) throws {
         var handle: OpaquePointer?
@@ -26,9 +25,6 @@ final class SQLiteReadConnection: @unchecked Sendable {
     }
 
     func withStatement<T>(_ sql: String, _ body: (OpaquePointer) throws -> T) throws -> T {
-        lock.lock()
-        defer { lock.unlock() }
-
         var statement: OpaquePointer?
         guard sqlite3_prepare_v2(database, sql, -1, &statement, nil) == SQLITE_OK,
               let statement else {
@@ -51,6 +47,35 @@ final class SQLiteReadConnection: @unchecked Sendable {
                 throw MessageStore.StoreError.queryFailed(lastError())
             }
             return sqlite3_column_int64(statement, 0)
+        }
+    }
+
+    func firstText(_ sql: String) throws -> String {
+        try withStatement(sql) { statement in
+            guard sqlite3_step(statement) == SQLITE_ROW else {
+                throw MessageStore.StoreError.queryFailed(lastError())
+            }
+            return SQLiteMessageStore.text(statement, 0)
+        }
+    }
+
+    func queryPlan(
+        for sql: String,
+        bind: (OpaquePointer) -> Void = { _ in }
+    ) throws -> [String] {
+        try withStatement("EXPLAIN QUERY PLAN \(sql)") { statement in
+            bind(statement)
+            var details: [String] = []
+            while true {
+                switch sqlite3_step(statement) {
+                case SQLITE_ROW:
+                    details.append(SQLiteMessageStore.text(statement, 3))
+                case SQLITE_DONE:
+                    return details
+                default:
+                    throw MessageStore.StoreError.queryFailed(lastError())
+                }
+            }
         }
     }
 

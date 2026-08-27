@@ -1,13 +1,26 @@
 import SQLite3
 
-extension MessageStore {
-    public func messages(
+extension SQLiteMessageStore {
+    func messages(
         chatID: Int64,
         limit: Int = 50,
-        before: Int64? = nil,
+        cursor encodedCursor: String? = nil,
         includeAttachments: Bool = false,
-        includeReactions: Bool = false
-    ) throws -> [Message] {
+        includeReactions: Bool = false,
+        query: String? = nil,
+        exactMatch: Bool = false
+    ) throws -> Page<Message> {
+        let signature = messageHistorySignature(
+            chatID: chatID,
+            includeAttachments: includeAttachments,
+            includeReactions: includeReactions,
+            query: query,
+            exactMatch: exactMatch
+        )
+        let cursor = try decodePageCursor(encodedCursor, kind: "messages", signature: signature)
+        if query != nil, !schema.hasColumn("text", in: "message") {
+            return Page(items: [], nextCursor: nil, hasMore: false)
+        }
         var sql = """
             SELECT \(messageProjection)
               FROM message m
@@ -15,146 +28,36 @@ extension MessageStore {
               \(handleJoin)
              WHERE cmj.chat_id = ?
             """
-        if !includeReactions, schema.hasColumn("associated_message_type", in: "message") {
-            sql += " AND COALESCE(m.associated_message_type, 0) = 0"
+        if !includeReactions, let reactionExclusionPredicate {
+            sql += " AND \(reactionExclusionPredicate)"
         }
-        if before != nil {
+        if query != nil {
+            let predicate = exactMatch
+                ? "m.text = ? COLLATE NOCASE"
+                : "m.text LIKE ? ESCAPE '\\'"
+            sql += " AND \(predicate)"
+        }
+        if cursor != nil {
             sql += " AND m.ROWID < ?"
         }
         sql += " ORDER BY m.ROWID DESC LIMIT ?"
 
+        let visibleLimit = Self.clampLimit(limit, max: 500)
         var messages = try connection.withStatement(sql) { statement in
             var binding: Int32 = 1
             sqlite3_bind_int64(statement, binding, chatID)
             binding += 1
-            if let before {
-                sqlite3_bind_int64(statement, binding, before)
+            if let query {
+                let pattern = exactMatch ? query : "%\(Self.escapeLike(query))%"
+                sqlite3_bind_text(statement, binding, pattern, -1, sqliteTransient)
                 binding += 1
             }
-            sqlite3_bind_int64(statement, binding, Int64(Self.clampLimit(limit, max: 500)))
-
-            var messages: [Message] = []
-            while true {
-                switch sqlite3_step(statement) {
-                case SQLITE_ROW:
-                    messages.append(Self.decodeMessage(statement))
-                case SQLITE_DONE:
-                    return Array(messages.reversed())
-                default:
-                    throw StoreError.queryFailed(connection.lastError())
-                }
-            }
-        }
-        if includeAttachments {
-            try hydrateAttachments(in: &messages)
-        }
-        return messages
-    }
-
-    public func messagesAfter(
-        sinceRowid: Int64,
-        chatID: Int64? = nil,
-        limit: Int = 100,
-        includeAttachments: Bool = false,
-        includeReactions: Bool = false
-    ) throws -> MessagesPage {
-        let chatJoin = chatID == nil ? uniqueMessageChatJoin : directMessageChatJoin
-        var sql = """
-            SELECT \(messageProjection)
-              FROM message m
-              \(chatJoin)
-              \(handleJoin)
-             WHERE m.ROWID > ?
-            """
-        if chatID != nil {
-            sql += " AND cmj.chat_id = ?"
-        }
-        sql += " ORDER BY m.ROWID ASC LIMIT ?"
-
-        var page = try connection.withStatement(sql) { statement in
-            var binding: Int32 = 1
-            sqlite3_bind_int64(statement, binding, sinceRowid)
-            binding += 1
-            if let chatID {
-                sqlite3_bind_int64(statement, binding, chatID)
+            if let cursor {
+                sqlite3_bind_int64(statement, binding, cursor.rowid)
                 binding += 1
             }
+            sqlite3_bind_int64(statement, binding, Int64(visibleLimit + 1))
 
-            let visibleLimit = Self.clampLimit(limit, max: 500)
-            let scanLimit = Swift.max(visibleLimit * 4, 500)
-            sqlite3_bind_int64(statement, binding, Int64(scanLimit + 1))
-            var messages: [Message] = []
-            var nextRowid = sinceRowid
-            var hasMore = false
-            var scanned = 0
-
-            while true {
-                switch sqlite3_step(statement) {
-                case SQLITE_ROW:
-                    scanned += 1
-                    if scanned > scanLimit {
-                        return MessagesPage(messages: messages, nextRowid: nextRowid, hasMore: true)
-                    }
-                    let associatedType = sqlite3_column_int64(statement, 8)
-                    let message = Self.decodeMessage(statement)
-                    nextRowid = message.id
-                    if !Self.isReactionType(associatedType) || includeReactions {
-                        messages.append(message)
-                        if messages.count >= visibleLimit {
-                            let nextResult = sqlite3_step(statement)
-                            if nextResult == SQLITE_ROW {
-                                hasMore = true
-                            } else if nextResult != SQLITE_DONE {
-                                throw StoreError.queryFailed(connection.lastError())
-                            }
-                            return MessagesPage(
-                                messages: messages,
-                                nextRowid: nextRowid,
-                                hasMore: hasMore
-                            )
-                        }
-                    }
-                case SQLITE_DONE:
-                    return MessagesPage(messages: messages, nextRowid: nextRowid, hasMore: false)
-                default:
-                    throw StoreError.queryFailed(connection.lastError())
-                }
-            }
-        }
-        if includeAttachments {
-            try hydrateAttachments(in: &page.messages)
-        }
-        return page
-    }
-
-    public func search(query: String, exactMatch: Bool = false, limit: Int = 50) throws -> [Message] {
-        guard schema.hasColumn("text", in: "message") else { return [] }
-        let predicate: String
-        let pattern: String
-        if exactMatch {
-            predicate = "m.text = ? COLLATE NOCASE"
-            pattern = query
-        } else {
-            predicate = "m.text LIKE ? ESCAPE '\\'"
-            pattern = "%\(Self.escapeLike(query))%"
-        }
-        let reactionFilter = schema.hasColumn("associated_message_type", in: "message")
-            ? "AND COALESCE(m.associated_message_type, 0) = 0"
-            : ""
-        let date = schema.expression("date", in: "message", alias: "m", fallback: "0")
-        let sql = """
-            SELECT \(messageProjection)
-              FROM message m
-              \(uniqueMessageChatJoin)
-              \(handleJoin)
-             WHERE \(predicate)
-               \(reactionFilter)
-             ORDER BY \(date) DESC
-             LIMIT ?
-            """
-        return try connection.withStatement(sql) { statement in
-            sqlite3_bind_text(statement, 1, pattern, -1, sqliteTransient)
-            sqlite3_bind_int64(statement, 2, Int64(Self.clampLimit(limit, max: 100)))
             var messages: [Message] = []
             while true {
                 switch sqlite3_step(statement) {
@@ -167,10 +70,16 @@ extension MessageStore {
                 }
             }
         }
-    }
-
-    public func maxRowid() throws -> Int64 {
-        try connection.firstInt64("SELECT COALESCE(MAX(ROWID), 0) FROM message")
+        let hasMore = messages.count > visibleLimit
+        messages = Array(messages.prefix(visibleLimit))
+        let nextCursor = try hasMore ? messages.last.map {
+            try encodePageCursor(kind: "messages", signature: signature, date: nil, rowid: $0.id)
+        } : nil
+        messages.reverse()
+        if includeAttachments {
+            try hydrateAttachments(in: &messages)
+        }
+        return Page(items: messages, nextCursor: nextCursor, hasMore: hasMore)
     }
 
     private var handleJoin: String {
@@ -182,18 +91,11 @@ extension MessageStore {
         return "LEFT JOIN handle h ON h.ROWID = m.handle_id"
     }
 
-    private var directMessageChatJoin: String {
-        "JOIN chat_message_join cmj ON cmj.message_id = m.ROWID"
-    }
-
-    private var uniqueMessageChatJoin: String {
-        """
-        JOIN (
-            SELECT message_id, MIN(chat_id) AS chat_id
-              FROM chat_message_join
-             GROUP BY message_id
-        ) cmj ON cmj.message_id = m.ROWID
-        """
+    private var reactionExclusionPredicate: String? {
+        guard schema.hasColumn("associated_message_type", in: "message") else { return nil }
+        let lowerBound = Self.reactionTypeRange.lowerBound
+        let upperBound = Self.reactionTypeRange.upperBound
+        return "NOT (COALESCE(m.associated_message_type, 0) BETWEEN \(lowerBound) AND \(upperBound))"
     }
 
     private var messageProjection: String {
@@ -280,8 +182,10 @@ extension MessageStore {
     }
 
     private static func isReactionType(_ associatedType: Int64) -> Bool {
-        (2000...3006).contains(associatedType)
+        reactionTypeRange.contains(associatedType)
     }
+
+    private static let reactionTypeRange: ClosedRange<Int64> = 2000...3006
 
     private static func escapeLike(_ value: String) -> String {
         value

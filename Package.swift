@@ -16,22 +16,30 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.8.2"),
     ],
     targets: [
-        .target(name: "RelayCore"),
+        .target(
+            name: "RelayCore",
+            dependencies: [.product(name: "NIOPosix", package: "swift-nio")]
+        ),
         .executableTarget(
             name: "relay-server",
             dependencies: [
                 .product(name: "Hummingbird", package: "hummingbird"),
                 .product(name: "HummingbirdRouter", package: "hummingbird"),
                 .product(name: "NIOCore", package: "swift-nio"),
+                .product(name: "NIOPosix", package: "swift-nio"),
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 "RelayCore",
             ]
         ),
         .testTarget(name: "RelayCoreTests", dependencies: ["RelayCore"]),
-        .testTarget(name: "RelayServerTests", dependencies: ["relay-server", "RelayCore"]),
+        .testTarget(
+            name: "RelayServerTests",
+            dependencies: [
+                .product(name: "HummingbirdTesting", package: "hummingbird"),
+                "relay-server",
+                "RelayCore",
+            ]
+        ),
     ],
-    // Language mode 5 for now: relaxes strict-concurrency checking so the
-    // skeleton compiles without actors everywhere. Tighten to Swift 6 mode
-    // once the store is actor-isolated properly.
-    swiftLanguageModes: [.v5]
+    swiftLanguageModes: [.v6]
 )

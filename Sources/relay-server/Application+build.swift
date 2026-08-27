@@ -1,26 +1,55 @@
 import Hummingbird
 import HummingbirdRouter
+import Logging
+import RelayCore
+import ServiceLifecycle
 
 let packageVersion = "0.1.0"
 
-func buildApplication(
-    configuration: ApplicationConfiguration
-) async throws -> some ApplicationProtocol {
-    let serverConfig = ServerConfig.fromEnvironment()
-    let store = StoreProvider(path: serverConfig.databasePath)
-    let sender = MessageSender()
+struct MessageStoreService: Service {
+    let store: MessageStore
 
+    func run() async throws {
+        let shutdownReason: (any Error)?
+        do {
+            try await gracefulShutdown()
+            shutdownReason = nil
+        } catch {
+            shutdownReason = error
+        }
+
+        do {
+            try await store.shutdown()
+        } catch {
+            if let shutdownReason { throw shutdownReason }
+            throw error
+        }
+        if let shutdownReason { throw shutdownReason }
+    }
+}
+
+func buildApplication(
+    configuration: ApplicationConfiguration,
+    serverConfig: ServerConfig,
+    store: MessageStore,
+    sender: any MessageSending,
+    logger: Logger? = nil
+) -> some ApplicationProtocol {
     let router = RouterBuilder(context: RelayRequestContext.self) {
-        LogRequestsMiddleware(.info)
+        RedactedRequestLogMiddleware()
         if let token = serverConfig.token {
             BearerAuthMiddleware(token: token)
         }
-        StatusController(store: store, capabilities: sender.capabilities)
+        StatusController(store: store, sender: sender)
         ChatsController(store: store)
-        MessagesController(store: store)
         AttachmentsController(store: store)
         SendController(store: store, sender: sender, config: serverConfig)
     }
 
-    return Application(router: router, configuration: configuration)
+    return Application(
+        router: router,
+        configuration: configuration,
+        services: [MessageStoreService(store: store)],
+        logger: logger
+    )
 }

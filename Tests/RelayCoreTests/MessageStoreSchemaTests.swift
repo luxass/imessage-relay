@@ -3,7 +3,7 @@ import Testing
 @testable import RelayCore
 
 @Test
-func missingOptionalColumnsUseSafeDefaults() throws {
+func missingOptionalColumnsUseSafeDefaults() async throws {
     let fixture = try MessageDatabaseFixture(
         options: .init(
             includeReadState: false,
@@ -24,9 +24,9 @@ func missingOptionalColumnsUseSafeDefaults() throws {
         INSERT INTO message_attachment_join (message_id, attachment_id) VALUES (100, 700);
         """)
 
-    let store = try fixture.makeStore()
-    let messages = try store.messages(chatID: 1, includeAttachments: true)
-    let message = try #require(messages.first)
+    let store = fixture.makeStore()
+    let messages = try await store.messages(chatID: 1, includeAttachments: true)
+    let message = try #require(messages.items.first)
     let attachment = try #require(message.attachments.first)
 
     #expect(message.text == "hello")
@@ -37,5 +37,5 @@ func missingOptionalColumnsUseSafeDefaults() throws {
     #expect(attachment.mimeType.isEmpty)
     #expect(attachment.totalBytes == 0)
     #expect(!attachment.isSticker)
-    #expect(try store.chats().first?.unreadCount == 0)
+    #expect(try await store.chats().items.first?.unreadCount == 0)
 }

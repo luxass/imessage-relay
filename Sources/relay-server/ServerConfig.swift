@@ -32,11 +32,21 @@ struct ServerConfig: Sendable {
         }
     }
 
-    /// Recipients are compared loosely: case-insensitive, and phone numbers
-    /// match regardless of spaces, dashes, or parentheses.
+    /// Phone numbers match across common formatting. Other handles retain
+    /// punctuation and Unicode so distinct addresses cannot collide.
     static func normalizeRecipient(_ value: String) -> String {
-        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyz0123456789@.+")
-        let scalars = value.lowercased().unicodeScalars.filter { allowed.contains($0) }
-        return String(String.UnicodeScalarView(scalars))
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        let phoneFormatting = CharacterSet.whitespaces.union(
+            CharacterSet(charactersIn: "()-")
+        )
+        let phoneScalars = trimmed.unicodeScalars.filter { !phoneFormatting.contains($0) }
+        let phoneBody = phoneScalars.first == "+" ? phoneScalars.dropFirst() : phoneScalars[...]
+
+        if !phoneBody.isEmpty,
+           phoneBody.allSatisfy({ CharacterSet.decimalDigits.contains($0) }) {
+            return String(String.UnicodeScalarView(phoneScalars))
+        }
+
+        return trimmed.lowercased()
     }
 }

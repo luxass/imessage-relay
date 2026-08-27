@@ -1,11 +1,11 @@
 import Hummingbird
 import HummingbirdRouter
-import NIOCore
+import RelayCore
 
 struct AttachmentsController: RouterController {
     typealias Context = RelayRequestContext
 
-    let store: StoreProvider
+    let store: MessageStore
 
     var body: some RouterMiddleware<Context> {
         Get("attachments/:rowid", handler: download)
@@ -14,19 +14,37 @@ struct AttachmentsController: RouterController {
     @Sendable private func download(
         _ request: Request,
         context: Context
-    ) throws -> Response {
+    ) async throws -> Response {
         guard let rowid = context.parameters.get("rowid", as: Int64.self), rowid > 0 else {
             throw HTTPError(.badRequest, message: "path parameter :rowid must be a positive attachment rowid")
         }
-        guard let file = try withStoreErrorMapping({
-            try store.withStore { try $0.attachmentData(rowid: rowid) }
+        guard let resource = try await withStoreErrorMapping(logger: context.logger, {
+            try await store.attachmentResource(rowid: rowid)
         }) else {
             throw HTTPError(.notFound, message: "attachment not found or backing file missing")
         }
+        let body = try await Self.responseBody(for: resource, context: context)
         return Response(
             status: .ok,
-            headers: [.contentType: file.mimeType],
-            body: .init(byteBuffer: ByteBuffer(bytes: file.data))
+            headers: [.contentType: resource.mimeType],
+            body: body
         )
+    }
+
+    static func responseBody(
+        for resource: MessageStore.AttachmentResource,
+        context: some RequestContext
+    ) async throws -> ResponseBody {
+        let chunkLength = 128 * 1024
+        return ResponseBody(contentLength: Int(exactly: resource.byteCount)) { writer in
+            var offset: Int64 = 0
+            while offset < resource.byteCount {
+                let data = try await resource.readChunk(atOffset: offset, upToCount: chunkLength)
+                guard !data.isEmpty else { break }
+                try await writer.write(ByteBuffer(bytes: data))
+                offset += Int64(data.count)
+            }
+            try await writer.finish(nil)
+        }
     }
 }

@@ -10,6 +10,7 @@ final class MessageDatabaseFixture {
         var includeReplies = true
         var includeReceipts = true
         var includeAttachmentMetadata = true
+        var dateStorageType = "REAL"
     }
 
     enum FixtureError: Error {
@@ -39,10 +40,16 @@ final class MessageDatabaseFixture {
             throw FixtureError.cannotOpen(detail)
         }
         database = handle
-
-        try createSchema(options: options)
-        if seedData {
-            try seed(unreadInChat1: unreadInChat1)
+        do {
+            try createSchema(options: options)
+            if seedData {
+                try seed(unreadInChat1: unreadInChat1)
+            }
+        } catch {
+            sqlite3_close(database)
+            database = nil
+            try? FileManager.default.removeItem(at: directory)
+            throw error
         }
     }
 
@@ -51,8 +58,12 @@ final class MessageDatabaseFixture {
         try? FileManager.default.removeItem(at: directory)
     }
 
-    func makeStore() throws -> MessageStore {
-        try MessageStore(path: path)
+    func makeStore() -> MessageStore {
+        MessageStore(path: path)
+    }
+
+    func makeSQLiteStore() throws -> SQLiteMessageStore {
+        try SQLiteMessageStore(path: path)
     }
 
     func execute(_ sql: String) throws {
@@ -89,7 +100,7 @@ final class MessageDatabaseFixture {
                 text TEXT,
                 handle_id INTEGER,
                 is_from_me INTEGER DEFAULT 0,
-                date REAL
+                date \(options.dateStorageType)
                 \(readState)
                 \(reactions)
                 \(replies)

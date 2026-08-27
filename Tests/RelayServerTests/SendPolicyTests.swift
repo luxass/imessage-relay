@@ -51,6 +51,59 @@ final class ServerConfigTests: XCTestCase {
         XCTAssertEqual(ServerConfig.normalizeRecipient("+1 202 555 0123"), ServerConfig.normalizeRecipient("+12025550123"))
         XCTAssertEqual(ServerConfig.normalizeRecipient("(415) 555-1212"), ServerConfig.normalizeRecipient("4155551212"))
     }
+
+    func testAddressPunctuationDoesNotCollide() {
+        let pairs = [
+            ("recipient_tag@example.com", "recipienttag@example.com"),
+            ("recipient-tag@example.com", "recipienttag@example.com"),
+            ("first.last@example.com", "firstlast@example.com"),
+            ("recipient+tag@example.com", "recipient@example.com"),
+            ("usér@example.com", "usr@example.com"),
+        ]
+
+        for (first, second) in pairs {
+            XCTAssertNotEqual(
+                ServerConfig.normalizeRecipient(first),
+                ServerConfig.normalizeRecipient(second)
+            )
+        }
+    }
+
+    func testMalformedPhoneLikeHandlesPreserveIdentity() {
+        XCTAssertEqual(
+            ServerConfig.normalizeRecipient("+1-800-FLOWERS"),
+            "+1-800-flowers"
+        )
+        XCTAssertNotEqual(
+            ServerConfig.normalizeRecipient("+1-800-FLOWERS"),
+            ServerConfig.normalizeRecipient("+1800flowers")
+        )
+    }
+
+    func testNormalizationTrimsOnlySurroundingWhitespace() {
+        XCTAssertEqual(
+            ServerConfig.normalizeRecipient(" \tRECIPIENT_TAG@EXAMPLE.COM\n"),
+            "recipient_tag@example.com"
+        )
+        XCTAssertEqual(ServerConfig.normalizeRecipient(" \t\n"), "")
+        XCTAssertNotEqual(
+            ServerConfig.normalizeRecipient("opaque handle"),
+            ServerConfig.normalizeRecipient("opaquehandle")
+        )
+    }
+
+    func testEnvironmentAndAuthorizationUseSameCanonicalization() {
+        let environmentConfig = ServerConfig.fromEnvironment([
+            "RELAY_ALLOWED_RECIPIENTS": " +1 (202) 555-0123 , Recipient_Tag@Example.com ",
+            "RELAY_CHAT_DB_PATH": "/synthetic/chat.db",
+        ])
+
+        XCTAssertTrue(environmentConfig.allowsAll(recipients: [
+            "+12025550123",
+            "recipient_tag@example.com",
+        ]))
+        XCTAssertFalse(environmentConfig.allowsAll(recipients: ["recipienttag@example.com"]))
+    }
 }
 
 final class BearerAuthTests: XCTestCase {
