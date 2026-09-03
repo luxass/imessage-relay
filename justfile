@@ -10,6 +10,10 @@ default: build
 @build-release:
     swift build -c release --arch arm64 --arch x86_64
 
+# Build and verify the release archive in dist/.
+@package-release version="" output_dir="dist":
+    ./scripts/package-release.sh "{{version}}" "{{output_dir}}"
+
 # Run the full test suite.
 @test:
     swift test
