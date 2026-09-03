@@ -119,6 +119,31 @@ just test
 just build
 ```
 
+## Create a release archive
+
+Build and verify the universal archive locally:
+
+```sh
+just package-release
+```
+
+The command writes these files to `dist/`:
+
+- `relay-server-macos-universal.tar.gz`
+- `relay-server-macos-universal.tar.gz.sha256`
+
+The packaging script checks the binary version, architectures, ad hoc
+signature, archive contents, and checksum. Pass a version to require it to
+match `packageVersion`:
+
+```sh
+just package-release 0.1.0
+```
+
+Pushing a matching tag, such as `v0.1.0`, runs the same packaging script and
+publishes both files to a GitHub release. Run the Release workflow manually to
+build the artifacts without publishing a release.
+
 ## 📄 License
 
 Published under [MIT License](./LICENSE).
