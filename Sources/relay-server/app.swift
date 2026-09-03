@@ -4,6 +4,12 @@ import RelayCore
 
 @main
 struct HummingbirdArguments: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "relay-server",
+        abstract: "Expose Apple Messages as a local HTTP API.",
+        version: packageVersion
+    )
+
     @Option(name: .shortAndLong)
     var hostname: String = "127.0.0.1"
 
