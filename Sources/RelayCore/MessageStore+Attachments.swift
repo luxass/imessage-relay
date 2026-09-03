@@ -10,8 +10,42 @@ private final class AttachmentDescriptor: @unchecked Sendable {
     deinit { close(value) }
 }
 
-private func openRegularAttachment(at fileURL: URL) -> (descriptor: Int32, byteCount: Int64)? {
-    let descriptor = open(fileURL.path, O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
+private func openRegularAttachment(
+    at fileURL: URL,
+    within attachmentDirectory: URL
+) -> (descriptor: Int32, byteCount: Int64)? {
+    let directoryComponents = attachmentDirectory.standardizedFileURL.pathComponents
+    let fileComponents = fileURL.standardizedFileURL.pathComponents
+    guard fileComponents.count > directoryComponents.count,
+          fileComponents.prefix(directoryComponents.count).elementsEqual(directoryComponents) else {
+        return nil
+    }
+
+    var directoryDescriptor = open(
+        attachmentDirectory.path,
+        O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC
+    )
+    guard directoryDescriptor >= 0 else { return nil }
+    defer { close(directoryDescriptor) }
+
+    let relativeComponents = fileComponents.dropFirst(directoryComponents.count)
+    for component in relativeComponents.dropLast() {
+        let nextDescriptor = openat(
+            directoryDescriptor,
+            component,
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC
+        )
+        guard nextDescriptor >= 0 else { return nil }
+        close(directoryDescriptor)
+        directoryDescriptor = nextDescriptor
+    }
+
+    guard let filename = relativeComponents.last else { return nil }
+    let descriptor = openat(
+        directoryDescriptor,
+        filename,
+        O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC
+    )
     guard descriptor >= 0 else { return nil }
     var status = stat()
     guard fstat(descriptor, &status) == 0,
@@ -92,14 +126,23 @@ extension SQLiteMessageStore {
         rowid: Int64,
         threadPool: NIOThreadPool
     ) throws -> MessageStore.AttachmentResource? {
-        guard schema.hasTable("attachment"), schema.hasColumn("filename", in: "attachment") else {
+        guard schema.hasTable("attachment"),
+              schema.hasColumn("filename", in: "attachment"),
+              schema.hasTable("message_attachment_join"),
+              schema.hasTable("message") else {
             return nil
         }
         let mimeType = schema.expression("mime_type", in: "attachment", alias: "a", fallback: "''")
         let descriptor: (path: String, mimeType: String)? = try connection.withStatement("""
             SELECT COALESCE(a.filename, ''), COALESCE(\(mimeType), '')
-              FROM attachment a
+             FROM attachment a
              WHERE a.ROWID = ?
+               AND EXISTS (
+                   SELECT 1
+                     FROM message_attachment_join aj
+                     JOIN message m ON m.ROWID = aj.message_id
+                    WHERE aj.attachment_id = a.ROWID
+               )
             """) { statement in
             sqlite3_bind_int64(statement, 1, rowid)
             switch sqlite3_step(statement) {
@@ -114,7 +157,13 @@ extension SQLiteMessageStore {
         guard let descriptor else { return nil }
 
         let fileURL = URL(fileURLWithPath: (descriptor.path as NSString).expandingTildeInPath)
-        guard let opened = openRegularAttachment(at: fileURL) else {
+        let attachmentDirectory = URL(fileURLWithPath: path)
+            .deletingLastPathComponent()
+            .appendingPathComponent("Attachments", isDirectory: true)
+        guard let opened = openRegularAttachment(
+            at: fileURL,
+            within: attachmentDirectory
+        ) else {
             return nil
         }
         return MessageStore.AttachmentResource(

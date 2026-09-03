@@ -162,8 +162,9 @@ GET /attachments/:rowid
 
 `:rowid` is the positive attachment row ID from message attachment metadata.
 The response body contains the attachment bytes and uses the stored MIME type
-as its `Content-Type`. The API returns `404` if either the attachment record or
-its backing file is missing.
+as its `Content-Type`. The attachment row must link to an existing message. The
+backing file must be inside the `Attachments` directory beside the configured
+`chat.db`. The API returns `404` when any of these conditions fail.
 
 Attachment metadata contains `id`, `transfer_name`, `mime_type`, `uti`,
 `total_bytes`, `is_sticker`, and `missing`. Local `filename` and

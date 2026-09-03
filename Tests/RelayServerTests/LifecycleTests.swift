@@ -5,6 +5,19 @@ import XCTest
 @testable import relay_server
 
 final class LifecycleTests: XCTestCase {
+    func testFoundationRunnerProvidesStandardInputToOsascript() async throws {
+        let runner = FoundationSendProcessRunner()
+        let result = try await runner.run(
+            executablePath: "/usr/bin/osascript",
+            arguments: [],
+            standardInput: Data("return true".utf8),
+            timeout: .seconds(2),
+            terminationGrace: .milliseconds(100)
+        )
+
+        XCTAssertEqual(result, .exited(0))
+    }
+
     func testCancellationBeforeLaunchDoesNotCreateProcess() async {
         let state = FakeProcessState()
         let runner = FoundationSendProcessRunner { _, _ in
@@ -16,6 +29,7 @@ final class LifecycleTests: XCTestCase {
             return try await runner.run(
                 executablePath: "/never/launched",
                 arguments: [],
+                standardInput: Data(),
                 timeout: .seconds(1),
                 terminationGrace: .milliseconds(10)
             )
@@ -31,6 +45,24 @@ final class LifecycleTests: XCTestCase {
         }
     }
 
+    func testInputFailureAfterLaunchIsUncertainAndStopsProcess() async throws {
+        let state = FakeProcessState()
+        let runner = FoundationSendProcessRunner { _, _ in
+            FakeProcess(state: state, failsStandardInput: true)
+        }
+
+        let result = try await runner.run(
+            executablePath: "/fake/process",
+            arguments: [],
+            standardInput: Data("synthetic".utf8),
+            timeout: .seconds(1),
+            terminationGrace: .milliseconds(10)
+        )
+
+        XCTAssertEqual(result, .inputFailed("synthetic input failure"))
+        XCTAssertEqual(state.events, ["run", "input", "terminate", "kill"])
+    }
+
     func testCancellationTerminatesThenEscalatesFakeProcess() async throws {
         let state = FakeProcessState()
         let runner = FoundationSendProcessRunner { _, _ in FakeProcess(state: state) }
@@ -38,6 +70,7 @@ final class LifecycleTests: XCTestCase {
             try await runner.run(
                 executablePath: "/fake/process",
                 arguments: [],
+                standardInput: Data(),
                 timeout: .seconds(10),
                 terminationGrace: .milliseconds(10)
             )
@@ -49,7 +82,7 @@ final class LifecycleTests: XCTestCase {
             _ = try await task.value
             XCTFail("Expected cancellation")
         } catch is CancellationError {
-            XCTAssertEqual(state.events, ["run", "terminate", "kill"])
+            XCTAssertEqual(state.events, ["run", "input", "terminate", "kill"])
         }
     }
 
@@ -112,16 +145,28 @@ private final class FakeProcessState: @unchecked Sendable {
 
     func markCreated() { lock.withLock { storedCreated = true } }
     func run() { lock.withLock { storedEvents.append("run"); running = true } }
+    func writeStandardInput() { lock.withLock { storedEvents.append("input") } }
     func terminate() { lock.withLock { storedEvents.append("terminate") } }
     func kill() { lock.withLock { storedEvents.append("kill"); running = false } }
 }
 
 private struct FakeProcess: SendProcess {
     let state: FakeProcessState
+    var failsStandardInput = false
 
     var isRunning: Bool { state.isRunning }
     var terminationStatus: Int32 { 0 }
     func run() throws { state.run() }
+    func writeStandardInput(_ data: Data) throws {
+        state.writeStandardInput()
+        if failsStandardInput { throw FakeProcessError.inputFailure }
+    }
     func terminate() { state.terminate() }
     func forceKill() { state.kill() }
+}
+
+private enum FakeProcessError: Error, CustomStringConvertible {
+    case inputFailure
+
+    var description: String { "synthetic input failure" }
 }

@@ -36,7 +36,12 @@ final class ServerDatabaseFixture: @unchecked Sendable {
         }
         database = handle
 
-        let attachmentPath = directory.appendingPathComponent("fixture.txt")
+        let attachmentDirectory = directory.appendingPathComponent("Attachments")
+        try FileManager.default.createDirectory(
+            at: attachmentDirectory,
+            withIntermediateDirectories: true
+        )
+        let attachmentPath = attachmentDirectory.appendingPathComponent("fixture.txt")
         try attachmentData.write(to: attachmentPath)
         try execute("""
             CREATE TABLE chat (
@@ -184,6 +189,7 @@ final class FakeSendProcessRunner: SendProcessRunning, @unchecked Sendable {
     struct Invocation: Sendable {
         let executablePath: String
         let arguments: [String]
+        let standardInput: Data
         let timeout: Duration
         let terminationGrace: Duration
     }
@@ -203,6 +209,7 @@ final class FakeSendProcessRunner: SendProcessRunning, @unchecked Sendable {
     func run(
         executablePath: String,
         arguments: [String],
+        standardInput: Data,
         timeout: Duration,
         terminationGrace: Duration
     ) async -> SendProcessResult {
@@ -210,6 +217,7 @@ final class FakeSendProcessRunner: SendProcessRunning, @unchecked Sendable {
             recordedInvocations.append(.init(
                 executablePath: executablePath,
                 arguments: arguments,
+                standardInput: standardInput,
                 timeout: timeout,
                 terminationGrace: terminationGrace
             ))

@@ -27,15 +27,15 @@ func messageAttachmentsExposeDownloadRowID() async throws {
 @Test
 func attachmentResourcesReportExactSizeAndMimeFallback() async throws {
     let fixture = try MessageDatabaseFixture()
-    let fileURL = FileManager.default.temporaryDirectory
-        .appendingPathComponent("relay-attachment-\(UUID().uuidString)")
+    let fileURL = try attachmentURL(for: fixture, name: "size-and-mime.bin")
     let bytes = Data([0x00, 0x01, 0x7F, 0xFF])
     try bytes.write(to: fileURL)
-    defer { try? FileManager.default.removeItem(at: fileURL) }
     try fixture.execute("""
         INSERT INTO attachment (ROWID, filename, mime_type, total_bytes)
         VALUES (701, '\(fileURL.path)', '', 999),
                (702, '/synthetic/missing/file', 'text/plain', 12);
+        INSERT INTO message_attachment_join (message_id, attachment_id)
+        VALUES (100, 701), (100, 702);
         """)
 
     let store = fixture.makeStore()
@@ -49,18 +49,17 @@ func attachmentResourcesReportExactSizeAndMimeFallback() async throws {
 @Test
 func attachmentResourcesRejectDirectoriesAndSymlinks() async throws {
     let fixture = try MessageDatabaseFixture()
-    let directory = FileManager.default.temporaryDirectory
-        .appendingPathComponent("relay-attachment-directory-\(UUID().uuidString)")
+    let directory = try attachmentDirectory(for: fixture)
     let file = directory.appendingPathComponent("file.txt")
     let symlink = directory.appendingPathComponent("link.txt")
-    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-    defer { try? FileManager.default.removeItem(at: directory) }
     try Data("safe".utf8).write(to: file)
     try FileManager.default.createSymbolicLink(at: symlink, withDestinationURL: file)
     try fixture.execute("""
         INSERT INTO attachment (ROWID, filename) VALUES
             (703, '\(directory.path)'),
             (704, '\(symlink.path)');
+        INSERT INTO message_attachment_join (message_id, attachment_id)
+        VALUES (100, 703), (100, 704);
         """)
 
     let store = fixture.makeStore()
@@ -69,16 +68,65 @@ func attachmentResourcesRejectDirectoriesAndSymlinks() async throws {
 }
 
 @Test
+func attachmentResourcesRequireMessageLinkAndAttachmentDirectory() async throws {
+    let fixture = try MessageDatabaseFixture()
+    let databaseDirectory = URL(fileURLWithPath: fixture.path).deletingLastPathComponent()
+    let attachmentDirectory = databaseDirectory.appendingPathComponent("Attachments")
+    let orphan = attachmentDirectory.appendingPathComponent("orphan.txt")
+    let dangling = attachmentDirectory.appendingPathComponent("dangling.txt")
+    let linked = attachmentDirectory.appendingPathComponent("linked.txt")
+    let outsideDirectory = FileManager.default.temporaryDirectory
+        .appendingPathComponent("relay-attachment-outside-\(UUID().uuidString)")
+    let outside = outsideDirectory.appendingPathComponent("outside.txt")
+    let escapedDirectory = attachmentDirectory.appendingPathComponent("escaped")
+    let escaped = escapedDirectory.appendingPathComponent("outside.txt")
+    try FileManager.default.createDirectory(
+        at: attachmentDirectory,
+        withIntermediateDirectories: true
+    )
+    try Data("orphan".utf8).write(to: orphan)
+    try Data("dangling".utf8).write(to: dangling)
+    try Data("linked".utf8).write(to: linked)
+    try FileManager.default.createDirectory(at: outsideDirectory, withIntermediateDirectories: true)
+    try Data("outside".utf8).write(to: outside)
+    try FileManager.default.createSymbolicLink(
+        at: escapedDirectory,
+        withDestinationURL: outsideDirectory
+    )
+    defer { try? FileManager.default.removeItem(at: outsideDirectory) }
+    try fixture.execute("""
+        INSERT INTO attachment (ROWID, filename) VALUES
+            (707, '\(orphan.path)'),
+            (708, '\(dangling.path)'),
+            (709, '\(outside.path)'),
+            (710, '\(linked.path)'),
+            (711, '\(escaped.path)');
+        INSERT INTO message_attachment_join (message_id, attachment_id) VALUES
+            (9999, 708),
+            (100, 709),
+            (100, 710),
+            (100, 711);
+        """)
+
+    let store = fixture.makeStore()
+    #expect(try await store.attachmentResource(rowid: 707) == nil)
+    #expect(try await store.attachmentResource(rowid: 708) == nil)
+    #expect(try await store.attachmentResource(rowid: 709) == nil)
+    #expect(try await store.attachmentResource(rowid: 710) != nil)
+    #expect(try await store.attachmentResource(rowid: 711) == nil)
+}
+
+@Test
 func attachmentResourcesKeepStableDescriptorAndBoundChunks() async throws {
     let fixture = try MessageDatabaseFixture()
-    let fileURL = FileManager.default.temporaryDirectory
-        .appendingPathComponent("relay-attachment-stable-\(UUID().uuidString)")
+    let fileURL = try attachmentURL(for: fixture, name: "stable.bin")
     let original = Data(repeating: 0x41, count: 128 * 1024 + 17)
     try original.write(to: fileURL)
-    defer { try? FileManager.default.removeItem(at: fileURL) }
     try fixture.execute("""
         INSERT INTO attachment (ROWID, filename, mime_type)
         VALUES (705, '\(fileURL.path)', 'application/octet-stream');
+        INSERT INTO message_attachment_join (message_id, attachment_id)
+        VALUES (100, 705);
         """)
 
     let store = fixture.makeStore()
@@ -94,12 +142,12 @@ func attachmentResourcesKeepStableDescriptorAndBoundChunks() async throws {
 @Test
 func attachmentReadsRejectAfterOwningStoreShutdown() async throws {
     let fixture = try MessageDatabaseFixture()
-    let fileURL = FileManager.default.temporaryDirectory
-        .appendingPathComponent("relay-attachment-shutdown-\(UUID().uuidString)")
+    let fileURL = try attachmentURL(for: fixture, name: "shutdown.txt")
     try Data("content".utf8).write(to: fileURL)
-    defer { try? FileManager.default.removeItem(at: fileURL) }
     try fixture.execute("""
         INSERT INTO attachment (ROWID, filename) VALUES (706, '\(fileURL.path)');
+        INSERT INTO message_attachment_join (message_id, attachment_id)
+        VALUES (100, 706);
         """)
 
     let store = fixture.makeStore()
@@ -130,4 +178,16 @@ func redactedAttachmentEncodingCanBeDecoded() async throws {
     #expect(decoded.filename.isEmpty)
     #expect(decoded.originalPath == nil)
     #expect(decoded.transferName == attachment.transferName)
+}
+
+private func attachmentDirectory(for fixture: MessageDatabaseFixture) throws -> URL {
+    let directory = URL(fileURLWithPath: fixture.path)
+        .deletingLastPathComponent()
+        .appendingPathComponent("Attachments")
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    return directory
+}
+
+private func attachmentURL(for fixture: MessageDatabaseFixture, name: String) throws -> URL {
+    try attachmentDirectory(for: fixture).appendingPathComponent(name)
 }

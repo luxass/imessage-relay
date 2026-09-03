@@ -35,6 +35,7 @@ protocol MessageSending: Sendable {
 
 enum SendProcessResult: Equatable, Sendable {
     case launchFailed(String)
+    case inputFailed(String)
     case exited(Int32)
     case timedOut
     case failedToTerminate
@@ -44,6 +45,7 @@ protocol SendProcessRunning: Sendable {
     func run(
         executablePath: String,
         arguments: [String],
+        standardInput: Data,
         timeout: Duration,
         terminationGrace: Duration
     ) async throws -> SendProcessResult
@@ -53,24 +55,38 @@ protocol SendProcess: Sendable {
     var isRunning: Bool { get }
     var terminationStatus: Int32 { get }
     func run() throws
+    func writeStandardInput(_ data: Data) throws
     func terminate()
     func forceKill()
 }
 
 private final class FoundationProcess: SendProcess, @unchecked Sendable {
     private let process: Process
+    private let inputWriter: FileHandle
 
     init(executablePath: String, arguments: [String]) {
+        let inputPipe = Pipe()
         process = Process()
         process.executableURL = URL(fileURLWithPath: executablePath)
         process.arguments = arguments
+        process.standardInput = inputPipe
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
+        inputWriter = inputPipe.fileHandleForWriting
     }
 
     var isRunning: Bool { process.isRunning }
     var terminationStatus: Int32 { process.terminationStatus }
     func run() throws { try process.run() }
+    func writeStandardInput(_ data: Data) throws {
+        do {
+            try inputWriter.write(contentsOf: data)
+            try inputWriter.close()
+        } catch {
+            try? inputWriter.close()
+            throw error
+        }
+    }
     func terminate() { process.terminate() }
     func forceKill() { _ = kill(process.processIdentifier, SIGKILL) }
 }
@@ -88,6 +104,7 @@ struct FoundationSendProcessRunner: SendProcessRunning {
     func run(
         executablePath: String,
         arguments: [String],
+        standardInput: Data,
         timeout: Duration,
         terminationGrace: Duration
     ) async throws -> SendProcessResult {
@@ -99,6 +116,12 @@ struct FoundationSendProcessRunner: SendProcessRunning {
             try process.run()
         } catch {
             return .launchFailed(String(describing: error))
+        }
+        do {
+            try process.writeStandardInput(standardInput)
+        } catch {
+            await stop(process, terminationGrace: terminationGrace)
+            return .inputFailed(String(describing: error))
         }
 
         do {
@@ -191,7 +214,8 @@ struct MessageSender: MessageSending {
 
         let result = try await processRunner.run(
             executablePath: osascriptPath,
-            arguments: ["-e", script],
+            arguments: [],
+            standardInput: Data(script.utf8),
             timeout: timeout,
             terminationGrace: terminationGrace
         )
@@ -200,6 +224,8 @@ struct MessageSender: MessageSending {
             return SendResult(ok: true, guid: nil)
         case .launchFailed(let detail):
             throw SenderError.notStarted(detail: "Could not launch osascript. \(detail)")
+        case .inputFailed(let detail):
+            throw SenderError.uncertain(detail: "Could not provide the script to osascript. \(detail)")
         case .exited(let exitCode):
             throw SenderError.uncertain(detail: "osascript exited \(exitCode).")
         case .timedOut:

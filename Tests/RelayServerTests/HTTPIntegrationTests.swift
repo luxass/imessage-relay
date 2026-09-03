@@ -187,6 +187,14 @@ func requestLogsRedactPrivateValues() async throws {
 func attachmentRoute() async throws {
     let fixture = try ServerDatabaseFixture()
     let app = makeTestApplication(databasePath: fixture.path)
+    let orphanURL = URL(fileURLWithPath: fixture.path)
+        .deletingLastPathComponent()
+        .appendingPathComponent("Attachments/orphan.txt")
+    try Data("orphan attachment".utf8).write(to: orphanURL)
+    try fixture.execute("""
+        INSERT INTO attachment (ROWID, filename, mime_type)
+        VALUES (8, '\(orphanURL.path)', 'text/plain');
+        """)
 
     try await app.test(.router) { client in
         let found = try await client.execute(uri: "/attachments/7", method: .get)
@@ -197,6 +205,13 @@ func attachmentRoute() async throws {
         let missing = try await client.execute(uri: "/attachments/999", method: .get)
         try expectJSONError(
             missing,
+            status: .notFound,
+            message: "attachment not found or backing file missing"
+        )
+
+        let orphan = try await client.execute(uri: "/attachments/8", method: .get)
+        try expectJSONError(
+            orphan,
             status: .notFound,
             message: "attachment not found or backing file missing"
         )
@@ -309,6 +324,11 @@ func sendProcessOutcomes() async throws {
             "Send was never started (retry safe). Could not launch osascript. synthetic launch failure"
         ),
         (
+            .inputFailed("synthetic input failure"),
+            .internalServerError,
+            "Send may have completed; do not retry blindly. Could not provide the script to osascript. synthetic input failure"
+        ),
+        (
             .exited(7),
             .internalServerError,
             "Send may have completed; do not retry blindly. osascript exited 7."
@@ -358,6 +378,27 @@ func sendProcessOutcomes() async throws {
         #expect(response.status == .ok)
     }
     #expect(runner.invocations.count == 1)
+}
+
+@Test("send keeps message contents out of process arguments")
+func sendMessagePrivacy() async throws {
+    let sensitiveText = "private message content \(UUID().uuidString)"
+    let runner = FakeSendProcessRunner(result: .exited(0))
+    let sender = MessageSender(osascriptPath: "/synthetic/osascript", processRunner: runner)
+
+    _ = try await sender.send(SendRequest(
+        chatID: nil,
+        chatGuid: nil,
+        to: "+15551230001",
+        text: sensitiveText
+    ))
+
+    let invocation = try #require(runner.invocations.first)
+    #expect(invocation.arguments.isEmpty)
+    #expect(!invocation.arguments.joined(separator: " ").contains(sensitiveText))
+    let script = try #require(String(data: invocation.standardInput, encoding: .utf8))
+    #expect(script.contains(sensitiveText))
+    #expect(script.contains("+15551230001"))
 }
 
 @Test("send authorization preserves direct address identity")
