@@ -36,6 +36,7 @@ cleanup() {
 trap cleanup EXIT
 
 cd "${repo_root}"
+./scripts/check-swift-version.sh
 swift build -c release --arch arm64 --arch x86_64
 binary_dir="$(swift build -c release --arch arm64 --arch x86_64 --show-bin-path)"
 binary_path="${binary_dir}/relay-server"

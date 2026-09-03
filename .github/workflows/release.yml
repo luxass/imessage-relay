@@ -40,6 +40,13 @@ jobs:
         with:
           tool: just
 
+      - name: macOS version
+        run: sw_vers
+      - name: Swift version
+        run: swift --version
+      - name: Check Swift version
+        run: just check-toolchain
+
       - name: Install SwiftLint
         run: |
           curl --proto '=https' --tlsv1.2 -fsSL \

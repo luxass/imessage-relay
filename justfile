@@ -14,6 +14,10 @@ default: build
 @package-release version="" output_dir="dist":
     ./scripts/package-release.sh "{{version}}" "{{output_dir}}"
 
+# Verify that Swift matches the range declared by Package.swift.
+@check-toolchain:
+    ./scripts/check-swift-version.sh
+
 # Run the full test suite.
 @test:
     swift test

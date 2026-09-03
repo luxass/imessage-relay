@@ -3,4 +3,3 @@
 dist/
 .swiftpm
 *.xcodeproj
-Package.resolved

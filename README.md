@@ -27,7 +27,7 @@ The binary requires macOS 14 or newer. It is ad hoc signed and not notarized.
 <details>
 <summary>Build from source</summary><br/>
 
-Building requires Swift 6.1 or newer.
+Building requires Swift 6.1 or a newer Swift 6 release.
 
 ```sh
 git clone https://github.com/luxass/imessage-relay.git

@@ -40,6 +40,13 @@ jobs:
         run: sw_vers
       - name: Swift version
         run: swift --version
+      - name: Check Swift version
+        run: just check-toolchain
+
+      - name: Verify resolved dependencies
+        run: |
+          swift package resolve
+          git diff --exit-code -- Package.resolved
 
       - name: Install SwiftLint
         run: |
