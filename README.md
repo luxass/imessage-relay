@@ -128,7 +128,7 @@ pnpm install
 pnpm dev
 ```
 
-Cloudflare Pages deployment settings are in the [docs setup guide](docs/README.md#cloudflare-pages).
+Cloudflare Workers deployment settings are in the [docs setup guide](docs/README.md#cloudflare-workers).
 
 ## Create a release archive
 

@@ -6,7 +6,8 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "check": "astro check"
+    "check": "astro check",
+    "deploy": "wrangler deploy"
   },
   "dependencies": {
     "@astrojs/starlight": "catalog:astro",
@@ -14,6 +15,7 @@
   },
   "devDependencies": {
     "@astrojs/check": "catalog:tooling",
-    "typescript": "catalog:tooling"
+    "typescript": "catalog:tooling",
+    "wrangler": "catalog:tooling"
   }
 }

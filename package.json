@@ -9,6 +9,7 @@
     "dev": "pnpm --filter imessage-relay-docs dev",
     "build": "pnpm --filter imessage-relay-docs build",
     "check": "pnpm --filter imessage-relay-docs check",
-    "preview": "pnpm --filter imessage-relay-docs preview"
+    "preview": "pnpm --filter imessage-relay-docs preview",
+    "deploy": "pnpm --filter imessage-relay-docs run deploy"
   }
 }

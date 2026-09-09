@@ -12,27 +12,40 @@ Use `pnpm check` to check the project, `pnpm build` to build the static site, an
 
 Edit pages in `docs/src/content/docs/`. The Swift relay does not depend on this project.
 
-## Cloudflare Pages
+## Cloudflare Workers
 
-Connect this repository to a Cloudflare Pages project using these settings:
+Connect this repository to the `imsg-relay-docs` Worker using these build settings:
 
 | Setting | Value |
 | --- | --- |
 | Production branch | `main` |
 | Root directory | Repository root, leave blank |
 | Build command | `pnpm build` |
-| Build output directory | `docs/dist` |
+| Deploy command | `pnpm run deploy` |
 | Environment variable | `NODE_VERSION=24.18.0` |
 | Environment variable | `PNPM_VERSION=12.3.4` |
+| Environment variable | `SITE_URL` set to the full production URL |
 
-Cloudflare installs dependencies before running the build. Commit the root `pnpm-lock.yaml`
-so deployments use the same dependency versions as local builds.
+Cloudflare installs dependencies with the root `pnpm-lock.yaml`. The deploy command
+uses the pinned Wrangler dependency and `docs/wrangler.jsonc` to upload `docs/dist`.
+Do not use `npx wrangler deploy`: the deployment must use the installed pnpm dependency.
 
-Set `SITE_URL` to the full production URL after choosing your Pages project name
-or custom domain. Without it, the build uses Cloudflare's `CF_PAGES_URL`.
-Local builds can omit both variables.
+If the existing Cloudflare project keeps `docs` as its root directory, the same
+`pnpm build` and `pnpm run deploy` commands work from there too.
 
-This site is static and needs no Cloudflare adapter, runtime bindings, or relay
-credentials. Cloudflare hosts the documentation; the relay runs on your Mac.
+For a manual deployment, authenticate Wrangler with your Cloudflare account, then
+run `pnpm build` followed by `pnpm run deploy` from the repository root. To validate the
+upload configuration without publishing, run:
 
-See [Cloudflare's Astro guide](https://developers.cloudflare.com/pages/framework-guides/deploy-an-astro-site/).
+```sh
+pnpm --filter imessage-relay-docs exec wrangler deploy --dry-run
+```
+
+Set `SITE_URL` before building to generate the sitemap and canonical URLs. Workers
+Builds does not provide the Pages-specific `CF_PAGES_URL` fallback. Local builds
+can omit `SITE_URL`.
+
+The site uses Workers Static Assets with a custom 404 page. It needs no Astro
+Cloudflare adapter, Worker entry point, or relay credentials. The relay runs on your Mac.
+
+See [Cloudflare's Astro guide](https://developers.cloudflare.com/workers/framework-guides/web-apps/astro/).
