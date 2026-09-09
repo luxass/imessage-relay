@@ -1,0 +1,19 @@
+{
+  "name": "imessage-relay-docs",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "check": "astro check"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "catalog:astro",
+    "astro": "catalog:astro"
+  },
+  "devDependencies": {
+    "@astrojs/check": "catalog:tooling",
+    "typescript": "catalog:tooling"
+  }
+}

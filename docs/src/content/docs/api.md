@@ -1,4 +1,7 @@
-# API reference
+---
+title: API reference
+description: HTTP endpoints, query parameters, response details, and send error handling.
+---
 
 `relay-server` exposes an HTTP API at `http://127.0.0.1:8080` by default. Pass
 `--port <port>` or `--hostname <hostname>` to change the listen address.

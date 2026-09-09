@@ -78,7 +78,7 @@ curl -s -X POST localhost:8080/send \
 ```
 
 > [!TIP]
-> See the [API reference](docs/api.md) for all endpoints, query parameters,
+> See the [API reference](docs/src/content/docs/api.md) for all endpoints, query parameters,
 > cursor behavior, and response details.
 
 Opaque chat and message-history cursors belong to the database fingerprint returned by
@@ -118,6 +118,17 @@ just lint
 just test
 just build
 ```
+
+## Documentation site
+
+The Astro Starlight site lives in [`docs/`](docs/README.md). Use pnpm to work on it:
+
+```sh
+pnpm install
+pnpm dev
+```
+
+Cloudflare Pages deployment settings are in the [docs setup guide](docs/README.md#cloudflare-pages).
 
 ## Create a release archive
 
