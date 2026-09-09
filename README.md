@@ -4,8 +4,8 @@
 [![GitHub downloads][downloads-src]][downloads-href]
 [![CI][ci-src]][ci-href]
 
-Expose Apple Messages as a local HTTP API on macOS. Read and search chat
-history, and send texts from one native Swift binary.
+Expose Apple Messages as a local HTTP API on macOS. Read chat history, search
+messages within a chat, and send texts from one native Swift binary.
 
 Reads go directly to `~/Library/Messages/chat.db`. Sends use Messages.app's
 AppleScript interface. The relay does not use private frameworks or process
@@ -46,8 +46,11 @@ Grant the terminal or service that runs `relay-server` **Full Disk Access** in
 Start the relay:
 
 ```sh
-relay-server
+./relay-server
 ```
+
+If you set `RELAY_TOKEN`, add `-H 'Authorization: Bearer <token>'` to every
+request.
 
 From another terminal, check that the relay can read the Messages database:
 
@@ -66,7 +69,7 @@ Sending is disabled until you set `RELAY_ALLOWED_RECIPIENTS`. The first send
 also prompts for **Automation > Messages** permission.
 
 ```sh
-RELAY_ALLOWED_RECIPIENTS="+12025550123,mom@icloud.com" relay-server
+RELAY_ALLOWED_RECIPIENTS="+12025550123,mom@icloud.com" ./relay-server
 ```
 
 From another terminal, send a message:

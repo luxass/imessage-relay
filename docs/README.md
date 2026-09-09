@@ -45,7 +45,7 @@ Set `SITE_URL` before building to generate the sitemap and canonical URLs. Worke
 Builds does not provide the Pages-specific `CF_PAGES_URL` fallback. Local builds
 can omit `SITE_URL`.
 
-The site uses Workers Static Assets with a custom 404 page. It needs no Astro
+The site uses Workers Static Assets with Starlight's generated 404 page. It needs no Astro
 Cloudflare adapter, Worker entry point, or relay credentials. The relay runs on your Mac.
 
 See [Cloudflare's Astro guide](https://developers.cloudflare.com/workers/framework-guides/web-apps/astro/).

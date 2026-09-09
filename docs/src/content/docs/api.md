@@ -40,7 +40,7 @@ GET /status
 
 Returns the server version, database readiness and fingerprint, and sender
 status. `sender.capabilities` lists supported operations. `sender.available`
-reports whether the configured sender executable exists and is executable.
+reports whether `/usr/bin/osascript` exists and is executable.
 `sender.automation_permission` is `unknown` because this endpoint never launches
 the sender or triggers an Automation permission prompt.
 
@@ -76,6 +76,10 @@ exists. Chats with messages sort by last-message date descending, then chat row
 ID descending. Chats without messages follow, ordered by chat row ID
 descending. The server clamps `limit` to `1...200`.
 
+Each chat contains `id`, `guid`, `identifier`, `name`, `service`, `is_group`,
+`participants`, and `unread_count`. The server omits `display_name` when it is
+empty and omits `last_message_at` when the chat has no messages.
+
 ### Chat detail
 
 ```http
@@ -106,6 +110,11 @@ The API returns `404` if the chat does not exist.
 The response includes `items`, `has_more`, and `next_cursor` when another page
 exists. Each page is ordered chronologically. Following `next_cursor` traverses
 older messages. The server clamps `limit` to `1...500`.
+
+Each message contains `id`, `chat_id`, `guid`, `text`, `sender`, `is_from_me`,
+`created_at`, and `attachments`. The `attachments` field is an empty array
+unless `attachments=true`. The server omits delivery, reply, and reaction
+fields when they have no value.
 
 ```json
 {"items":[],"has_more":false}
@@ -148,7 +157,7 @@ allowlist. Matching is case-insensitive and ignores phone-number formatting.
 | Status | Meaning | Retry guidance |
 | --- | --- | --- |
 | `403` | The allowlist denies the recipient. | Change the allowlist or destination. |
-| `501` | The sender does not support the request. | Change the request. |
+| `501` | The sender implementation does not support the request. | Change the request. |
 | `502` | Dispatch failed before Messages.app sent anything. | Safe to retry. |
 | `500` | The outcome is uncertain. | Do not retry automatically. |
 
@@ -164,10 +173,11 @@ GET /attachments/:rowid
 ```
 
 `:rowid` is the positive attachment row ID from message attachment metadata.
-The response body contains the attachment bytes and uses the stored MIME type
-as its `Content-Type`. The attachment row must link to an existing message. The
-backing file must be inside the `Attachments` directory beside the configured
-`chat.db`. The API returns `404` when any of these conditions fail.
+The response body contains the attachment bytes. The server uses the stored MIME
+type as its `Content-Type`, or `application/octet-stream` when the stored value
+is empty. The attachment row must link to an existing message. The backing file
+must be inside the `Attachments` directory beside the configured `chat.db`. The
+API returns `404` when any of these conditions fail.
 
 Attachment metadata contains `id`, `transfer_name`, `mime_type`, `uti`,
 `total_bytes`, `is_sticker`, and `missing`. Local `filename` and

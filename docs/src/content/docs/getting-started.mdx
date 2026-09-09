@@ -1,0 +1,91 @@
+---
+title: Getting started
+description: Install the relay, grant macOS permissions, and make your first API request.
+---
+
+import { Aside, TabItem, Tabs } from '@astrojs/starlight/components';
+
+Choose one installation method.
+
+<Tabs>
+	<TabItem label="Release binary">
+
+	```sh
+	curl -fsSL -o relay-server.tgz \
+	  https://github.com/luxass/imessage-relay/releases/latest/download/relay-server-macos-universal.tar.gz
+	tar xzf relay-server.tgz
+	```
+
+	The binary requires macOS 14 or newer. It is ad hoc signed and not notarized.
+	</TabItem>
+	<TabItem label="Build from source">
+
+	Building requires Swift 6.1 or a newer Swift 6 release.
+
+	```sh
+	git clone https://github.com/luxass/imessage-relay.git
+	cd imessage-relay
+	swift build
+	```
+	</TabItem>
+</Tabs>
+
+## Grant access and start the relay
+
+Grant the terminal or service that runs `relay-server` **Full Disk Access** in
+**System Settings > Privacy & Security**, then restart that process.
+
+Start the relay with one of these commands:
+
+<Tabs>
+	<TabItem label="Read-only">
+
+	```sh
+	./relay-server
+	```
+	</TabItem>
+	<TabItem label="Enable sending">
+
+	```sh
+	RELAY_ALLOWED_RECIPIENTS="+12025550123,mom@icloud.com" ./relay-server
+	```
+
+	An empty or unset allowlist denies every send. The first send also prompts for
+	**Automation > Messages** permission.
+	</TabItem>
+</Tabs>
+
+If you set `RELAY_TOKEN`, add `-H 'Authorization: Bearer <token>'` to every
+request below.
+
+<Aside type="tip" title="Built from source">
+	If you built the relay instead of downloading it, replace `./relay-server` in
+	the start command with `.build/debug/relay-server`.
+</Aside>
+
+## Check the database
+
+From another terminal, check that the relay can read the Messages database:
+
+```sh
+curl -s localhost:8080/status | jq
+curl -s 'localhost:8080/chats?limit=3' | jq '.items'
+```
+
+Use a chat `id` to read its messages:
+
+```sh
+curl -s 'localhost:8080/chats/42/messages?limit=10' | jq
+```
+
+## Send a message
+
+Run this request only when you started the relay with an allowlist:
+
+```sh
+curl -s -X POST localhost:8080/send \
+	-H 'Content-Type: application/json' \
+	-d '{"to":"+12025550123","text":"hello"}'
+```
+
+See the [API reference](/api/) for all endpoints and response details.

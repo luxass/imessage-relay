@@ -3,7 +3,9 @@ title: imessage-relay
 description: Read and send Apple Messages through a local HTTP API on macOS.
 ---
 
-Expose Apple Messages as a local HTTP API on macOS. Read and search chat history, download attachments, and send texts from one native Swift binary.
+Expose Apple Messages as a local HTTP API on macOS. Read chat history, search
+messages within a chat, download attachments, and send texts from one native
+Swift binary.
 
 Reads go directly to `~/Library/Messages/chat.db`. Sends use Messages.app's AppleScript interface. The relay does not use private frameworks or process injection.
 
