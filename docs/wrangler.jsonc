@@ -5,5 +5,19 @@
   "assets": {
     "directory": "./dist",
     "not_found_handling": "404-page"
-  }
+  },
+  "routes": [
+    {
+      "pattern": "previews.imessage-relay.luxass.dev",
+      "custom_domain": true,
+      "enabled": false,
+      "previews_enabled": true
+    },
+    {
+      "pattern": "imessage-relay.luxass.dev",
+      "custom_domain": true,
+      "enabled": true,
+      "previews_enabled": false
+    }
+  ]
 }
