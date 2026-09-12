@@ -22,7 +22,19 @@ defaults:
     shell: bash
 
 jobs:
+  release-guard:
+    name: Release guard
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    environment:
+      name: release-guard
+      deployment: false
+    steps:
+      - run: echo "release guard passed"
+
   package:
+    needs: release-guard
     runs-on: macos-26
     timeout-minutes: 30
     permissions:
@@ -59,7 +71,7 @@ jobs:
       name: release
     timeout-minutes: 10
     permissions:
-      contents: read
+      contents: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -71,9 +83,19 @@ jobs:
           name: imessage-relay-server-release-assets
           path: dist
 
+      - name: Generate release app token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          owner: luxass
+          repositories: imessage-relay
+          permission-contents: write
+
       # GITHUB_TOKEN cannot trigger the release: published Homebrew workflow.
       - name: Publish GitHub release
         env:
-          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
           GH_REPO: ${{ github.repository }}
         run: bash scripts/publish-release.sh "${GITHUB_REF_NAME}" dist

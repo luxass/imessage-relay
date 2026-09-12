@@ -59,14 +59,16 @@ Create these GitHub Actions environments before pushing a release tag:
 
 | Environment | Used by | Purpose |
 | --- | --- | --- |
-| `release` | `publish` job | Protects GitHub release publication and stores `RELEASE_TOKEN` |
+| `release-guard` | `release-guard` job | Approval gate before release packaging |
+| `release` | `publish` job | Protects GitHub release publication and stores the release App credentials |
 | `homebrew-tap` | shared Homebrew workflow | Protects formula update PRs |
 
 Add these Actions secrets before pushing a release tag:
 
 | Secret | Purpose |
 | --- | --- |
-| `RELEASE_TOKEN` in `release` | Fine-grained personal access token with Contents: read and write on `luxass/imessage-relay` |
+| `RELEASE_APP_ID` in `release` | Client ID of a GitHub App installed on `luxass/imessage-relay` |
+| `RELEASE_APP_PRIVATE_KEY` in `release` | Private key for the release GitHub App |
 | `HOMEBREW_TAP_APP_ID` | Client ID of the GitHub App installed on `luxass/homebrew-tap` |
 | `HOMEBREW_TAP_APP_PRIVATE_KEY` | Private key for that GitHub App |
 
@@ -76,7 +78,7 @@ least one required reviewer if you want approval before it opens a tap PR.
 Store the two Homebrew App credentials as repository secrets because the caller
 passes them into the reusable workflow.
 
-Publication uses `RELEASE_TOKEN` because releases created with `GITHUB_TOKEN`
+Publication uses a GitHub App token because releases created with `GITHUB_TOKEN`
 [do not trigger another workflow](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow).
 The separate Homebrew workflow needs the `release: published` event because
 the reusable workflow reads the release tag from that event.
