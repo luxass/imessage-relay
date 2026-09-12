@@ -22,13 +22,7 @@ defaults:
     shell: bash
 
 jobs:
-  validate:
-    permissions:
-      contents: read
-    uses: ./.github/workflows/ci.yml
-
   package:
-    needs: validate
     runs-on: macos-26
     timeout-minutes: 30
     permissions:

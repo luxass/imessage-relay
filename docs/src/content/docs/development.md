@@ -40,13 +40,11 @@ just package-release 0.1.0
 
 1. Update `packageVersion` in `Sources/relay-server/Application+build.swift`,
    commit it, and push a matching tag such as `v0.1.0`.
-2. **Validate:** the Release workflow calls CI to verify the toolchain and
-   dependency lockfile, lint, test, and build the tagged commit.
-3. **Package:** build and verify the universal binary, archives, and checksums.
+2. **Package:** build and verify the universal binary, archives, and checksums.
    Upload them as workflow artifacts.
-4. **Publish:** verify the downloaded checksums, upload all assets to a draft
+3. **Publish:** verify the downloaded checksums, upload all assets to a draft
    GitHub release, then publish it with generated release notes.
-5. **Homebrew:** a stable published release calls
+4. **Homebrew:** a stable published release calls
    [the shared Homebrew workflow](https://github.com/luxass/shared-workflows/blob/v0.11.2/.github/workflows/reusable-homebrew-tap.yaml)
    to open a PR updating `Formula/imessage-relay-server.rb` in `luxass/homebrew-tap`.
 
