@@ -47,7 +47,7 @@ Start the relay with one of these commands:
 	<TabItem label="Enable sending">
 
 	```sh
-	RELAY_ALLOWED_RECIPIENTS="+12025550123,mom@icloud.com" ./relay-server
+	RELAY_ALLOWED_RECIPIENTS="+1 202 555 0123,person@example.invalid" ./relay-server
 	```
 
 	An empty or unset allowlist denies every send. The first send also prompts for
@@ -85,7 +85,7 @@ Run this request only when you started the relay with an allowlist:
 ```sh
 curl -s -X POST localhost:8080/send \
 	-H 'Content-Type: application/json' \
-	-d '{"to":"+12025550123","text":"hello"}'
+	-d '{"to":"person@example.invalid","text":"hello"}'
 ```
 
 See the [API reference](/api/) for all endpoints and response details.

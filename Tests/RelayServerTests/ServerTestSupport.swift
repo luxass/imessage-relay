@@ -85,8 +85,8 @@ final class ServerDatabaseFixture: @unchecked Sendable {
             INSERT INTO chat_handle_join (chat_id, handle_id) VALUES (1, 10);
             INSERT INTO chat (ROWID, guid, chat_identifier, service_name)
             VALUES (2, 'iMessage;+;synthetic-group', 'synthetic-group', 'iMessage');
-            INSERT INTO handle (ROWID, id) VALUES (11, 'member_one@example.com');
-            INSERT INTO handle (ROWID, id) VALUES (12, 'member-two@example.com');
+            INSERT INTO handle (ROWID, id) VALUES (11, 'member_one@example.invalid');
+            INSERT INTO handle (ROWID, id) VALUES (12, 'member-two@example.invalid');
             INSERT INTO chat_handle_join (chat_id, handle_id) VALUES (2, 11);
             INSERT INTO chat_handle_join (chat_id, handle_id) VALUES (2, 12);
             INSERT INTO message

@@ -69,7 +69,7 @@ Sending is disabled until you set `RELAY_ALLOWED_RECIPIENTS`. The first send
 also prompts for **Automation > Messages** permission.
 
 ```sh
-RELAY_ALLOWED_RECIPIENTS="+12025550123,mom@icloud.com" ./relay-server
+RELAY_ALLOWED_RECIPIENTS="+1 202 555 0123,person@example.invalid" ./relay-server
 ```
 
 From another terminal, send a message:
@@ -77,7 +77,7 @@ From another terminal, send a message:
 ```sh
 curl -s -X POST localhost:8080/send \
   -H 'Content-Type: application/json' \
-  -d '{"to":"+12025550123","text":"hello"}'
+  -d '{"to":"person@example.invalid","text":"hello"}'
 ```
 
 > [!TIP]
