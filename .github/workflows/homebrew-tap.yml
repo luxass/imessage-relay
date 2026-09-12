@@ -1,0 +1,26 @@
+name: Update Homebrew Tap
+
+on:
+  release:
+    types: [published]
+
+permissions: {}
+
+concurrency:
+  group: homebrew-tap-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
+
+jobs:
+  update-formula:
+    if: ${{ !github.event.release.prerelease }}
+    permissions:
+      contents: read
+    uses: luxass/shared-workflows/.github/workflows/reusable-homebrew-tap.yaml@dc5bd39f7ea1504fb0ff9745fbc65c629178d8b3 # v0.11.2
+    with:
+      tap-repository: luxass/homebrew-tap
+      formula-path: Formula/imessage-relay-server.rb
+      formula-name: imessage-relay-server
+      targets: '["macos-universal"]'
+    secrets:
+      app-private-key: ${{ secrets.HOMEBREW_TAP_APP_PRIVATE_KEY }}
+      app-id: ${{ secrets.HOMEBREW_TAP_APP_ID }}
