@@ -12,7 +12,13 @@ if [[ -z "${source_version}" ]]; then
 fi
 
 requested_version="${1:-${source_version}}"
-if [[ ! "${requested_version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+version_number='(0|[1-9][0-9]*)'
+prerelease_identifier='(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)'
+build_identifier='[0-9A-Za-z-]+'
+version_pattern="^${version_number}\.${version_number}\.${version_number}"
+version_pattern+="(-${prerelease_identifier}(\.${prerelease_identifier})*)?"
+version_pattern+="(\+${build_identifier}(\.${build_identifier})*)?$"
+if [[ ! "${requested_version}" =~ ${version_pattern} ]]; then
     echo "Release version must be a semantic version without a leading v: ${requested_version}" >&2
     exit 1
 fi
@@ -26,7 +32,7 @@ if [[ "${output_dir}" != /* ]]; then
     output_dir="${repo_root}/${output_dir}"
 fi
 
-archive_name="relay-server-macos-universal.tar.gz"
+archive_name="imessage-relay-server-${requested_version}-macos-universal.tar.gz"
 checksum_name="${archive_name}.sha256"
 release_tmp="$(mktemp -d "${TMPDIR:-/tmp}/imessage-relay-release.XXXXXX")"
 
@@ -96,3 +102,11 @@ fi
 
 printf 'Created %s\n' "${output_dir}/${archive_name}"
 printf 'Created %s\n' "${output_dir}/${checksum_name}"
+
+# Keep the versionless URL used by /releases/latest/download working.
+latest_archive_name="relay-server-macos-universal.tar.gz"
+install -m 0644 "${output_dir}/${archive_name}" "${output_dir}/${latest_archive_name}"
+(
+    cd "${output_dir}"
+    shasum -a 256 "${latest_archive_name}" > "${latest_archive_name}.sha256"
+)

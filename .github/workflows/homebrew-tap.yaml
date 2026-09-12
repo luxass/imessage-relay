@@ -1,0 +1,30 @@
+name: Update Homebrew Tap
+
+on:
+  release:
+    types: [published]
+
+permissions: {}
+
+concurrency:
+  group: homebrew-tap-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
+
+jobs:
+  update-formula:
+    if: ${{ !github.event.release.prerelease }}
+    permissions:
+      contents: write
+      pull-requests: write
+    uses: luxass/shared-workflows/.github/workflows/reusable-homebrew-tap.yaml@dc5bd39f7ea1504fb0ff9745fbc65c629178d8b3 # v0.11.2
+    with:
+      tap-repository: luxass/homebrew-tap
+      formula-path: Formula/imessage-relay-server.rb
+      formula-name: imessage-relay-server
+      environment: homebrew-tap
+      targets: '["macos-universal"]'
+    secrets:
+      # Reusable workflow jobs cannot set an environment in the caller. Pass
+      # these repository secrets explicitly; the called job uses homebrew-tap.
+      app-private-key: ${{ secrets.HOMEBREW_TAP_APP_PRIVATE_KEY }}
+      app-id: ${{ secrets.HOMEBREW_TAP_APP_ID }}

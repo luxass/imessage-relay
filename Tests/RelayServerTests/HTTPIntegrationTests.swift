@@ -19,7 +19,7 @@ func statusSuccess() async throws {
         #expect(response.status == .ok)
         expectJSONContentType(response)
         let body = try jsonObject(response.body)
-        #expect(value(body, at: "version") as? String == "0.1.0")
+        #expect(value(body, at: "version") as? String == packageVersion)
         #expect(value(body, at: "database", "ready") as? Bool == true)
         #expect(value(body, at: "database", "path") == nil)
         #expect(value(body, at: "database", "error") == nil)
