@@ -407,20 +407,20 @@ func sendAddressCollisionDenied() async throws {
     let sender = FakeMessageSender()
     let app = makeTestApplication(
         databasePath: fixture.path,
-        allowedRecipients: [ServerConfig.normalizeRecipient("recipient_tag@example.com")],
+        allowedRecipients: [ServerConfig.normalizeRecipient("recipient_tag@example.invalid")],
         sender: sender
     )
 
     try await app.test(.router) { client in
         let allowed = try await postJSON(
             client,
-            body: #"{"to":"RECIPIENT_TAG@EXAMPLE.COM","text":"synthetic"}"#
+            body: #"{"to":"RECIPIENT_TAG@EXAMPLE.INVALID","text":"synthetic"}"#
         )
         #expect(allowed.status == .ok)
 
         let denied = try await postJSON(
             client,
-            body: #"{"to":"recipienttag@example.com","text":"never sent"}"#
+            body: #"{"to":"recipienttag@example.invalid","text":"never sent"}"#
         )
         try expectJSONError(
             denied,
@@ -429,7 +429,7 @@ func sendAddressCollisionDenied() async throws {
                 "recipient not allowed by RELAY_ALLOWED_RECIPIENTS. Configure the allowlist to enable sending."
         )
         #expect(sender.requests.count == 1)
-        #expect(sender.requests.first?.to == "RECIPIENT_TAG@EXAMPLE.COM")
+        #expect(sender.requests.first?.to == "RECIPIENT_TAG@EXAMPLE.INVALID")
     }
 }
 
@@ -440,8 +440,8 @@ func sendGroupRequiresEveryParticipant() async throws {
     let allowedApp = makeTestApplication(
         databasePath: fixture.path,
         allowedRecipients: [
-            ServerConfig.normalizeRecipient("member_one@example.com"),
-            ServerConfig.normalizeRecipient("member-two@example.com"),
+            ServerConfig.normalizeRecipient("member_one@example.invalid"),
+            ServerConfig.normalizeRecipient("member-two@example.invalid"),
         ],
         sender: allowedSender
     )
@@ -459,7 +459,7 @@ func sendGroupRequiresEveryParticipant() async throws {
     let deniedSender = FakeMessageSender()
     let deniedApp = makeTestApplication(
         databasePath: fixture.path,
-        allowedRecipients: [ServerConfig.normalizeRecipient("member_one@example.com")],
+        allowedRecipients: [ServerConfig.normalizeRecipient("member_one@example.invalid")],
         sender: deniedSender
     )
 

@@ -137,13 +137,13 @@ single traversal assumes stable database contents.
 POST /send
 Content-Type: application/json
 
-{"to":"+12025550123","text":"hello"}
+{"to":"person@example.invalid","text":"hello"}
 ```
 
 Send to either an address or an existing chat:
 
 ```json
-{"to":"+12025550123","text":"hello"}
+{"to":"person@example.invalid","text":"hello"}
 ```
 
 ```json

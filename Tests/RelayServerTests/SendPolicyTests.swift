@@ -6,7 +6,7 @@ final class ServerConfigTests: XCTestCase {
     private let config = ServerConfig(
         allowedRecipients: [
             ServerConfig.normalizeRecipient("+12025550123"),
-            ServerConfig.normalizeRecipient("recipient@example.com"),
+            ServerConfig.normalizeRecipient("recipient@example.invalid"),
         ],
         token: nil,
         databasePath: ""
@@ -23,13 +23,13 @@ final class ServerConfigTests: XCTestCase {
         XCTAssertTrue(config.allowsAll(recipients: ["+12025550123"]))
         XCTAssertTrue(config.allowsAll(recipients: ["+1 202 555 0123"]))
         XCTAssertTrue(config.allowsAll(recipients: ["+1-202-555-0123"]))
-        XCTAssertTrue(config.allowsAll(recipients: ["recipient@example.com"]))
-        XCTAssertTrue(config.allowsAll(recipients: ["RECIPIENT@EXAMPLE.COM"]))
+        XCTAssertTrue(config.allowsAll(recipients: ["recipient@example.invalid"]))
+        XCTAssertTrue(config.allowsAll(recipients: ["RECIPIENT@EXAMPLE.INVALID"]))
     }
 
     func testNonAllowlistedRecipientsAreDenied() {
         XCTAssertFalse(config.allowsAll(recipients: ["+12025550199"]))
-        XCTAssertFalse(config.allowsAll(recipients: ["stranger@example.com"]))
+        XCTAssertFalse(config.allowsAll(recipients: ["stranger@example.invalid"]))
     }
 
     func testEmptyCandidateListIsDenied() {
@@ -39,11 +39,11 @@ final class ServerConfigTests: XCTestCase {
     func testEveryChatParticipantMustBeAllowlisted() {
         XCTAssertTrue(config.allowsAll(recipients: [
             "+12025550123",
-            "recipient@example.com",
+            "recipient@example.invalid",
         ]))
         XCTAssertFalse(config.allowsAll(recipients: [
             "+12025550123",
-            "stranger@example.com",
+            "stranger@example.invalid",
         ]))
     }
 
@@ -54,11 +54,11 @@ final class ServerConfigTests: XCTestCase {
 
     func testAddressPunctuationDoesNotCollide() {
         let pairs = [
-            ("recipient_tag@example.com", "recipienttag@example.com"),
-            ("recipient-tag@example.com", "recipienttag@example.com"),
-            ("first.last@example.com", "firstlast@example.com"),
-            ("recipient+tag@example.com", "recipient@example.com"),
-            ("usér@example.com", "usr@example.com"),
+            ("recipient_tag@example.invalid", "recipienttag@example.invalid"),
+            ("recipient-tag@example.invalid", "recipienttag@example.invalid"),
+            ("first.last@example.invalid", "firstlast@example.invalid"),
+            ("recipient+tag@example.invalid", "recipient@example.invalid"),
+            ("usér@example.invalid", "usr@example.invalid"),
         ]
 
         for (first, second) in pairs {
@@ -82,8 +82,8 @@ final class ServerConfigTests: XCTestCase {
 
     func testNormalizationTrimsOnlySurroundingWhitespace() {
         XCTAssertEqual(
-            ServerConfig.normalizeRecipient(" \tRECIPIENT_TAG@EXAMPLE.COM\n"),
-            "recipient_tag@example.com"
+            ServerConfig.normalizeRecipient(" \tRECIPIENT_TAG@EXAMPLE.INVALID\n"),
+            "recipient_tag@example.invalid"
         )
         XCTAssertEqual(ServerConfig.normalizeRecipient(" \t\n"), "")
         XCTAssertNotEqual(
@@ -94,15 +94,15 @@ final class ServerConfigTests: XCTestCase {
 
     func testEnvironmentAndAuthorizationUseSameCanonicalization() {
         let environmentConfig = ServerConfig.fromEnvironment([
-            "RELAY_ALLOWED_RECIPIENTS": " +1 (202) 555-0123 , Recipient_Tag@Example.com ",
+            "RELAY_ALLOWED_RECIPIENTS": " +1 (202) 555-0123 , Recipient_Tag@Example.invalid ",
             "RELAY_CHAT_DB_PATH": "/synthetic/chat.db",
         ])
 
         XCTAssertTrue(environmentConfig.allowsAll(recipients: [
             "+12025550123",
-            "recipient_tag@example.com",
+            "recipient_tag@example.invalid",
         ]))
-        XCTAssertFalse(environmentConfig.allowsAll(recipients: ["recipienttag@example.com"]))
+        XCTAssertFalse(environmentConfig.allowsAll(recipients: ["recipienttag@example.invalid"]))
     }
 }
 
