@@ -4,7 +4,7 @@ import Logging
 import RelayCore
 import ServiceLifecycle
 
-let packageVersion = "0.1.1" // x-release-please-version
+let packageVersion = "0.1.2" // x-release-please-version
 
 struct MessageStoreService: Service {
     let store: MessageStore
