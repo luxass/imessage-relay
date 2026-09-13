@@ -36,6 +36,19 @@ jobs:
         with:
           tool: just
 
+      # Leave cache-mode unset so GitHub's trigger-based protection applies:
+      # trusted pushes can refresh the cache without granting that access to PRs.
+      - name: Cache SwiftPM dependencies
+        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
+        with:
+          path: |
+            .build/artifacts
+            .build/checkouts
+            .build/repositories
+          key: swiftpm-${{ runner.os }}-${{ runner.arch }}-macos-26-${{ hashFiles('Package.swift', 'Package.resolved') }}
+          restore-keys: |
+            swiftpm-${{ runner.os }}-${{ runner.arch }}-macos-26-
+
       - name: macOS version
         run: sw_vers
       - name: Swift version
