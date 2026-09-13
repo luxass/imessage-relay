@@ -18,7 +18,7 @@ jobs:
       contents: write
       pull-requests: write
     environment:
-      name: release
+      name: release-plz
       deployment: false
     if: >-
       github.repository == 'luxass/imessage-relay'
