@@ -38,8 +38,9 @@ just package-release 0.1.0
 
 ## Release phases
 
-1. Update `packageVersion` in `Sources/relay-server/Application+build.swift`,
-   commit it, and push a matching tag such as `v0.1.0`.
+1. Merge normal changes to `main`. Release Please opens a release PR that updates
+   the version and manifest. Merge that PR to create a matching tag such as
+   `v0.1.0`.
 2. **Package:** build and verify the universal binary, archives, and checksums.
    Upload them as workflow artifacts.
 3. **Publish:** verify the downloaded checksums, upload all assets to a draft
@@ -53,22 +54,27 @@ latest release or update Homebrew. The tag version must match `packageVersion`.
 Run the Release workflow manually to validate and package the selected ref
 without creating a release or updating Homebrew.
 
+Release Please uses the release GitHub App to open release PRs and create tags.
+The App token must have Contents and Pull requests write permissions on
+`luxass/imessage-relay`. Using an App token instead of the default
+`GITHUB_TOKEN` ensures the generated tag triggers the tag-based package workflow.
+
 ## Release setup
 
-Create these GitHub Actions environments before pushing a release tag:
+Create these GitHub Actions environments before merging a release PR:
 
 | Environment | Used by | Purpose |
 | --- | --- | --- |
 | `release-guard` | `release-guard` job | Approval gate before release packaging |
-| `release` | `publish` job | Protects GitHub release publication and stores the release App credentials |
+| `release` | `release-please` and `publish` jobs | Protects release automation and stores the release App credentials |
 | `homebrew-tap` | shared Homebrew workflow | Protects formula update PRs |
 
-Add these Actions secrets before pushing a release tag:
+Add these Actions secrets before merging a release PR:
 
 | Secret | Purpose |
 | --- | --- |
-| `RELEASE_APP_ID` in `release` | Client ID of a GitHub App installed on `luxass/imessage-relay` |
-| `RELEASE_APP_PRIVATE_KEY` in `release` | Private key for the release GitHub App |
+| `RELEASE_APP_ID` in `release` | Client ID of the GitHub App used by Release Please and publication |
+| `RELEASE_APP_PRIVATE_KEY` in `release` | Private key for that GitHub App |
 | `HOMEBREW_TAP_APP_ID` | Client ID of the GitHub App installed on `luxass/homebrew-tap` |
 | `HOMEBREW_TAP_APP_PRIVATE_KEY` | Private key for that GitHub App |
 

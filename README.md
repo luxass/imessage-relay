@@ -154,7 +154,8 @@ match `packageVersion`:
 just package-release 0.1.0
 ```
 
-Pushing a matching tag, such as `v0.1.0`, runs validation, packages the binary,
+Release Please opens a release PR from conventional commits. Merging it creates
+a matching tag, such as `v0.1.0`, which runs validation, packages the binary,
 and publishes a GitHub release. Stable releases then use the shared Homebrew
 workflow to open a formula update in `luxass/homebrew-tap`. Prereleases, such as
 `v0.2.0-rc.1`, do not update Homebrew or the latest release.
