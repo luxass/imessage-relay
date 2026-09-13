@@ -4,7 +4,7 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 version_file="${repo_root}/Sources/relay-server/Application+build.swift"
-source_version="$(sed -nE 's/^let packageVersion = "([^"]+)"$/\1/p' "${version_file}")"
+source_version="$(sed -nE 's|^[[:space:]]*let packageVersion = "([^"]+)"([[:space:]]*//.*)?[[:space:]]*$|\1|p' "${version_file}")"
 
 if [[ -z "${source_version}" ]]; then
     echo "Could not read packageVersion from ${version_file}" >&2
