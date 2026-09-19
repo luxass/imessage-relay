@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  SWIFTLINT_VERSION: "0.65.1"
+  # sha256 of portable_swiftlint.zip in the ${SWIFTLINT_VERSION} release.
+  # Bump both together; verify with:
+  #   curl -fsSL "https://api.github.com/repos/realm/SwiftLint/releases/tags/${SWIFTLINT_VERSION}" | jq -r '.assets[] | select(.name=="portable_swiftlint.zip") | .digest'
+  SWIFTLINT_SHA256: "c1e429b0599cf1b516f369a2d9ec04eaf0e436f3c12b637df8851fa52ff694d0"
+
+jobs:
+  ci:
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: taiki-e/install-action@b6ff580856c41316412a0b9b60540fbc6f8c82cc # v2.86.7
+        with:
+          tool: just
+
+      # Leave cache-mode unset so GitHub's trigger-based protection applies:
+      # trusted pushes can refresh the cache without granting that access to PRs.
+      - name: Cache SwiftPM dependencies
+        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
+        with:
+          path: |
+            .build/artifacts
+            .build/checkouts
+            .build/repositories
+          key: swiftpm-${{ runner.os }}-${{ runner.arch }}-macos-26-${{ hashFiles('Package.swift', 'Package.resolved') }}
+          restore-keys: |
+            swiftpm-${{ runner.os }}-${{ runner.arch }}-macos-26-
+
+      - name: macOS version
+        run: sw_vers
+      - name: Swift version
+        run: swift --version
+      - name: Check Swift version
+        run: just check-toolchain
+
+      - name: Verify resolved dependencies
+        run: |
+          swift package resolve
+          git diff --exit-code -- Package.resolved
+
+      - name: Install SwiftLint
+        run: |
+          curl --proto '=https' --tlsv1.2 -fsSL \
+            "https://github.com/realm/SwiftLint/releases/download/${SWIFTLINT_VERSION}/portable_swiftlint.zip" \
+            -o /tmp/swiftlint.zip
+          echo "${SWIFTLINT_SHA256}  /tmp/swiftlint.zip" | shasum -a 256 --check --status
+          unzip -q /tmp/swiftlint.zip -d /tmp/swiftlint
+          sudo install -m 0755 /tmp/swiftlint/swiftlint /usr/local/bin/swiftlint
+          swiftlint version
+
+      - name: Lint
+        run: just lint
+      - name: Test
+        run: just test
+      - name: Build
+        run: just build

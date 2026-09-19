@@ -1,0 +1,34 @@
+included:
+  - Sources
+  - Tests
+
+line_length:
+  warning: 140
+  error: 200
+
+file_length:
+  warning: 700
+  error: 1000
+
+function_body_length:
+  warning: 80
+  error: 150
+
+cyclomatic_complexity:
+  warning: 12
+  error: 20
+
+type_body_length:
+  warning: 600
+  error: 800
+
+# Row-decoding tuples inside SQLite closures are idiomatic here; introducing a
+# struct per query would be churn without safety benefit.
+large_tuple:
+  warning: 12
+  error: 16
+
+disabled_rules:
+  - trailing_comma
+  - identifier_name
+  - todo

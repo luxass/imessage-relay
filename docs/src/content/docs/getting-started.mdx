@@ -1,0 +1,125 @@
+---
+title: Getting started
+description: Install the relay, grant macOS permissions, and make your first API request.
+---
+
+import { Aside, TabItem, Tabs } from '@astrojs/starlight/components';
+
+Choose one installation method.
+
+<Tabs>
+	<TabItem label="Release binary">
+
+	```sh
+	curl -fsSL -o relay-server.tgz \
+	  https://github.com/luxass/imessage-relay/releases/latest/download/relay-server-macos-universal.tar.gz
+	tar xzf relay-server.tgz
+	```
+
+	The binary requires macOS 14 or newer. It is ad hoc signed and not notarized.
+	</TabItem>
+	<TabItem label="Build from source">
+
+	Building requires Swift 6.3 or newer.
+
+	```sh
+	git clone https://github.com/luxass/imessage-relay.git
+	cd imessage-relay
+	swift build
+	```
+	</TabItem>
+</Tabs>
+
+## Grant access and start the relay
+
+Grant the terminal or service that runs `relay-server` **Full Disk Access** in
+**System Settings > Privacy & Security**, then restart that process.
+
+Set the required bearer token. To send directly, set the local iMessage account
+ID and an allowlist too:
+
+```sh
+export RELAY_TOKEN='replace-with-a-long-random-token'
+export RELAY_SENDER_ACCOUNT_ID='your-local-imessage-account-id'
+export RELAY_ALLOWED_RECIPIENTS='person@example.com,+1 202 555 0123'
+./relay-server
+```
+
+An empty allowlist denies every send. The first send can prompt for
+**Automation > Messages** permission. `GET /v1/status` and `GET /v1/sender`
+never trigger this prompt.
+
+<Aside type="tip" title="Built from source">
+	If you built the relay instead of downloading it, replace `./relay-server` in
+	the start command with `.build/debug/relay-server`.
+</Aside>
+
+## Check the database
+
+From another terminal, check that the relay can read the Messages database:
+
+```sh
+curl -s localhost:8080/v1/status \
+	-H "Authorization: Bearer $RELAY_TOKEN" | jq
+curl -s 'localhost:8080/v1/conversations?limit=3' \
+	-H "Authorization: Bearer $RELAY_TOKEN" | jq '.items'
+```
+
+Filter by an exact phone number or email address to find its conversations:
+
+```sh
+curl -sG localhost:8080/v1/conversations \
+	-H "Authorization: Bearer $RELAY_TOKEN" \
+	--data-urlencode 'participant=person@example.com' | jq '.items'
+```
+
+Use a conversation `id` to read its messages:
+
+```sh
+curl -s 'localhost:8080/v1/conversations/CONVERSATION_ID/messages?limit=10' \
+	-H "Authorization: Bearer $RELAY_TOKEN" | jq
+```
+
+## Send a message
+
+Run this request only when you started the relay with an allowlist:
+
+```sh
+curl -s -X POST localhost:8080/v1/messages \
+	-H "Authorization: Bearer $RELAY_TOKEN" \
+	-H 'Content-Type: application/json' \
+	-H 'Idempotency-Key: first-message' \
+	-d '{"to":"person@example.com","text":"hello"}' | jq
+```
+
+The response contains `request_id`, `correlation_status`, `messages`, `media`,
+and `poll_url`. Repeat the same request with the same idempotency key to receive
+the stored response without another send. Use a new key for a different
+message.
+
+The relay waits up to three seconds for the matching Messages rows. Request
+`poll_url` while `correlation_status` is `pending` or `partial`. A send with text
+and media can produce separate provider messages. The `messages` array reports
+each message and its current lifecycle status.
+
+You can upload a file for later use:
+
+```sh
+curl -s -X POST localhost:8080/v1/media \
+	-H "Authorization: Bearer $RELAY_TOKEN" \
+	-H 'Content-Type: image/jpeg' \
+	-H 'X-Filename: photo.jpg' \
+	--data-binary @photo.jpg | jq
+```
+
+To send the returned `media.media_id`, use a message request with an existing
+`conversation_id`. Attachment and reply sends require Accessibility permission
+for the relay process.
+
+<Aside type="caution" title="Replies require Accessibility">
+	Messages exposes no public AppleScript reply command. The relay uses
+	Accessibility for `reply_to`, so reply sends require an existing conversation
+	and Accessibility permission for the relay process.
+</Aside>
+
+See the [API reference](/api/) for all endpoints and response details.

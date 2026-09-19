@@ -1,0 +1,27 @@
+packages:
+  - "docs"
+
+preferWorkspacePackages: true
+saveWorkspaceProtocol: false
+linkWorkspacePackages: true
+strictPeerDependencies: false
+engineStrict: true
+nodeVersion: 24.18.0
+ignoreScripts: true
+minimumReleaseAge: 5760
+trustPolicy: no-downgrade
+strictDepBuilds: true
+blockExoticSubdeps: true
+catalogMode: prefer
+
+catalogs:
+  astro:
+    "@astrojs/starlight": "0.42.0"
+    "astro": "7.3.1"
+  tooling:
+    "@astrojs/check": "0.9.10"
+    "typescript": "6.0.3"
+    "wrangler": "4.129.0"
+
+overrides:
+  "chokidar": "5.0.0"
