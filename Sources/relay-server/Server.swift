@@ -4,7 +4,7 @@ import Logging
 import RelayCore
 import ServiceLifecycle
 
-let packageVersion = "0.0.0" // x-release-please-version
+let packageVersion = "0.1.0" // x-release-please-version
 
 struct RelayDependencies: Sendable {
     let database: any DatabaseStatusProviding
