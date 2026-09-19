@@ -383,7 +383,7 @@ func sendCorrelationFindsANewGroupByItsExactParticipantSet() async throws {
 }
 
 @Test
-func sendCorrelationFindsAMediaOnlyMessageByTheMessagesFilename() async throws {
+func sendCorrelationFindsAMediaOnlyMessageWhenMessagesRenamesTheFile() async throws {
     let fixture = try MessageDatabaseFixture()
     let storage = fixture.makeStorage()
     let checkpoint = try await storage.messages.checkpoint()
@@ -409,9 +409,9 @@ func sendCorrelationFindsAMediaOnlyMessageByTheMessagesFilename() async throws {
         text: nil,
         media: [SendCorrelationMedia(
             requestedMediaID: try MediaID(validating: "upload_agent_photo"),
-            filename: "agent-photo.jpg",
+            filename: "original-upload-name.jpg",
             mimeType: "image/jpeg",
-            byteSize: 99
+            byteSize: 42
         )],
         replyToMessageID: nil,
         threadOriginatorMessageID: nil
@@ -446,7 +446,7 @@ func sendCorrelationCombinesSplitTextAndAttachmentProviderMessages() async throw
             (ROWID, guid, text, handle_id, is_from_me, date, error, is_sent,
              is_delivered, is_read, associated_message_type)
         VALUES
-            (310, '\(textMessageID)', 'Split send', NULL, 1,
+            (310, '\(textMessageID)', 'Split send ', NULL, 1,
              700000530000000000, 0, 1, 1, 0, 0),
             (311, '\(mediaMessageID)', NULL, NULL, 1,
              700000530000000001, 0, 1, 1, 0, 0);

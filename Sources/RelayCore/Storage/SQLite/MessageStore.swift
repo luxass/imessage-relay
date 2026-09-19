@@ -147,16 +147,34 @@ public final class SQLiteMessageStore: MessageStoring, SendCorrelating, Sendable
 
         let textRecords: [Record]
         if let text = criteria.text {
-            textRecords = relationshipRecords.filter { $0.message.text == text }
+            textRecords = relationshipRecords.filter {
+                $0.message.text?.trimmingCharacters(in: .whitespacesAndNewlines) == text
+            }
             if textRecords.count > 1 { return .ambiguous }
-            if textRecords.isEmpty, records.contains(where: { $0.message.text == text }) {
+            if textRecords.isEmpty, records.contains(where: {
+                $0.message.text?.trimmingCharacters(in: .whitespacesAndNewlines) == text
+            }) {
                 return .mismatched
             }
         } else {
             textRecords = []
         }
 
-        guard let mediaResult = matchMedia(criteria.media, in: relationshipRecords) else {
+        let mediaRecords = relationshipRecords.filter { !$0.message.attachments.isEmpty }
+        let textMediaRecords = textRecords.filter { !$0.message.attachments.isEmpty }
+        let fallbackMediaRecord: Record?
+        if textMediaRecords.count == 1 {
+            fallbackMediaRecord = textMediaRecords[0]
+        } else if mediaRecords.count == 1 {
+            fallbackMediaRecord = mediaRecords[0]
+        } else {
+            fallbackMediaRecord = nil
+        }
+        guard let mediaResult = matchMedia(
+            criteria.media,
+            in: relationshipRecords,
+            fallbackRecord: fallbackMediaRecord
+        ) else {
             return .ambiguous
         }
         for (expected, receipt) in zip(criteria.media, mediaResult.receipts)
@@ -226,11 +244,13 @@ public final class SQLiteMessageStore: MessageStoring, SendCorrelating, Sendable
 
     private static func matchMedia(
         _ expectedMedia: [SendCorrelationMedia],
-        in records: [Record]
+        in records: [Record],
+        fallbackRecord: Record?
     ) -> (receipts: [MediaReceipt], matches: [MediaMatch])? {
         var receipts: [MediaReceipt] = []
         var selected: [MediaMatch] = []
-        for expected in expectedMedia {
+        let fallbackAttachments = fallbackRecord?.message.attachments ?? []
+        for (index, expected) in expectedMedia.enumerated() {
             var matches: [MediaMatch]
             if let expectedFilename = expected.filename {
                 matches = records.flatMap { record in
@@ -252,6 +272,19 @@ public final class SQLiteMessageStore: MessageStoring, SendCorrelating, Sendable
                     return mimeMatches && sizeMatches
                 }
                 if !narrowed.isEmpty { matches = narrowed }
+            }
+            if matches.isEmpty,
+               let fallbackRecord,
+               fallbackAttachments.count == expectedMedia.count {
+                let attachment = fallbackAttachments[index]
+                let mimeMatches = expected.mimeType == nil
+                    || attachment.mimeType == expected.mimeType
+                if mimeMatches {
+                    matches = [MediaMatch(record: fallbackRecord, attachment: attachment)]
+                }
+            }
+            matches.removeAll { candidate in
+                selected.contains { $0.attachment.mediaID == candidate.attachment.mediaID }
             }
             guard matches.count <= 1 else { return nil }
             let match = matches.first

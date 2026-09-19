@@ -28,11 +28,10 @@ extension MacOSAccessibilityMessagesDriver {
                     try await closeReplyTranscriptIfPresent(in: window)
                 }
             }
-            guard NSWorkspace.shared.open(targetURL) else {
-                throw MessageSenderError.notStarted(
-                    "Messages rejected the typing target deep link."
-                )
-            }
+            try await openMessagesURL(
+                targetURL,
+                failure: "Messages rejected the typing target deep link."
+            )
             let application = try await messagesApplication()
             let appElement = AXUIElementCreateApplication(application.processIdentifier)
             let window = try await mainWindow(in: appElement)
