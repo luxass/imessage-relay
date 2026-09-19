@@ -4,12 +4,12 @@ import Testing
 @testable import RelayCore
 
 @Test
-func attributedAttachmentPlaceholderIsNotExposedAsText() {
-    let placeholder = NSArchiver.archivedData(
-        withRootObject: NSAttributedString(string: "\u{fffc}")
+func attributedAttachmentPlaceholderIsNotExposedAsText() throws {
+    let placeholder = try MessageDatabaseFixture.archivedAttributedString(
+        NSAttributedString(string: "\u{fffc}")
     )
-    let mixed = NSArchiver.archivedData(
-        withRootObject: NSAttributedString(string: "Caption\u{fffc}")
+    let mixed = try MessageDatabaseFixture.archivedAttributedString(
+        NSAttributedString(string: "Caption\u{fffc}")
     )
 
     #expect(SQLiteRows.attributedText(placeholder) == nil)

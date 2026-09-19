@@ -3,7 +3,7 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-version_file="${repo_root}/Sources/relay-server/Application+build.swift"
+version_file="${repo_root}/Sources/relay-server/Server.swift"
 source_version="$(sed -nE 's|^[[:space:]]*let packageVersion = "([^"]+)"([[:space:]]*//.*)?[[:space:]]*$|\1|p' "${version_file}")"
 
 if [[ -z "${source_version}" ]]; then

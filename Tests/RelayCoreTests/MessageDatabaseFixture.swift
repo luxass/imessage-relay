@@ -22,6 +22,17 @@ final class MessageDatabaseFixture: @unchecked Sendable {
     static let nestedReplyID = "00000000-0000-0000-0000-000000000104"
     static let attachmentID = "00000000-0000-0000-0000-000000000201"
 
+    static func archivedAttributedString(_ value: NSAttributedString) throws -> Data {
+        let selector = NSSelectorFromString("archivedDataWithRootObject:")
+        guard let archiver = NSClassFromString("NSArchiver") as? NSObject.Type,
+              archiver.responds(to: selector),
+              let result = archiver.perform(selector, with: value),
+              let data = result.takeUnretainedValue() as? Data else {
+            throw FixtureError.cannotExecute("Could not create a legacy attributed-string archive.")
+        }
+        return data
+    }
+
     let path: String
     let attachmentDirectory: URL
 
@@ -238,7 +249,10 @@ final class MessageDatabaseFixture: @unchecked Sendable {
             value: 1,
             range: NSRange(location: 1, length: body.length - 1)
         )
-        try bindAttributedBody(messageRowID: messageRowID, data: NSArchiver.archivedData(withRootObject: body))
+        try bindAttributedBody(
+            messageRowID: messageRowID,
+            data: Self.archivedAttributedString(body)
+        )
     }
 
     private func seedMinimal() throws {
@@ -267,10 +281,13 @@ final class MessageDatabaseFixture: @unchecked Sendable {
             throw FixtureError.cannotExecute("Could not prepare attributed-body fixture update.")
         }
         defer { sqlite3_finalize(statement) }
-        data.withUnsafeBytes { bytes in
+        let blobResult = data.withUnsafeBytes { bytes in
             sqlite3_bind_blob(statement, 1, bytes.baseAddress, Int32(bytes.count), sqliteTransient)
         }
-        sqlite3_bind_int64(statement, 2, messageRowID)
+        guard blobResult == SQLITE_OK,
+              sqlite3_bind_int64(statement, 2, messageRowID) == SQLITE_OK else {
+            throw FixtureError.cannotExecute("Could not bind attributed-body fixture data.")
+        }
         guard sqlite3_step(statement) == SQLITE_DONE else {
             throw FixtureError.cannotExecute("Could not save attributed-body fixture.")
         }

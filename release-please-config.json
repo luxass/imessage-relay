@@ -3,15 +3,15 @@
   "include-v-in-tag": true,
   "draft": true,
   "force-tag-creation": true,
-  "last-release-sha": "a8ce611f807417c008492815a018855d06af1e1a",
   "skip-changelog": true,
   "packages": {
     ".": {
       "release-type": "simple",
+      "initial-version": "0.1.0",
       "extra-files": [
         {
           "type": "generic",
-          "path": "Sources/relay-server/Application+build.swift"
+          "path": "Sources/relay-server/Server.swift"
         }
       ]
     }

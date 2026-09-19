@@ -53,10 +53,7 @@ enum SQLiteRows {
     }
 
     static func attributedText(_ data: Data?) -> String? {
-        guard let data,
-              let attributed = NSUnarchiver.unarchiveObject(with: data) as? NSAttributedString else {
-            return nil
-        }
+        guard let attributed = attributedString(data) else { return nil }
         let text = attributed.string
             .replacingOccurrences(of: "\u{fffc}", with: "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -108,11 +105,22 @@ enum SQLiteRows {
         return Int(value)
     }
 
-    private static func attributedParts(_ data: Data?) -> [AttributedPart]? {
-        guard let data,
-              let attributed = NSUnarchiver.unarchiveObject(with: data) as? NSAttributedString else {
+    private static func attributedString(_ data: Data?) -> NSAttributedString? {
+        guard let data else { return nil }
+
+        // Messages stores attributedBody as a legacy typedstream archive. NSKeyedUnarchiver
+        // cannot decode that format, so invoke the deprecated Foundation decoder dynamically.
+        let selector = NSSelectorFromString("unarchiveObjectWithData:")
+        guard let unarchiver = NSClassFromString("NSUnarchiver") as? NSObject.Type,
+              unarchiver.responds(to: selector),
+              let result = unarchiver.perform(selector, with: data) else {
             return nil
         }
+        return result.takeUnretainedValue() as? NSAttributedString
+    }
+
+    private static func attributedParts(_ data: Data?) -> [AttributedPart]? {
+        guard let attributed = attributedString(data) else { return nil }
         let partKey = NSAttributedString.Key("__kIMMessagePartAttributeName")
         let transferKey = NSAttributedString.Key("__kIMFileTransferGUIDAttributeName")
         var parts: [Int: AttributedPart] = [:]
