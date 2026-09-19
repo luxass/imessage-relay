@@ -142,8 +142,7 @@ public final class MacOSAccessibilityMessagesDriver: AccessibilityMessagesDrivin
             let window = try await mainWindow(in: appElement)
             let messageCell = try await reactionMessageCell(
                 in: window,
-                overlay: request.useOverlay,
-                reaction: request.reaction
+                overlay: request.useOverlay
             )
             actionAttempted = true
             try await applyReaction(
@@ -152,6 +151,10 @@ public final class MacOSAccessibilityMessagesDriver: AccessibilityMessagesDrivin
                 to: messageCell,
                 in: window
             )
+            if request.useOverlay {
+                try await Task.sleep(for: .milliseconds(1_500))
+                try? await closeReplyTranscriptIfPresent(in: window)
+            }
         } catch let error as MessageSenderError {
             throw error
         } catch {
@@ -338,21 +341,33 @@ public final class MacOSAccessibilityMessagesDriver: AccessibilityMessagesDrivin
 
     @MainActor private func reactionMessageCell(
         in window: AXUIElement,
-        overlay: Bool,
-        reaction: WritableReaction
+        overlay: Bool
     ) async throws -> AXUIElement {
         if !overlay { return try await selectedMessageCell(in: window) }
         let replyTranscript = try await transcript(in: window, reply: true)
-        let directPrefix = "Name:\(reactionActionTitle(reaction))"
-        let pickerPrefix = "Name:\(reactionPickerActionTitle())"
         return try await waitUntilValue("The reaction target message was not found.") {
-            try self.descendants(of: replyTranscript).first { element in
-                let actions = try self.actionNames(of: element)
-                return actions.contains(where: {
-                    $0.hasPrefix(directPrefix) || $0.hasPrefix(pickerPrefix)
-                })
+            do {
+                return try self.firstReactionMessageCell(in: replyTranscript)
+            } catch {
+                return nil
             }
         }
+    }
+
+    private func firstReactionMessageCell(in transcript: AXUIElement) throws -> AXUIElement? {
+        let reactActionPrefix = "Name:\(reactionPickerActionTitle())"
+        for container in try elementsAttribute("AXChildren", of: transcript) {
+            guard try stringAttribute("AXDescription", of: container)?.isEmpty == false,
+                  let messageCell = try elementsAttribute("AXChildren", of: container).first else {
+                continue
+            }
+            if try actionNames(of: messageCell).contains(where: {
+                $0.hasPrefix(reactActionPrefix)
+            }) {
+                return messageCell
+            }
+        }
+        return nil
     }
 
     @MainActor private func applyReaction(
@@ -361,42 +376,64 @@ public final class MacOSAccessibilityMessagesDriver: AccessibilityMessagesDrivin
         to messageCell: AXUIElement,
         in window: AXUIElement
     ) async throws {
-        let directPrefix = "Name:\(reactionActionTitle(reaction))"
-        if let direct = try actionNames(of: messageCell).first(where: { $0.hasPrefix(directPrefix) }) {
+        if let direct = try customAction(
+            named: reactionActionTitle(reaction),
+            on: messageCell
+        ) {
             try perform(direct, on: messageCell, failure: "The reaction action failed.")
             return
         }
 
-        let pickerPrefix = "Name:\(reactionPickerActionTitle())"
-        guard let picker = try actionNames(of: messageCell).first(where: { $0.hasPrefix(pickerPrefix) }) else {
+        guard let picker = try messageAction(
+            named: reactionPickerActionTitle(),
+            on: messageCell
+        ) else {
             throw AccessibilityDriverFailure("The selected message has no reaction action.")
         }
         try perform(picker, on: messageCell, failure: "The reaction picker did not open.")
         let button = try await waitUntilValue("The requested reaction button was not found.") {
-            try self.reactionButton(reaction, in: window)
+            do {
+                return try self.reactionButton(reaction, in: window)
+            } catch {
+                return nil
+            }
         }
-        let selected = try boolAttribute("AXSelected", of: button)
-        if selected != enabled {
+        if try boolAttribute("AXSelected", of: button) != enabled {
             try perform(kAXPressAction, on: button, failure: "The reaction button failed.")
+            try await waitUntil("The reaction button state did not change.") {
+                try self.boolAttribute("AXSelected", of: button) == enabled
+            }
         }
+    }
+
+    private func customAction(named title: String, on element: AXUIElement) throws -> String? {
+        let prefix = "Name:\(title)\n"
+        return try actionNames(of: element).first { $0.hasPrefix(prefix) }
+    }
+
+    private func messageAction(named title: String, on element: AXUIElement) throws -> String? {
+        let prefix = "Name:\(title)"
+        return try actionNames(of: element).first { $0.hasPrefix(prefix) }
     }
 
     private func reactionButton(
         _ reaction: WritableReaction,
         in window: AXUIElement
     ) throws -> AXUIElement? {
-        let elements = try descendants(of: window)
-        let identifier = reactionIdentifier(reaction)
-        let title = reactionActionTitle(reaction)
-        if let exact = try elements.first(where: {
-            guard try stringAttribute("AXRole", of: $0) == kAXButtonRole else { return false }
-            return try stringAttribute("AXIdentifier", of: $0) == identifier
-                || stringAttribute("AXDescription", of: $0) == title
-                || stringAttribute("AXTitle", of: $0) == title
-        }) {
-            return exact
+        guard let contentGroup = try elementsAttribute("AXChildren", of: window).first(where: {
+            try self.stringAttribute("AXSubrole", of: $0) == "iOSContentGroup"
+                && self.stringAttribute("AXRole", of: $0) == kAXGroupRole
+        }),
+            let reactionsView = try elementsAttribute("AXChildren", of: contentGroup).first,
+            let picker = try elementsAttribute("AXChildren", of: reactionsView).first(where: {
+                try self.stringAttribute("AXIdentifier", of: $0) == "TapbackPickerCollectionView"
+            }) else {
+            return nil
         }
-        return nil
+        let identifier = reactionIdentifier(reaction)
+        return try elementsAttribute("AXChildren", of: picker).first {
+            try self.stringAttribute("AXIdentifier", of: $0) == identifier
+        }
     }
 
     private func reactionPickerActionTitle() -> String {
