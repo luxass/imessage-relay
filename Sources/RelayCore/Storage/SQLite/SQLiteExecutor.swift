@@ -21,18 +21,18 @@ final class SQLiteExecutor: @unchecked Sendable {
     func run<Value: Sendable>(
         _ operation: @escaping @Sendable (SQLiteDatabase) throws -> Value
     ) async throws -> Value {
-        try state.lock.withLock {
-            if state.shutdownTask != nil { throw SQLiteStorageError.shutDown }
+        let capturedState = state
+        try capturedState.lock.withLock {
+            if capturedState.shutdownTask != nil { throw SQLiteStorageError.shutDown }
         }
-        let path = path
-        let state = state
+        let capturedPath = path
         return try await pool.runIfActive {
             let database: SQLiteDatabase
-            if let existing = state.database {
+            if let existing = capturedState.database {
                 database = existing
             } else {
-                database = try SQLiteDatabase(path: path)
-                state.database = database
+                database = try SQLiteDatabase(path: capturedPath)
+                capturedState.database = database
             }
             return try operation(database)
         }
@@ -41,13 +41,13 @@ final class SQLiteExecutor: @unchecked Sendable {
     func shutdown() async throws {
         let task = state.lock.withLock { () -> Task<Void, Error> in
             if let existing = state.shutdownTask { return existing }
-            let pool = pool
-            let state = state
+            let capturedPool = pool
+            let capturedState = state
             let task = Task.detached {
-                try await pool.runIfActive { state.database = nil }
-                try await pool.shutdownGracefully()
+                try await capturedPool.runIfActive { capturedState.database = nil }
+                try await capturedPool.shutdownGracefully()
             }
-            state.shutdownTask = task
+            capturedState.shutdownTask = task
             return task
         }
         try await task.value
