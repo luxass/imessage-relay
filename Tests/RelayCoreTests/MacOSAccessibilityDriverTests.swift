@@ -38,6 +38,71 @@ func accessibilityDeepLinksRejectUnknownChatShapesAndDerivedMessageIDs() {
 }
 
 @Test
+func replyTranscriptDetectionIgnoresLocalizedDescriptions() {
+    let normalPlaceholders: Set<String> = ["iMessage", "Text Message"]
+    let english = MessagesTranscriptSnapshot(
+        transcriptIdentifier: "TranscriptCollectionView",
+        transcriptDescription: "Reply transcript",
+        composerIdentifier: "messageBodyField",
+        composerPlaceholder: "Reply",
+        composerIsFocused: true
+    )
+    let danish = MessagesTranscriptSnapshot(
+        transcriptIdentifier: "TranscriptCollectionView",
+        transcriptDescription: "Transskription af svar",
+        composerIdentifier: "messageBodyField",
+        composerPlaceholder: "Svar",
+        composerIsFocused: true
+    )
+
+    #expect(isReplyTranscript(english, normalComposerPlaceholders: normalPlaceholders))
+    #expect(isReplyTranscript(danish, normalComposerPlaceholders: normalPlaceholders))
+}
+
+@Test
+func replyTranscriptDetectionRequiresFocusedReplyComposer() {
+    let normalPlaceholders: Set<String> = ["iMessage", "Text Message"]
+    let normalTranscript = MessagesTranscriptSnapshot(
+        transcriptIdentifier: "TranscriptCollectionView",
+        transcriptDescription: "Messages",
+        composerIdentifier: "messageBodyField",
+        composerPlaceholder: "iMessage",
+        composerIsFocused: true
+    )
+    let unfocusedReply = MessagesTranscriptSnapshot(
+        transcriptIdentifier: "TranscriptCollectionView",
+        transcriptDescription: "Reply transcript",
+        composerIdentifier: "messageBodyField",
+        composerPlaceholder: "Reply",
+        composerIsFocused: false
+    )
+    let wrongTranscript = MessagesTranscriptSnapshot(
+        transcriptIdentifier: "ConversationList",
+        transcriptDescription: "Reply transcript",
+        composerIdentifier: "messageBodyField",
+        composerPlaceholder: "Reply",
+        composerIsFocused: true
+    )
+
+    #expect(!isReplyTranscript(normalTranscript, normalComposerPlaceholders: normalPlaceholders))
+    #expect(!isReplyTranscript(unfocusedReply, normalComposerPlaceholders: normalPlaceholders))
+    #expect(!isReplyTranscript(wrongTranscript, normalComposerPlaceholders: normalPlaceholders))
+}
+
+@Test
+func accessibilityActionMatchingAcceptsLocalizedTitlesExactly() {
+    let actions = [
+        "AXPress",
+        "Name:Svar…\nTarget:0x0\nSelector:(null)",
+        "Name:Tapback\nTarget:0x0\nSelector:(null)",
+    ]
+
+    #expect(accessibilityAction(namedOneOf: ["Reply", "Svar"], in: actions) == actions[1])
+    #expect(accessibilityAction(namedOneOf: ["React", "Tapback"], in: actions) == actions[2])
+    #expect(accessibilityAction(namedOneOf: ["Svar senere"], in: actions) == nil)
+}
+
+@Test
 func rootRepliesUseTheDeepLinkOverlayWithoutInvokingReplyAgain() {
     let rootReply = AccessibilitySendRequest(
         conversationGUID: "any;-;friend@example.com",

@@ -118,10 +118,10 @@ extension MacOSAccessibilityMessagesDriver {
     }
 
     private func replyActionName(on element: AXUIElement) throws -> String? {
-        let reply = Bundle(path: Self.replyBundlePath)?
-            .localizedString(forKey: "balloon.message.reply", value: "Reply", table: "Accessibility")
-            ?? "Reply"
-        return try actionNames(of: element).first { $0.hasPrefix("Name:\(reply)") }
+        accessibilityAction(
+            namedOneOf: Self.replyActionTitles,
+            in: try actionNames(of: element)
+        )
     }
 
     @MainActor private func focus(_ element: AXUIElement) async throws {
