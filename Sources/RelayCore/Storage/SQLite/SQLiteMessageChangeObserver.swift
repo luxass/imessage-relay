@@ -46,83 +46,24 @@ public final class SQLiteMessageChangeObserver: MessageChangeObserving, @uncheck
 
     private let executor: SQLiteExecutor
     private let attachmentDirectory: URL
-    private let pollInterval: Duration
+    private let fallbackPollInterval: Duration
     private let state = State()
 
     public init(
         path: String,
         attachmentDirectory: String,
-        pollInterval: Duration = .seconds(1)
+        pollInterval: Duration = .seconds(5)
     ) {
         executor = SQLiteExecutor(path: path)
         self.attachmentDirectory = URL(fileURLWithPath: attachmentDirectory).standardizedFileURL
-        self.pollInterval = pollInterval
+        fallbackPollInterval = pollInterval > .zero ? pollInterval : .seconds(5)
     }
 
     public func events() -> AsyncThrowingStream<RelayEvent, any Error> {
         let streamID = UUID()
         return AsyncThrowingStream { continuation in
-            let task = Task { [executor, attachmentDirectory, pollInterval, state] in
-                defer { state.lock.withLock { state.tasks[streamID] = nil } }
-                do {
-                    var previous = try await executor.run { database in
-                        try Self.snapshot(database: database)
-                    }
-                    continuation.yield(.streamReady(StreamReadyEvent(
-                        databaseIdentity: previous.databaseIdentity
-                    )))
-                    var pendingMedia = Set<MediaKey>()
-                    var availableMedia = Self.availableMedia(
-                        previous.media.values,
-                        attachmentDirectory: attachmentDirectory
-                    )
-
-                    while !Task.isCancelled {
-                        try await ContinuousClock().sleep(for: pollInterval)
-                        let check = try await executor.run { database in
-                            (try database.fileIdentity(), try database.dataVersion())
-                        }
-                        guard check.0 == previous.fileIdentity else {
-                            continuation.yield(.streamReset(StreamResetEvent(
-                                reason: .databaseChanged,
-                                message: "The Messages database changed. Reconnect and refetch REST resources."
-                            )))
-                            continuation.finish()
-                            return
-                        }
-                        guard check.1 != previous.dataVersion || !pendingMedia.isEmpty else { continue }
-
-                        let current = try await executor.run { database in
-                            try Self.snapshot(database: database)
-                        }
-                        let newMedia = Set(current.media.keys).subtracting(previous.media.keys)
-                        pendingMedia.formUnion(newMedia)
-                        pendingMedia.formIntersection(current.media.keys)
-                        let nowAvailable = Self.availableMedia(
-                            pendingMedia.compactMap { current.media[$0] },
-                            attachmentDirectory: attachmentDirectory
-                        )
-                        let newlyAvailable = nowAvailable.subtracting(availableMedia)
-                        let observedAt = Timestamp(Date())
-                        for event in Self.events(
-                            from: previous,
-                            to: current,
-                            newlyAvailableMedia: newlyAvailable,
-                            observedAt: observedAt
-                        ) {
-                            continuation.yield(event)
-                        }
-
-                        availableMedia.formUnion(nowAvailable)
-                        pendingMedia.subtract(nowAvailable)
-                        previous = current
-                    }
-                    continuation.finish()
-                } catch is CancellationError {
-                    continuation.finish()
-                } catch {
-                    continuation.finish(throwing: error)
-                }
+            let task = Task { [self] in
+                await observe(streamID: streamID, continuation: continuation)
             }
             let accepted = state.lock.withLock { () -> Bool in
                 guard !state.isShutdown else { return false }
@@ -137,6 +78,111 @@ public final class SQLiteMessageChangeObserver: MessageChangeObserving, @uncheck
                 state.lock.withLock { state.tasks[streamID]?.cancel() }
             }
         }
+    }
+
+    private func observe(
+        streamID: UUID,
+        continuation: AsyncThrowingStream<RelayEvent, any Error>.Continuation
+    ) async {
+        let triggers = AsyncStream.makeStream(of: Void.self, bufferingPolicy: .bufferingNewest(1))
+        let fileMonitor = SQLiteFileChangeMonitor(path: executor.path) {
+            triggers.continuation.yield()
+        }
+        let fallbackTask = fallbackTask(continuation: triggers.continuation)
+        fileMonitor.start()
+        defer {
+            fallbackTask.cancel()
+            fileMonitor.stop()
+            triggers.continuation.finish()
+            state.lock.withLock { state.tasks[streamID] = nil }
+        }
+
+        do {
+            var previous = try await executor.run { database in
+                try Self.snapshot(database: database)
+            }
+            continuation.yield(.streamReady(StreamReadyEvent(
+                databaseIdentity: previous.databaseIdentity
+            )))
+            var pendingMedia = Set<MediaKey>()
+            var availableMedia = Self.availableMedia(
+                previous.media.values,
+                attachmentDirectory: attachmentDirectory
+            )
+            for await _ in triggers.stream {
+                try Task.checkCancellation()
+                guard try await processChange(
+                    previous: &previous,
+                    pendingMedia: &pendingMedia,
+                    availableMedia: &availableMedia,
+                    continuation: continuation
+                ) else { return }
+            }
+            continuation.finish()
+        } catch is CancellationError {
+            continuation.finish()
+        } catch {
+            continuation.finish(throwing: error)
+        }
+    }
+
+    private func fallbackTask(
+        continuation: AsyncStream<Void>.Continuation
+    ) -> Task<Void, Never> {
+        Task { [fallbackPollInterval] in
+            while !Task.isCancelled {
+                do {
+                    try await ContinuousClock().sleep(for: fallbackPollInterval)
+                } catch {
+                    return
+                }
+                guard !Task.isCancelled else { return }
+                continuation.yield()
+            }
+        }
+    }
+
+    private func processChange(
+        previous: inout Snapshot,
+        pendingMedia: inout Set<MediaKey>,
+        availableMedia: inout Set<MediaKey>,
+        continuation: AsyncThrowingStream<RelayEvent, any Error>.Continuation
+    ) async throws -> Bool {
+        let check = try await executor.run { database in
+            (try database.fileIdentity(), try database.dataVersion())
+        }
+        guard check.0 == previous.fileIdentity else {
+            continuation.yield(.streamReset(StreamResetEvent(
+                reason: .databaseChanged,
+                message: "The Messages database changed. Reconnect and refetch REST resources."
+            )))
+            continuation.finish()
+            return false
+        }
+        guard check.1 != previous.dataVersion || !pendingMedia.isEmpty else { return true }
+
+        let current = try await executor.run { database in
+            try Self.snapshot(database: database)
+        }
+        pendingMedia.formUnion(Set(current.media.keys).subtracting(previous.media.keys))
+        pendingMedia.formIntersection(current.media.keys)
+        let nowAvailable = Self.availableMedia(
+            pendingMedia.compactMap { current.media[$0] },
+            attachmentDirectory: attachmentDirectory
+        )
+        let newlyAvailable = nowAvailable.subtracting(availableMedia)
+        for event in Self.events(
+            from: previous,
+            to: current,
+            newlyAvailableMedia: newlyAvailable,
+            observedAt: Timestamp(Date())
+        ) {
+            continuation.yield(event)
+        }
+        availableMedia.formUnion(nowAvailable)
+        pendingMedia.subtract(nowAvailable)
+        previous = current
+        return true
     }
 
     public func shutdown() async throws {

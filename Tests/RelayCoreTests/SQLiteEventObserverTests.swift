@@ -80,6 +80,75 @@ func sqliteObserverEmitsCreatedUpdatedReactionAndMediaEvents() async throws {
     try await observer.shutdown()
 }
 
+@Test
+func sqliteObserverUsesFilesystemChangesBeforeTheFallbackPoll() async throws {
+    let fixture = try MessageDatabaseFixture()
+    let observer = SQLiteMessageChangeObserver(
+        path: fixture.path,
+        attachmentDirectory: fixture.attachmentDirectory.path,
+        pollInterval: .seconds(30)
+    )
+    let ready = AsyncStream.makeStream(of: Void.self, bufferingPolicy: .bufferingNewest(1))
+    let eventTask = Task { () throws -> RelayEvent? in
+        var iterator = observer.events().makeAsyncIterator()
+        guard case .streamReady = try await iterator.next() else {
+            return nil
+        }
+        ready.continuation.yield()
+        ready.continuation.finish()
+        return try await nextEvent(of: .messageCreated, from: &iterator)
+    }
+
+    for await _ in ready.stream { break }
+    try insertObservedMessage(into: fixture)
+
+    let event = try await value(of: eventTask, timeout: .seconds(3))
+    guard case .messageCreated(let payload) = event else {
+        Issue.record("Expected a message.created event from the filesystem notification.")
+        return
+    }
+    #expect(payload.messageID.rawValue == "event-message-guid")
+    try await observer.shutdown()
+}
+
+@Test
+func sqliteFileMonitorRearmsAReplacedSidecar() async throws {
+    let directory = FileManager.default.temporaryDirectory
+        .appendingPathComponent("relay-file-watch-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    let database = directory.appendingPathComponent("chat.db")
+    let writeAheadLog = URL(fileURLWithPath: database.path + "-wal")
+    let sharedMemory = URL(fileURLWithPath: database.path + "-shm")
+    FileManager.default.createFile(atPath: database.path, contents: Data())
+    FileManager.default.createFile(atPath: writeAheadLog.path, contents: Data())
+    FileManager.default.createFile(atPath: sharedMemory.path, contents: Data())
+
+    let changes = FileChangeCounter()
+    let monitor = SQLiteFileChangeMonitor(path: database.path, debounceInterval: 0.01) {
+        changes.increment()
+    }
+    monitor.start()
+    defer { monitor.stop() }
+
+    try FileManager.default.moveItem(
+        at: writeAheadLog,
+        to: directory.appendingPathComponent("chat.db-wal.old")
+    )
+    FileManager.default.createFile(atPath: writeAheadLog.path, contents: Data())
+    try await waitForChange(after: 0, in: changes)
+    try await Task.sleep(for: .milliseconds(100))
+    let countAfterReplacement = changes.value
+
+    let handle = try FileHandle(forWritingTo: writeAheadLog)
+    try handle.seekToEnd()
+    try handle.write(contentsOf: Data("change".utf8))
+    try handle.close()
+
+    try await waitForChange(after: countAfterReplacement, in: changes)
+}
+
 private func insertObservedMessage(into fixture: MessageDatabaseFixture) throws {
     try fixture.execute("""
         INSERT INTO message
@@ -149,4 +218,46 @@ private func nextEvent(
         if event.type == type { return event }
     }
     return nil
+}
+
+private struct EventTimeout: Error {}
+
+private func value<Value: Sendable>(
+    of task: Task<Value, any Error>,
+    timeout: Duration
+) async throws -> Value {
+    defer { task.cancel() }
+    return try await withThrowingTaskGroup(of: Value.self) { group in
+        group.addTask { try await task.value }
+        group.addTask {
+            try await Task.sleep(for: timeout)
+            throw EventTimeout()
+        }
+        guard let result = try await group.next() else { throw EventTimeout() }
+        group.cancelAll()
+        return result
+    }
+}
+
+private final class FileChangeCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+
+    var value: Int { lock.withLock { count } }
+
+    func increment() {
+        lock.withLock { count += 1 }
+    }
+}
+
+private func waitForChange(
+    after previousValue: Int,
+    in counter: FileChangeCounter
+) async throws {
+    let clock = ContinuousClock()
+    let deadline = clock.now.advanced(by: .seconds(3))
+    while counter.value <= previousValue {
+        guard clock.now < deadline else { throw EventTimeout() }
+        try await clock.sleep(for: .milliseconds(10))
+    }
 }
