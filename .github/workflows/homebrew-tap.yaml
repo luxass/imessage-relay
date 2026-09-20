@@ -16,13 +16,16 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-    uses: luxass/shared-workflows/.github/workflows/reusable-homebrew-tap.yaml@dc5bd39f7ea1504fb0ff9745fbc65c629178d8b3 # v0.11.2
+    uses: luxass/shared-workflows/.github/workflows/reusable-homebrew-tap.yaml@7be4a924607be148a2093d4651d920cfcc9a264f # v0.13.0
     with:
       tap-repository: luxass/homebrew-tap
       formula-path: Formula/imessage-relay-server.rb
       formula-name: imessage-relay-server
       environment: homebrew-tap
       targets: '["macos-universal"]'
+      cask-path: Casks/imessage-relay.rb
+      cask-name: imessage-relay
+      cask-target: macos-universal
     secrets:
       # Reusable workflow jobs cannot set an environment in the caller. Pass
       # these repository secrets explicitly; the called job uses homebrew-tap.

@@ -51,8 +51,9 @@ just package-release 0.1.0
 3. **Publish:** verify the downloaded checksums, upload all assets to a draft
    GitHub release, then publish it with generated release notes.
 4. **Homebrew:** a stable published release calls
-   [the shared Homebrew workflow](https://github.com/luxass/shared-workflows/blob/v0.11.2/.github/workflows/reusable-homebrew-tap.yaml)
-   to open a PR updating `Formula/imessage-relay-server.rb` in `luxass/homebrew-tap`.
+   [the shared Homebrew workflow](https://github.com/luxass/shared-workflows/blob/v0.13.0/.github/workflows/reusable-homebrew-tap.yaml)
+   to open one PR updating `Formula/imessage-relay-server.rb` and
+   `Casks/imessage-relay.rb` in `luxass/homebrew-tap`.
 
 Tags such as `v0.2.0-rc.1` produce GitHub prereleases. They do not become the
 latest release or update Homebrew. The tag version must match `packageVersion`.
@@ -77,7 +78,7 @@ Create these GitHub Actions environments before merging a release PR:
 | `release-guard` | `release-guard` job | Requires approval before release packaging starts |
 | `release-signing` | `package` job | Stores the Developer ID certificate and notarization key |
 | `release` | `publish` job | Protects publication of the signed draft release |
-| `homebrew-tap` | shared Homebrew workflow | Protects formula update PRs |
+| `homebrew-tap` | shared Homebrew workflow | Protects tap update PRs |
 
 Add these Actions secrets before merging a release PR:
 
@@ -124,7 +125,7 @@ Publication uses a GitHub App token because releases created with `GITHUB_TOKEN`
 The separate Homebrew workflow needs the `release: published` event because
 the reusable workflow reads the release tag from that event.
 
-### Tap formula format
+### Tap file formats
 
 `Formula/imessage-relay-server.rb` must already exist in `luxass/homebrew-tap`. The
 shared workflow expects an explicit `version` field, a URL using
@@ -137,6 +138,12 @@ shared workflow expects an explicit `version` field, a URL using
 
 The archive contains `relay-server` and `LICENSE` at its root. The universal
 binary supports Apple silicon and Intel Macs running macOS 14 or newer.
+
+`Casks/imessage-relay.rb` must also exist in the tap. Its `version` line and
+`sha256` line marked `sha-update-id: imessage-relay-macos-universal` are updated
+from `imessage-relay-<version>-macos-universal.zip`. The ZIP contains
+`iMessage Relay.app`. Review both checksums in the generated tap PR before
+merging it.
 
 ### Recover a failed release
 
