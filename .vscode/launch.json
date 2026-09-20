@@ -19,6 +19,26 @@
       "target": "relay-server",
       "configuration": "release",
       "preLaunchTask": "swift: Build Release relay-server"
+    },
+    {
+      "type": "swift",
+      "request": "launch",
+      "args": [],
+      "cwd": "${workspaceFolder:imessage-relay}",
+      "name": "Debug imessage-relay-app",
+      "target": "imessage-relay-app",
+      "configuration": "debug",
+      "preLaunchTask": "swift: Build Debug imessage-relay-app"
+    },
+    {
+      "type": "swift",
+      "request": "launch",
+      "args": [],
+      "cwd": "${workspaceFolder:imessage-relay}",
+      "name": "Release imessage-relay-app",
+      "target": "imessage-relay-app",
+      "configuration": "release",
+      "preLaunchTask": "swift: Build Release imessage-relay-app"
     }
   ]
 }

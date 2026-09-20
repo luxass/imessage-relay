@@ -13,7 +13,7 @@ enum ServerConfigError: Error, Equatable, CustomStringConvertible {
     }
 }
 
-struct ServerConfig: Sendable {
+public struct ServerConfig: Sendable {
     let token: String
     let databasePath: String
     let attachmentDirectory: String
@@ -23,7 +23,7 @@ struct ServerConfig: Sendable {
     let allowedRecipients: [String]
     let maximumMediaBytes: Int64
 
-    static func fromEnvironment(
+    public static func fromEnvironment(
         _ environment: [String: String] = ProcessInfo.processInfo.environment
     ) throws -> Self {
         guard let token = nonempty(environment["RELAY_TOKEN"]) else {

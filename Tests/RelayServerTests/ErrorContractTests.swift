@@ -6,7 +6,7 @@ import NIOCore
 import RelayCore
 import Testing
 
-@testable import relay_server
+@testable import RelayServer
 
 @Test
 func authenticationAndMalformedJSONUseTheStableErrorShape() async throws {

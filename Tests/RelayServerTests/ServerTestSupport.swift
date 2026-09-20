@@ -5,7 +5,7 @@ import NIOCore
 import RelayCore
 import Testing
 
-@testable import relay_server
+@testable import RelayServer
 
 let testToken = "test-relay-token"
 

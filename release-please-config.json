@@ -11,7 +11,7 @@
       "extra-files": [
         {
           "type": "generic",
-          "path": "Sources/relay-server/Server.swift"
+          "path": "Sources/RelayServer/Server.swift"
         }
       ]
     }

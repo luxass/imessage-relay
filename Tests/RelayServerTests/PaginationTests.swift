@@ -3,7 +3,7 @@ import Hummingbird
 import HummingbirdTesting
 import Testing
 
-@testable import relay_server
+@testable import RelayServer
 
 @Test
 func paginationQueryValidationRejectsInvalidLimitsBooleansAndModes() async throws {

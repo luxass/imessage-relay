@@ -7,7 +7,7 @@ let package = Package(
         .macOS(.v14)
     ],
     products: [
-        .executable(name: "relay-server", targets: ["relay-server"]),
+        .executable(name: "relay-server", targets: ["RelayCLI"]),
         .library(name: "RelayCore", targets: ["RelayCore"]),
     ],
     dependencies: [
@@ -20,15 +20,21 @@ let package = Package(
             name: "RelayCore",
             dependencies: [.product(name: "NIOPosix", package: "swift-nio")]
         ),
-        .executableTarget(
-            name: "relay-server",
+        .target(
+            name: "RelayServer",
             dependencies: [
                 .product(name: "Hummingbird", package: "hummingbird"),
                 .product(name: "HummingbirdRouter", package: "hummingbird"),
                 .product(name: "NIOCore", package: "swift-nio"),
                 .product(name: "NIOPosix", package: "swift-nio"),
-                .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 "RelayCore",
+            ]
+        ),
+        .executableTarget(
+            name: "RelayCLI",
+            dependencies: [
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+                "RelayServer",
             ]
         ),
         .testTarget(name: "RelayCoreTests", dependencies: ["RelayCore"]),
@@ -36,7 +42,7 @@ let package = Package(
             name: "RelayServerTests",
             dependencies: [
                 .product(name: "HummingbirdTesting", package: "hummingbird"),
-                "relay-server",
+                "RelayServer",
                 "RelayCore",
             ]
         ),

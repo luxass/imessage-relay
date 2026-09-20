@@ -1,10 +1,11 @@
+import Foundation
 import Hummingbird
 import HummingbirdRouter
 import Logging
 import RelayCore
 import ServiceLifecycle
 
-let packageVersion = "0.2.0" // x-release-please-version
+public let packageVersion = "0.2.0" // x-release-please-version
 
 struct RelayDependencies: Sendable {
     let database: any DatabaseStatusProviding
@@ -124,4 +125,52 @@ func buildApplication(
         services: [RelayResourcesService(storage: runtime.storage, events: events, typing: typing)],
         logger: logger
     )
+}
+
+public func runRelayServer(
+    hostname: String,
+    port: Int,
+    config: ServerConfig
+) async throws {
+    let storage = MessagesStorage(
+        path: config.databasePath,
+        attachmentDirectory: config.attachmentDirectory
+    )
+    let accessibilityPermissionChecker = MacOSAccessibilityPermissionChecker()
+    let accessibilityDriver = MacOSAccessibilityMessagesDriver()
+    let accessibilityQueue = AccessibilityOperationQueue()
+    let sender = MacOSMessageSender(
+        configuredAccountID: config.senderAccountID,
+        accessibilityPermissionChecker: accessibilityPermissionChecker,
+        accessibilityDriver: accessibilityDriver,
+        accessibilityQueue: accessibilityQueue
+    )
+    let conversationReadWriter = MacOSConversationReadWriter(
+        permissionChecker: accessibilityPermissionChecker,
+        driver: accessibilityDriver,
+        queue: accessibilityQueue
+    )
+    let conversationTypingWriter = MacOSConversationTypingWriter(
+        permissionChecker: accessibilityPermissionChecker,
+        driver: accessibilityDriver,
+        queue: accessibilityQueue
+    )
+    let uploads = MediaFileStore(directory: URL(fileURLWithPath: config.mediaDirectory))
+    let sendRequests = try SQLiteSendRequestStore(path: config.stateDatabasePath)
+    let application = buildApplication(
+        configuration: .init(
+            address: .hostname(hostname, port: port),
+            serverName: "imessage-relay"
+        ),
+        serverConfig: config,
+        runtime: RelayRuntime(
+            storage: storage,
+            sender: sender,
+            conversationReadWriter: conversationReadWriter,
+            conversationTypingWriter: conversationTypingWriter,
+            uploads: uploads,
+            sendRequests: sendRequests
+        )
+    )
+    try await application.runService()
 }

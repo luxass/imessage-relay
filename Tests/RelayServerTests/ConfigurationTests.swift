@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 
-@testable import relay_server
+@testable import RelayServer
 
 @Test
 func configurationRequiresAuthenticationAndReadsSenderMediaAndAllowlistSettings() throws {
