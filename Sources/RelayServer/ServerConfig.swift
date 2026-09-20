@@ -13,17 +13,18 @@ enum ServerConfigError: Error, Equatable, CustomStringConvertible {
     }
 }
 
-struct ServerConfig: Sendable {
+public struct ServerConfig: Sendable {
     let token: String
     let databasePath: String
     let attachmentDirectory: String
     let mediaDirectory: String
     let stateDatabasePath: String
     let senderAccountID: String?
+    let phoneRegion: String
     let allowedRecipients: [String]
     let maximumMediaBytes: Int64
 
-    static func fromEnvironment(
+    public static func fromEnvironment(
         _ environment: [String: String] = ProcessInfo.processInfo.environment
     ) throws -> Self {
         guard let token = nonempty(environment["RELAY_TOKEN"]) else {
@@ -63,6 +64,9 @@ struct ServerConfig: Sendable {
             mediaDirectory: mediaDirectory,
             stateDatabasePath: stateDatabasePath,
             senderAccountID: nonempty(environment["RELAY_SENDER_ACCOUNT_ID"]),
+            phoneRegion: nonempty(environment["RELAY_PHONE_REGION"])
+                ?? Locale.current.region?.identifier
+                ?? "US",
             allowedRecipients: recipients,
             maximumMediaBytes: maximumMediaBytes
         )

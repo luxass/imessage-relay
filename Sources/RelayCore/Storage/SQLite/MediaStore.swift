@@ -1,6 +1,4 @@
-import Darwin
 import Foundation
-import SQLite3
 
 public final class SQLiteMediaStore: MessageMediaStoring, Sendable {
     private let executor: SQLiteExecutor
@@ -27,8 +25,9 @@ public final class SQLiteMediaStore: MessageMediaStoring, Sendable {
         let transferName = schema.expression("transfer_name", table: "attachment", alias: "a", fallback: "NULL")
         let mime = schema.expression("mime_type", table: "attachment", alias: "a", fallback: "NULL")
         let size = schema.expression("total_bytes", table: "attachment", alias: "a", fallback: "NULL")
-        let row: (path: String?, filename: String?, mime: String?, size: Int64?)? = try database.withStatement("""
-            SELECT a.filename, \(transferName), \(mime), \(size)
+        let sticker = schema.expression("is_sticker", table: "attachment", alias: "a", fallback: "0")
+        let row: (path: String?, filename: String?, mime: String?, size: Int64?, isSticker: Bool)? = try database.withStatement("""
+            SELECT a.filename, \(transferName), \(mime), \(size), \(sticker)
             FROM attachment a
             WHERE a.guid = ?
               AND EXISTS (
@@ -38,18 +37,15 @@ public final class SQLiteMediaStore: MessageMediaStoring, Sendable {
               )
             LIMIT 1
             """) { statement in
-                sqlite3_bind_text(statement, 1, id.rawValue, -1, sqliteTransient)
-                switch sqlite3_step(statement) {
-                case SQLITE_ROW:
-                    return (
-                        SQLiteValue.optionalText(statement, 0),
-                        SQLiteValue.optionalText(statement, 1),
-                        SQLiteValue.optionalText(statement, 2),
-                        SQLiteValue.optionalInt64(statement, 3)
-                    )
-                case SQLITE_DONE: return nil
-                default: throw SQLiteStorageError.queryFailed(database.lastError())
-                }
+                try statement.bind(id.rawValue, at: 1)
+                guard try statement.step() == .row else { return nil }
+                return (
+                    try SQLiteValue.optionalText(statement, 0),
+                    try SQLiteValue.optionalText(statement, 1),
+                    try SQLiteValue.optionalText(statement, 2),
+                    try SQLiteValue.optionalInt64(statement, 3),
+                    try SQLiteRows.bool(statement, 4) ?? false
+                )
             }
         guard let row, let storedPath = row.path else { return nil }
         let expanded = (storedPath as NSString).expandingTildeInPath
@@ -59,59 +55,14 @@ public final class SQLiteMediaStore: MessageMediaStoring, Sendable {
             filename: row.filename,
             mimeType: row.mime,
             byteSize: opened.byteCount,
-            source: .messages
+            source: .messages,
+            isSticker: row.isSticker
         )
         return ReadableMedia(
             reference: reference,
             descriptor: opened.descriptor,
-            byteCount: opened.byteCount
+            byteCount: opened.byteCount,
+            identity: opened.identity
         )
     }
-}
-
-func openRegularFile(
-    path: String,
-    within rootDirectory: URL
-) -> (descriptor: Int32, byteCount: Int64)? {
-    let rootComponents = rootDirectory.standardizedFileURL.pathComponents
-    let fileURL = URL(fileURLWithPath: path).standardizedFileURL
-    let fileComponents = fileURL.pathComponents
-    guard fileComponents.count > rootComponents.count,
-          fileComponents.prefix(rootComponents.count).elementsEqual(rootComponents) else {
-        return nil
-    }
-
-    var directoryDescriptor = open(
-        rootDirectory.path,
-        O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC
-    )
-    guard directoryDescriptor >= 0 else { return nil }
-    defer { close(directoryDescriptor) }
-
-    let relativeComponents = fileComponents.dropFirst(rootComponents.count)
-    for component in relativeComponents.dropLast() {
-        let next = openat(
-            directoryDescriptor,
-            component,
-            O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC
-        )
-        guard next >= 0 else { return nil }
-        close(directoryDescriptor)
-        directoryDescriptor = next
-    }
-    guard let filename = relativeComponents.last else { return nil }
-    let descriptor = openat(
-        directoryDescriptor,
-        filename,
-        O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC
-    )
-    guard descriptor >= 0 else { return nil }
-    var status = stat()
-    guard fstat(descriptor, &status) == 0,
-          status.st_mode & S_IFMT == S_IFREG,
-          status.st_size >= 0 else {
-        close(descriptor)
-        return nil
-    }
-    return (descriptor, status.st_size)
 }

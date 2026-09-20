@@ -1,7 +1,6 @@
-import SQLite3
-
 struct SchemaInspector: Sendable {
     private let columnsByTable: [String: Set<String>]
+    private let leadingIndexColumnsByTable: [String: Set<String>]
 
     init(database: OpaquePointer) throws {
         let tableNames = [
@@ -15,21 +14,65 @@ struct SchemaInspector: Sendable {
         ]
         var result: [String: Set<String>] = [:]
         for table in tableNames {
-            var statement: OpaquePointer?
-            guard sqlite3_prepare_v2(database, "PRAGMA table_xinfo(\(table))", -1, &statement, nil) == SQLITE_OK,
-                  let statement else {
-                throw SQLiteStorageError.queryFailed("Could not inspect table \(table).")
-            }
-            defer { sqlite3_finalize(statement) }
-            var columns: Set<String> = []
-            while sqlite3_step(statement) == SQLITE_ROW {
-                if let name = sqlite3_column_text(statement, 1) {
-                    columns.insert(String(cString: name).lowercased())
+            let statement = try SQLiteStatement(
+                connection: database,
+                sql: "PRAGMA table_xinfo(\(table))"
+            )
+            do {
+                var columns: Set<String> = []
+                while try statement.step() == .row {
+                    if let name = try statement.optionalText(1) {
+                        columns.insert(name.lowercased())
+                    }
                 }
+                if let cleanupError = statement.finalize() { throw cleanupError }
+                result[table] = columns
+            } catch {
+                _ = statement.finalize()
+                throw error
             }
-            result[table] = columns
         }
         columnsByTable = result
+
+        var leadingColumns: [String: Set<String>] = [:]
+        for table in tableNames {
+            let indexes = try Self.textValues(
+                database: database,
+                sql: "PRAGMA index_list(\(table))",
+                column: 1
+            )
+            for index in indexes {
+                let escaped = index.replacingOccurrences(of: "'", with: "''")
+                let columns = try Self.textValues(
+                    database: database,
+                    sql: "PRAGMA index_info('\(escaped)')",
+                    column: 2
+                )
+                if let first = columns.first {
+                    leadingColumns[table, default: []].insert(first.lowercased())
+                }
+            }
+        }
+        leadingIndexColumnsByTable = leadingColumns
+    }
+
+    private static func textValues(
+        database: OpaquePointer,
+        sql: String,
+        column: Int32
+    ) throws -> [String] {
+        let statement = try SQLiteStatement(connection: database, sql: sql)
+        do {
+            var values: [String] = []
+            while try statement.step() == .row {
+                if let value = try statement.optionalText(column) { values.append(value) }
+            }
+            if let cleanupError = statement.finalize() { throw cleanupError }
+            return values
+        } catch {
+            _ = statement.finalize()
+            throw error
+        }
     }
 
     func hasTable(_ table: String) -> Bool {
@@ -38,6 +81,10 @@ struct SchemaInspector: Sendable {
 
     func hasColumn(_ column: String, in table: String) -> Bool {
         columnsByTable[table]?.contains(column.lowercased()) ?? false
+    }
+
+    func hasLeadingIndex(on column: String, in table: String) -> Bool {
+        leadingIndexColumnsByTable[table]?.contains(column.lowercased()) ?? false
     }
 
     func expression(_ column: String, table: String, alias: String, fallback: String) -> String {

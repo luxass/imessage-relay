@@ -171,6 +171,62 @@ func sendServiceNormalizesDirectRecipientsForAllowlistChecks() async throws {
 }
 
 @Test
+func sendServiceResolvesAContactNameBeforeAllowlistAndDispatch() async throws {
+    let stores = StubStores(conversation: nil, context: nil, messages: [])
+    let sender = FakeMessageSender.available()
+    let resolved = try RecipientHandle(
+        type: .phone,
+        value: "+14155550100",
+        displayValue: "Alice"
+    )
+    let service = MessageService(
+        conversations: stores,
+        messages: stores,
+        sender: sender,
+        media: MediaService(uploads: MemoryUploadStore(), messagesMedia: NilMessageMediaStore()),
+        recipientResolver: StubRecipientResolver(values: ["Alice": resolved]),
+        allowlist: RecipientAllowlist(values: [resolved.value])
+    )
+    let request = try RelayJSON.decoder.decode(
+        SendMessageRequest.self,
+        from: Data(#"{"to":"Alice","text":"Hello"}"#.utf8)
+    )
+
+    _ = try await service.send(
+        request,
+        requestID: RequestID(validating: "request-contact"),
+        idempotencyKey: nil
+    )
+
+    #expect(sender.requests.first?.destination == .recipient(resolved))
+}
+
+@Test
+func messageServiceAddsCachedContactNamesToSenders() async throws {
+    let conversationID = try ConversationID(validating: "chat-guid")
+    let senderHandle = try RecipientHandle(type: .phone, value: "+14155550100")
+    let message = fixtureMessage(
+        id: try MessageID(validating: "message-guid"),
+        conversationID: conversationID,
+        sender: senderHandle
+    )
+    let stores = StubStores(conversation: nil, context: nil, messages: [message])
+    let service = MessageService(
+        conversations: stores,
+        messages: stores,
+        sender: FakeMessageSender.available(),
+        media: MediaService(uploads: MemoryUploadStore(), messagesMedia: NilMessageMediaStore()),
+        recipientResolver: StubRecipientResolver(values: [:], names: [senderHandle.value: "Alice"]),
+        allowlist: RecipientAllowlist(values: [])
+    )
+
+    let enriched = try await service.get(id: message.id)
+
+    #expect(enriched.sender?.value == senderHandle.value)
+    #expect(enriched.sender?.displayValue == "Alice")
+}
+
+@Test
 func sendServiceRejectsUnsupportedFeaturesBeforeCallingTheSender() async throws {
     let conversationID = try ConversationID(validating: "chat-guid")
     let phone = try RecipientHandle(type: .phone, value: "+15005550006")
@@ -654,12 +710,30 @@ func mediaServiceRejectsUnsafeNamesMIMEsAndOversizedUploads() async throws {
     await #expect(throws: RelayServiceError.unsafeMedia("The media file is empty.")) {
         try await service.upload(filename: "photo.jpg", mimeType: "image/jpeg", data: Data())
     }
+    await #expect(throws: RelayServiceError.unsafeMedia("The image data is invalid.")) {
+        try await service.upload(filename: "photo.jpg", mimeType: "image/jpeg", data: Data([1]))
+    }
     await #expect(throws: RelayServiceError.unsafeMedia("The MIME type is not allowed.")) {
         try await service.upload(filename: "file.zip", mimeType: "application/zip", data: Data([1]))
     }
     await #expect(throws: RelayServiceError.mediaTooLarge(maximumBytes: 4)) {
         try await service.upload(filename: "photo.jpg", mimeType: "image/jpeg", data: Data(repeating: 1, count: 5))
     }
+}
+
+@Test
+func mediaServiceAcceptsAnImageWithinDecodedLimits() async throws {
+    let encoded = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+    let data = try #require(Data(base64Encoded: encoded))
+    let service = MediaService(
+        uploads: MemoryUploadStore(),
+        messagesMedia: NilMessageMediaStore(),
+        policy: MediaPolicy(maximumBytes: 1024)
+    )
+
+    let response = try await service.upload(filename: "pixel.png", mimeType: "image/png", data: data)
+
+    #expect(response.media.byteSize == Int64(data.count))
 }
 
 @Test
@@ -682,6 +756,12 @@ func mediaFileStoreRejectsMetadataForAnotherMediaID() async throws {
         """
     try Data(tampered.utf8).write(to: metadataURL, options: .atomic)
 
+    #expect(try await store.reference(id: saved.mediaID) == nil)
+
+    let outside = directory.appendingPathComponent("outside-metadata.json")
+    try Data(tampered.utf8).write(to: outside)
+    try FileManager.default.removeItem(at: metadataURL)
+    try FileManager.default.createSymbolicLink(at: metadataURL, withDestinationURL: outside)
     #expect(try await store.reference(id: saved.mediaID) == nil)
 }
 
@@ -730,6 +810,23 @@ private final class StubStores: ConversationStoring, MessageStoring, @unchecked 
 
     func message(id: MessageID) async throws -> Message? {
         messageValues.first { $0.id == id }
+    }
+}
+
+private struct StubRecipientResolver: RecipientResolving {
+    let values: [String: RecipientHandle]
+    var names: [String: String] = [:]
+
+    func resolve(_ candidate: RecipientHandle) async throws -> RecipientHandle {
+        if let resolved = values[candidate.value] { return resolved }
+        guard candidate.type != .other else {
+            throw RecipientResolutionError.notFound(candidate.value)
+        }
+        return candidate
+    }
+
+    func displayName(for handle: RecipientHandle) async -> String? {
+        names[handle.value]
     }
 }
 
@@ -829,14 +926,15 @@ private func fixtureConversation(
 private func fixtureMessage(
     id: MessageID,
     conversationID: ConversationID,
-    thread: ThreadReference? = nil
+    thread: ThreadReference? = nil,
+    sender: RecipientHandle? = nil
 ) -> Message {
     Message(
         id: id,
         providerGUID: id.rawValue,
         conversationID: conversationID,
         text: "Reply target",
-        sender: nil,
+        sender: sender,
         isFromMe: false,
         createdAt: nil,
         deliveryState: .unknown,

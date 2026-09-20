@@ -5,7 +5,7 @@ import NIOCore
 import RelayCore
 import Testing
 
-@testable import relay_server
+@testable import RelayServer
 
 @Test
 func eventsRouteStreamsAuthenticatedSSEFrames() async throws {
@@ -34,14 +34,15 @@ func eventsRouteStreamsAuthenticatedSSEFrames() async throws {
         let body = String(buffer: response.body)
         #expect(body.hasPrefix("retry: 3000\n\n"))
         #expect(body.contains("event: stream.ready\n"))
-        #expect(body.contains(#"data: {"database_identity":"fixture-database","replay_supported":false}"#))
+        #expect(body.contains(#"data: {"database_identity":"fixture-database","replay_supported":true}"#))
+        #expect(body.contains("\nid: "))
         #expect(body.contains("event: message.created\n"))
         #expect(body.contains(#""message_id":"message-guid""#))
     }
 }
 
 @Test
-func eventsRouteRequiresAuthenticationAndRejectsReplayRequests() async throws {
+func eventsRouteRequiresAuthenticationAndResetsUnavailableReplayRequests() async throws {
     let harness = ServerTestHarness()
     let app = Application(router: harness.router())
 
@@ -55,12 +56,11 @@ func eventsRouteRequiresAuthenticationAndRejectsReplayRequests() async throws {
             method: .get,
             headers: authorizationHeaders([.init("last-event-id")!: "event-123"])
         )
-        #expect(replay.status == .badRequest)
-        let error = try RelayJSON.decoder.decode(
-            APIError.self,
-            from: Data(replay.body.readableBytesView)
-        )
-        #expect(error.code == .invalidRequest)
+        #expect(replay.status == .ok)
+        #expect(replay.headers[.contentType] == "text/event-stream; charset=utf-8")
+        let body = String(buffer: replay.body)
+        #expect(body.contains("event: stream.reset\n"))
+        #expect(body.contains(#""reason":"replay_unavailable""#))
     }
 }
 

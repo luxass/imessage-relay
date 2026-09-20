@@ -54,6 +54,9 @@ final class MessageDatabaseFixture: @unchecked Sendable {
         }
         database = opened
         do {
+            guard sqlite3_busy_timeout(opened, 5_000) == SQLITE_OK else {
+                throw FixtureError.cannotExecute("Could not configure the fixture busy timeout.")
+            }
             try createSchema(options: options)
             if seedData { try seed(options: options) }
         } catch {
@@ -94,11 +97,13 @@ final class MessageDatabaseFixture: @unchecked Sendable {
                 part_count INTEGER,
                 associated_message_guid TEXT, associated_message_type INTEGER,
                 associated_message_emoji TEXT, item_type INTEGER,
-                is_finished INTEGER, is_system_message INTEGER
+                is_finished INTEGER, is_system_message INTEGER,
+                balloon_bundle_id TEXT, is_audio_message INTEGER,
+                schedule_type INTEGER, schedule_state INTEGER
               """
             : ""
         let attachmentOptional = options.includeOptionalAttachmentColumns
-            ? ", transfer_name TEXT, mime_type TEXT, uti TEXT, total_bytes INTEGER"
+            ? ", transfer_name TEXT, mime_type TEXT, uti TEXT, total_bytes INTEGER, is_sticker INTEGER"
             : ""
         try execute("""
             CREATE TABLE chat (
@@ -249,7 +254,7 @@ final class MessageDatabaseFixture: @unchecked Sendable {
             value: 1,
             range: NSRange(location: 1, length: body.length - 1)
         )
-        try bindAttributedBody(
+        try setAttributedBody(
             messageRowID: messageRowID,
             data: Self.archivedAttributedString(body)
         )
@@ -269,7 +274,7 @@ final class MessageDatabaseFixture: @unchecked Sendable {
             """)
     }
 
-    private func bindAttributedBody(messageRowID: Int64, data: Data) throws {
+    func setAttributedBody(messageRowID: Int64, data: Data) throws {
         var statement: OpaquePointer?
         guard sqlite3_prepare_v2(
             database,

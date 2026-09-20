@@ -129,12 +129,13 @@ func sendRequestUsesExactlyOneDestinationShape() throws {
             from: Data(#"{"to":"a@example.com","text":"hello","extra":true}"#.utf8)
         )
     }
-    #expect(throws: RecipientHandle.ValidationError.self) {
-        try RelayJSON.decoder.decode(
-            SendMessageRequest.self,
-            from: Data(#"{"to":"not-a-recipient","text":"hello"}"#.utf8)
-        )
-    }
+    let contact = try RelayJSON.decoder.decode(
+        SendMessageRequest.self,
+        from: Data(#"{"to":"Alice","text":"hello"}"#.utf8)
+    )
+    #expect(contact.destination == .recipient(
+        try RecipientHandle(type: .other, value: "Alice")
+    ))
     #expect(throws: SendMessageRequest.ValidationError.self) {
         try RelayJSON.decoder.decode(
             SendMessageRequest.self,

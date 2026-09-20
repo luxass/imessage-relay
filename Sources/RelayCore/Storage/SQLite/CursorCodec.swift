@@ -1,6 +1,5 @@
 import CryptoKit
 import Foundation
-import SQLite3
 
 enum SQLiteNumber: Codable, Equatable, Sendable {
     case integer(Int64)
@@ -29,10 +28,10 @@ enum SQLiteNumber: Codable, Equatable, Sendable {
         }
     }
 
-    func bind(to statement: OpaquePointer, at index: Int32) {
+    func bind(to statement: SQLiteStatement, at index: Int32) throws {
         switch self {
-        case .integer(let value): sqlite3_bind_int64(statement, index, value)
-        case .real(let value): sqlite3_bind_double(statement, index, value)
+        case .integer(let value): try statement.bind(value, at: index)
+        case .real(let value): try statement.bind(value, at: index)
         }
     }
 
@@ -43,11 +42,36 @@ enum SQLiteNumber: Codable, Equatable, Sendable {
         }
     }
 
-    static func read(_ statement: OpaquePointer, _ index: Int32) -> Self? {
-        switch sqlite3_column_type(statement, index) {
-        case SQLITE_NULL: nil
-        case SQLITE_INTEGER: .integer(sqlite3_column_int64(statement, index))
-        default: .real(sqlite3_column_double(statement, index))
+    static func read(_ statement: SQLiteStatement, _ index: Int32) throws -> Self? {
+        try statement.number(index)
+    }
+}
+
+struct SearchPreviewCursor: Codable, Sendable {
+    enum Phase: String, Codable, Sendable {
+        case resolving
+        case replayingStart
+        case replaying
+    }
+
+    struct Position: Codable, Equatable, Sendable {
+        let date: SQLiteNumber?
+        let rowID: Int64
+    }
+
+    let phase: Phase
+    let newest: Position
+    let root: Position?
+    let end: Position?
+
+    var isValid: Bool {
+        guard newest.rowID > 0,
+              root.map({ $0.rowID > 0 }) != false,
+              end.map({ $0.rowID > 0 }) != false else { return false }
+        switch phase {
+        case .resolving: return end == nil
+        case .replayingStart: return root == nil && end != nil
+        case .replaying: return end != nil
         }
     }
 }
@@ -59,6 +83,7 @@ struct StorageCursor: Codable, Sendable {
     let querySignature: String
     let date: SQLiteNumber?
     let rowID: Int64
+    let searchPreview: SearchPreviewCursor?
 }
 
 enum CursorCodec {
@@ -79,7 +104,8 @@ enum CursorCodec {
               payload.route == route,
               payload.databaseIdentity == databaseIdentity,
               payload.querySignature == querySignature,
-              payload.rowID > 0 else {
+              payload.rowID > 0,
+              payload.searchPreview?.isValid != false else {
             throw SQLiteStorageError.invalidCursor
         }
         return payload
@@ -90,7 +116,8 @@ enum CursorCodec {
         databaseIdentity: String,
         querySignature: String,
         date: SQLiteNumber?,
-        rowID: Int64
+        rowID: Int64,
+        searchPreview: SearchPreviewCursor? = nil
     ) throws -> Cursor {
         let payload = StorageCursor(
             version: 1,
@@ -98,7 +125,8 @@ enum CursorCodec {
             databaseIdentity: databaseIdentity,
             querySignature: querySignature,
             date: date,
-            rowID: rowID
+            rowID: rowID,
+            searchPreview: searchPreview
         )
         let data = try RelayJSON.encoder.encode(payload)
         let encoded = data.base64EncodedString()

@@ -1,5 +1,4 @@
 import Foundation
-import SQLite3
 
 struct ConversationRow: Sendable {
     let rowID: Int64
@@ -19,7 +18,7 @@ struct MessageRow: Sendable {
     let guid: String
     let conversationGUID: String
     let text: String?
-    let attributedBody: Data?
+    let decodedBody: DecodedMessageBody?
     let handle: String?
     let originalHandle: String?
     let isFromMe: Bool
@@ -33,12 +32,12 @@ struct MessageRow: Sendable {
     let replyToGUID: String?
     let threadOriginatorGUID: String?
     let partCount: Int64?
-}
-
-private struct AttributedPart {
-    let index: Int
-    var text: String?
-    var attachmentGUID: String?
+    let balloonBundleID: String?
+    let isAudioMessage: Bool?
+    let scheduleType: Int64?
+    let scheduleState: Int64?
+    let associatedMessageGUID: String?
+    let associatedMessageType: Int64?
 }
 
 enum SQLiteRows {
@@ -48,16 +47,8 @@ enum SQLiteRows {
         return Timestamp(Date(timeIntervalSinceReferenceDate: seconds))
     }
 
-    static func bool(_ statement: OpaquePointer, _ index: Int32) -> Bool? {
-        SQLiteValue.optionalInt64(statement, index).map { $0 != 0 }
-    }
-
-    static func attributedText(_ data: Data?) -> String? {
-        guard let attributed = attributedString(data) else { return nil }
-        let text = attributed.string
-            .replacingOccurrences(of: "\u{fffc}", with: "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        return text.isEmpty ? nil : text
+    static func bool(_ statement: SQLiteStatement, _ index: Int32) throws -> Bool? {
+        try SQLiteValue.optionalInt64(statement, index).map { $0 != 0 }
     }
 
     static func messageParts(
@@ -65,7 +56,7 @@ enum SQLiteRows {
         attachmentsByGUID: [String: MediaReference] = [:],
         attachmentsLoaded: Bool = false
     ) -> [MessagePart]? {
-        if let attributed = attributedParts(row.attributedBody), !attributed.isEmpty {
+        if let attributed = row.decodedBody?.parts, !attributed.isEmpty {
             var mapped = Dictionary(uniqueKeysWithValues: attributed.map { part in
                 let value: MessagePart
                 if let guid = part.attachmentGUID {
@@ -86,7 +77,7 @@ enum SQLiteRows {
             return mapped.keys.sorted().compactMap { mapped[$0] }
         }
 
-        let text = row.text ?? attributedText(row.attributedBody)
+        let text = row.text ?? row.decodedBody?.text
         if let text, validPartCount(row.partCount) == 1 {
             return [.text(index: 0, text: text)]
         }
@@ -105,47 +96,6 @@ enum SQLiteRows {
         return Int(value)
     }
 
-    private static func attributedString(_ data: Data?) -> NSAttributedString? {
-        guard let data else { return nil }
-
-        // Messages stores attributedBody as a legacy typedstream archive. NSKeyedUnarchiver
-        // cannot decode that format, so invoke the deprecated Foundation decoder dynamically.
-        let selector = NSSelectorFromString("unarchiveObjectWithData:")
-        guard let unarchiver = NSClassFromString("NSUnarchiver") as? NSObject.Type,
-              unarchiver.responds(to: selector),
-              let result = unarchiver.perform(selector, with: data) else {
-            return nil
-        }
-        return result.takeUnretainedValue() as? NSAttributedString
-    }
-
-    private static func attributedParts(_ data: Data?) -> [AttributedPart]? {
-        guard let attributed = attributedString(data) else { return nil }
-        let partKey = NSAttributedString.Key("__kIMMessagePartAttributeName")
-        let transferKey = NSAttributedString.Key("__kIMFileTransferGUIDAttributeName")
-        var parts: [Int: AttributedPart] = [:]
-        attributed.enumerateAttributes(
-            in: NSRange(location: 0, length: attributed.length)
-        ) { attributes, range, _ in
-            guard let index = partIndex(attributes[partKey]), index >= 0 else { return }
-            let raw = (attributed.string as NSString).substring(with: range)
-            let text = raw.replacingOccurrences(of: "\u{fffc}", with: "")
-            let transferGUID = attributes[transferKey] as? String
-            var part = parts[index] ?? AttributedPart(index: index, text: nil, attachmentGUID: nil)
-            if !text.isEmpty { part.text = (part.text ?? "") + text }
-            if let transferGUID, !transferGUID.isEmpty { part.attachmentGUID = transferGUID }
-            parts[index] = part
-        }
-        return parts.keys.sorted().compactMap { parts[$0] }
-    }
-
-    private static func partIndex(_ value: Any?) -> Int? {
-        if let number = value as? NSNumber { return number.intValue }
-        if let value = value as? Int { return value }
-        if let value = value as? String { return Int(value) }
-        return nil
-    }
-
     static func handle(value: String?, original: String?) -> RecipientHandle? {
         guard let value, !value.isEmpty else { return nil }
         return try? RecipientHandle.stored(value: value, originalValue: original)
@@ -154,21 +104,42 @@ enum SQLiteRows {
     static func message(_ row: MessageRow) throws -> Message {
         let messageID = try MessageID(validating: row.guid)
         let conversationID = try ConversationID(validating: row.conversationGUID)
-        let thread: ThreadReference?
         let root = try row.threadOriginatorGUID.map(MessageID.init(validating:))
-        if let root {
-            thread = ThreadReference(
+        let reply = try row.replyToGUID.map(MessageID.init(validating:))
+        let thread = root.map {
+            ThreadReference(
                 replyToMessageID: nil,
-                threadOriginatorMessageID: root
+                threadOriginatorMessageID: $0,
+                providerReplyToMessageID: reply
+            )
+        }
+        let schedule: MessageSchedule?
+        if row.scheduleType.map({ $0 != 0 }) == true || row.scheduleState.map({ $0 != 0 }) == true {
+            schedule = MessageSchedule(
+                scheduledAt: timestamp(row.date),
+                type: row.scheduleType ?? 0,
+                state: row.scheduleState ?? 0
             )
         } else {
-            thread = nil
+            schedule = nil
+        }
+        let poll: NativePoll?
+        if row.balloonBundleID?.split(separator: ":").last == "com.apple.messages.Polls" {
+            poll = NativePoll(kind: .created, originalMessageID: nil)
+        } else if row.associatedMessageType == 4000 {
+            poll = NativePoll(
+                kind: .vote,
+                originalMessageID: try normalizedAssociatedGUID(row.associatedMessageGUID)
+                    .map(MessageID.init(validating:))
+            )
+        } else {
+            poll = nil
         }
         return Message(
             id: messageID,
             providerGUID: row.guid,
             conversationID: conversationID,
-            text: row.text ?? attributedText(row.attributedBody),
+            text: row.text ?? row.decodedBody?.text,
             sender: handle(value: row.handle, original: row.originalHandle),
             isFromMe: row.isFromMe,
             createdAt: timestamp(row.date),
@@ -179,8 +150,21 @@ enum SQLiteRows {
             thread: thread,
             parts: messageParts(row),
             reactions: [],
-            attachments: []
+            attachments: [],
+            balloonBundleID: row.balloonBundleID,
+            poll: poll,
+            schedule: schedule,
+            isAudioMessage: row.isAudioMessage
         )
+    }
+
+    private static func normalizedAssociatedGUID(_ value: String?) -> String? {
+        guard let value else { return nil }
+        if value.hasPrefix("p:"), let slash = value.firstIndex(of: "/") {
+            return String(value[value.index(after: slash)...])
+        }
+        if value.hasPrefix("bp:") { return String(value.dropFirst(3)) }
+        return value
     }
 
     static func deliveryState(_ row: MessageRow) -> DeliveryState {

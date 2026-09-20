@@ -40,6 +40,7 @@ public struct MessageService: Sendable {
     private let messages: any MessageStoring
     private let sender: any MessageSender
     private let media: MediaService
+    private let recipientResolver: any RecipientResolving
     private let allowlist: RecipientAllowlist
     private let sendRequests: any SendRequestStoring
     private let correlator: (any SendCorrelating)?
@@ -53,6 +54,7 @@ public struct MessageService: Sendable {
         messages: any MessageStoring,
         sender: any MessageSender,
         media: MediaService,
+        recipientResolver: any RecipientResolving = DirectRecipientResolver(),
         allowlist: RecipientAllowlist,
         sendRequests: any SendRequestStoring = InMemorySendRequestStore(),
         correlator: (any SendCorrelating)? = nil,
@@ -65,6 +67,7 @@ public struct MessageService: Sendable {
         self.messages = messages
         self.sender = sender
         self.media = media
+        self.recipientResolver = recipientResolver
         self.allowlist = allowlist
         self.sendRequests = sendRequests
         self.correlator = correlator
@@ -78,14 +81,17 @@ public struct MessageService: Sendable {
         conversationID: ConversationID,
         options: MessageListOptions
     ) async throws -> PaginatedResponse<Message> {
-        try await messages.listMessages(conversationID: conversationID, options: options)
+        let page = try await messages.listMessages(conversationID: conversationID, options: options)
+        var items: [Message] = []
+        for message in page.items { items.append(await addingContactNames(to: message)) }
+        return PaginatedResponse(items: items, nextCursor: page.nextCursor, hasMore: page.hasMore)
     }
 
     public func get(id: MessageID) async throws -> Message {
         guard let message = try await messages.message(id: id) else {
             throw RelayServiceError.unknownMessage
         }
-        return message
+        return await addingContactNames(to: message)
     }
 
     public func request(id: RequestID) async throws -> SendMessageResponse {
@@ -124,6 +130,51 @@ public struct MessageService: Sendable {
         return try await identificationGate.run {
             try await dispatchAndIdentify(operation, prepared: prepared)
         }
+    }
+
+    private func addingContactNames(to message: Message) async -> Message {
+        let sender = await named(message.sender)
+        var reactions: [Reaction] = []
+        for reaction in message.reactions {
+            reactions.append(Reaction(
+                id: reaction.id,
+                targetPartIndex: reaction.targetPartIndex,
+                kind: reaction.kind,
+                emoji: reaction.emoji,
+                action: reaction.action,
+                sender: await named(reaction.sender),
+                isFromMe: reaction.isFromMe,
+                createdAt: reaction.createdAt
+            ))
+        }
+        return Message(
+            id: message.id,
+            providerGUID: message.providerGUID,
+            conversationID: message.conversationID,
+            text: message.text,
+            sender: sender,
+            isFromMe: message.isFromMe,
+            createdAt: message.createdAt,
+            deliveryState: message.deliveryState,
+            readState: message.readState,
+            deliveredAt: message.deliveredAt,
+            readAt: message.readAt,
+            thread: message.thread,
+            parts: message.parts,
+            reactions: reactions,
+            attachments: message.attachments,
+            balloonBundleID: message.balloonBundleID,
+            urlPreview: message.urlPreview,
+            poll: message.poll,
+            schedule: message.schedule,
+            isAudioMessage: message.isAudioMessage
+        )
+    }
+
+    private func named(_ handle: RecipientHandle?) async -> RecipientHandle? {
+        guard let handle,
+              let name = await recipientResolver.displayName(for: handle) else { return handle }
+        return try? RecipientHandle(type: handle.type, value: handle.value, displayValue: name)
     }
 
     private func dispatchAndIdentify(
@@ -343,8 +394,9 @@ public struct MessageService: Sendable {
                 APIFieldError(field: "text", message: "Provide text, media, or both.")
             ])
         }
+        let requestedDestination = try await resolve(request.destination)
         let participantDestination: Bool
-        if case .participants = request.destination {
+        if case .participants = requestedDestination {
             participantDestination = true
             guard text?.isEmpty == false else {
                 throw RelayServiceError.invalidRequest([
@@ -365,11 +417,11 @@ public struct MessageService: Sendable {
             participantDestination = false
         }
 
-        if case .participants(let participants) = request.destination,
+        if case .participants(let participants) = requestedDestination,
            !allowlist.allowsAll(participants) {
             throw RelayServiceError.disallowedRecipient
         }
-        let destination = try await destinationContext(request.destination)
+        let destination = try await destinationContext(requestedDestination)
         let createsGroup = participantDestination && destination.context == nil
         guard allowlist.allowsAll(destination.recipients) else {
             throw RelayServiceError.disallowedRecipient
@@ -422,6 +474,44 @@ public struct MessageService: Sendable {
             ])
         }
         return messageID
+    }
+
+    private func resolve(_ destination: MessageDestination) async throws -> MessageDestination {
+        do {
+            switch destination {
+            case .conversation:
+                return destination
+            case .recipient(let candidate):
+                return .recipient(try await recipientResolver.resolve(candidate))
+            case .participants(let candidates):
+                var recipients: [RecipientHandle] = []
+                for candidate in candidates {
+                    recipients.append(try await recipientResolver.resolve(candidate))
+                }
+                let keys = recipients.map { "\($0.type.rawValue)\u{0}\($0.value)" }
+                guard Set(keys).count == recipients.count else {
+                    throw RelayServiceError.invalidDestination([
+                        APIFieldError(
+                            field: "participants",
+                            message: "Each resolved participant must be unique."
+                        )
+                    ])
+                }
+                return .participants(recipients)
+            }
+        } catch RecipientResolutionError.ambiguous(let query) {
+            throw RelayServiceError.invalidDestination([
+                APIFieldError(field: "destination", message: "Multiple contacts match \(query).")
+            ])
+        } catch RecipientResolutionError.contactsUnavailable {
+            throw RelayServiceError.invalidDestination([
+                APIFieldError(field: "destination", message: "Contacts access is unavailable.")
+            ])
+        } catch RecipientResolutionError.notFound(let query) {
+            throw RelayServiceError.invalidDestination([
+                APIFieldError(field: "destination", message: "No recipient matches \(query).")
+            ])
+        }
     }
 
     private func destinationContext(

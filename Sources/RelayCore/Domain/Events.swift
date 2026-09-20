@@ -18,7 +18,26 @@ public enum MessageChangedField: String, Codable, Equatable, Sendable {
 public enum StreamResetReason: String, Codable, Equatable, Sendable {
     case databaseChanged = "database_changed"
     case observerFailed = "observer_failed"
+    case replayUnavailable = "replay_unavailable"
     case subscriberOverflow = "subscriber_overflow"
+}
+
+public struct EventCursor: RawRepresentable, Codable, Equatable, Hashable, Sendable {
+    public let rawValue: String
+
+    public init(rawValue: String) {
+        self.rawValue = rawValue
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        rawValue = try container.decode(String.self)
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
 }
 
 public struct StreamReadyEvent: Codable, Equatable, Sendable {
@@ -128,16 +147,24 @@ public struct StreamResetEvent: Codable, Equatable, Sendable {
     public let reason: StreamResetReason
     public let message: String
     public let refetchRequired: Bool
+    public let resumeAfterEventID: EventCursor?
 
     private enum CodingKeys: String, CodingKey {
         case reason, message
         case refetchRequired = "refetch_required"
+        case resumeAfterEventID = "resume_after_event_id"
     }
 
-    public init(reason: StreamResetReason, message: String, refetchRequired: Bool = true) {
+    public init(
+        reason: StreamResetReason,
+        message: String,
+        refetchRequired: Bool = true,
+        resumeAfterEventID: EventCursor? = nil
+    ) {
         self.reason = reason
         self.message = message
         self.refetchRequired = refetchRequired
+        self.resumeAfterEventID = resumeAfterEventID
     }
 }
 
@@ -158,6 +185,16 @@ public enum RelayEventPayload: Encodable, Equatable, Sendable {
         case .mediaAvailable(let value): try value.encode(to: encoder)
         case .streamReset(let value): try value.encode(to: encoder)
         }
+    }
+}
+
+public struct RelayEventDelivery: Equatable, Sendable {
+    public let eventID: EventCursor?
+    public let event: RelayEvent
+
+    public init(eventID: EventCursor?, event: RelayEvent) {
+        self.eventID = eventID
+        self.event = event
     }
 }
 

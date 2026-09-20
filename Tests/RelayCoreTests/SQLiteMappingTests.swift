@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import Testing
 
@@ -12,8 +13,30 @@ func attributedAttachmentPlaceholderIsNotExposedAsText() throws {
         NSAttributedString(string: "Caption\u{fffc}")
     )
 
-    #expect(SQLiteRows.attributedText(placeholder) == nil)
-    #expect(SQLiteRows.attributedText(mixed) == "Caption")
+    #expect(DecodedMessageBody(placeholder)?.text == nil)
+    #expect(DecodedMessageBody(mixed)?.text == "Caption")
+}
+
+@Test
+func malformedAttributedBodyDoesNotEscapeAsAnObjectiveCException() async throws {
+    let malformed = Data("not a legacy archive".utf8)
+    #expect(DecodedMessageBody(malformed) == nil)
+    let valid = try MessageDatabaseFixture.archivedAttributedString(
+        NSAttributedString(string: "Truncated archive")
+    )
+    #expect(DecodedMessageBody(Data(valid.prefix(20))) == nil)
+    #expect(DecodedMessageBody(Data(valid.dropLast(5))) == nil)
+
+    let fixture = try MessageDatabaseFixture()
+    try fixture.setAttributedBody(messageRowID: 100, data: malformed)
+    let storage = fixture.makeStorage()
+    let message = try #require(try await storage.messages.message(
+        id: MessageID(validating: MessageDatabaseFixture.rootMessageID)
+    ))
+
+    #expect(message.text == "Root message")
+    #expect(message.parts == [.text(index: 0, text: "Root message")])
+    try await storage.shutdown()
 }
 
 @Test
@@ -133,6 +156,7 @@ func messagesMapAttributedTextThreadsReactionsAttachmentsAndReceipts() async thr
         id: MessageID(validating: MessageDatabaseFixture.nestedReplyID)
     ))
     #expect(nested.thread?.replyToMessageID == nil)
+    #expect(nested.thread?.providerReplyToMessageID?.rawValue == MessageDatabaseFixture.immediateReplyID)
     #expect(nested.thread?.threadOriginatorMessageID?.rawValue == MessageDatabaseFixture.rootMessageID)
     #expect(nested.isFromMe)
     #expect(nested.deliveryState == .sent)
@@ -174,6 +198,67 @@ func messagesMapAttributedTextThreadsReactionsAttachmentsAndReceipts() async thr
 }
 
 @Test
+func messagesDecodePreviewsPollsSchedulesAudioAndStickers() async throws {
+    let fixture = try MessageDatabaseFixture()
+    let storage = fixture.makeStorage()
+    let textID = "00000000-0000-0000-0000-000000000110"
+    let previewID = "00000000-0000-0000-0000-000000000111"
+    let pollID = "00000000-0000-0000-0000-000000000112"
+    let voteID = "00000000-0000-0000-0000-000000000113"
+    let scheduledID = "00000000-0000-0000-0000-000000000114"
+    try fixture.execute("""
+        UPDATE attachment SET is_sticker = 1
+        WHERE guid = '\(MessageDatabaseFixture.attachmentID)';
+        INSERT INTO message
+            (ROWID, guid, text, handle_id, is_from_me, date, balloon_bundle_id,
+             is_audio_message, schedule_type, schedule_state,
+             associated_message_guid, associated_message_type)
+        VALUES
+            (110, '\(textID)', 'Read https://example.com', 10, 0,
+             700000310000000000, NULL, 0, 0, 0, NULL, 0),
+            (111, '\(previewID)', NULL, 10, 0,
+             700000311000000000, 'com.apple.messages.URLBalloonProvider', 0, 0, 0, NULL, 0),
+            (112, '\(pollID)', NULL, 10, 0,
+             700000312000000000, 'com.apple.messages.Polls', 0, 0, 0, NULL, 0),
+            (113, '\(voteID)', NULL, 10, 0,
+             700000313000000000, NULL, 0, 0, 0, 'p:0/\(pollID)', 4000),
+            (114, '\(scheduledID)', 'Later', NULL, 1,
+             900000000000000000, NULL, 1, 2, 1, NULL, 0);
+        INSERT INTO chat_message_join (chat_id, message_id, message_date, filter_action)
+        VALUES
+            (1, 110, 700000310000000000, 0),
+            (1, 111, 700000311000000000, 0),
+            (1, 112, 700000312000000000, 0),
+            (1, 113, 700000313000000000, 0),
+            (1, 114, 900000000000000000, 0);
+        """)
+
+    let page = try await storage.messages.listMessages(
+        conversationID: ConversationID(validating: MessageDatabaseFixture.oneToOneID),
+        options: MessageListOptions(limit: 20, includeAttachments: true)
+    )
+    let link = try #require(page.items.first { $0.id.rawValue == textID })
+    #expect(page.items.contains { $0.id.rawValue == previewID } == false)
+    #expect(link.urlPreview?.messageID.rawValue == previewID)
+    #expect(link.urlPreview?.balloonBundleID == "com.apple.messages.URLBalloonProvider")
+    #expect(page.items.first { $0.id.rawValue == pollID }?.poll?.kind == .created)
+    #expect(page.items.first { $0.id.rawValue == voteID }?.poll?.kind == .vote)
+    #expect(page.items.first { $0.id.rawValue == voteID }?.poll?.originalMessageID?.rawValue == pollID)
+    let scheduled = try #require(page.items.first { $0.id.rawValue == scheduledID })
+    #expect(scheduled.isAudioMessage == true)
+    #expect(scheduled.schedule?.type == 2)
+    #expect(scheduled.schedule?.state == 1)
+    #expect(page.items.flatMap(\.attachments).first?.isSticker == true)
+    let search = try await storage.messages.listMessages(
+        conversationID: ConversationID(validating: MessageDatabaseFixture.oneToOneID),
+        options: MessageListOptions(limit: 20, search: "example.com")
+    )
+    #expect(search.items.map(\.id.rawValue) == [textID])
+    #expect(search.items.first?.urlPreview?.messageID.rawValue == previewID)
+    try await storage.shutdown()
+}
+
+@Test
 func messageListsExcludeReactionEventsAlwaysIncludeReactionsAndHonorAttachmentProjectionAndSearch() async throws {
     let fixture = try MessageDatabaseFixture()
     let storage = fixture.makeStorage()
@@ -206,6 +291,89 @@ func messageListsExcludeReactionEventsAlwaysIncludeReactionsAndHonorAttachmentPr
     )
     #expect(included.items.first { $0.id.rawValue == MessageDatabaseFixture.rootMessageID }?.reactions.count == 2)
     #expect(included.items.first { $0.text == "Attributed fixture text" }?.attachments.count == 1)
+    try await storage.shutdown()
+}
+
+@Test
+func boundedSearchReturnsAdvancingEmptyContinuationPagesWithoutSkippingMatches() async throws {
+    let fixture = try MessageDatabaseFixture()
+    try insertSearchHistory(into: fixture, count: 600) { index in
+        (index == 0 || index == 100) ? "Needle \(index)" : "Haystack \(index)"
+    }
+    let storage = fixture.makeStorage()
+    let conversationID = try ConversationID(validating: MessageDatabaseFixture.oneToOneID)
+    var cursor: Cursor?
+    var pages = 0
+    var matched: [String] = []
+    var sawEmptyContinuation = false
+    repeat {
+        let page = try await storage.messages.listMessages(
+            conversationID: conversationID,
+            options: MessageListOptions(limit: 1, cursor: cursor, search: "needle")
+        )
+        pages += 1
+        if page.items.isEmpty && page.hasMore {
+            sawEmptyContinuation = true
+            #expect(page.nextCursor != nil)
+        }
+        matched.append(contentsOf: page.items.map(\.id.rawValue))
+        if page.hasMore {
+            let next = try #require(page.nextCursor)
+            #expect(next != cursor)
+            cursor = next
+        } else {
+            cursor = nil
+        }
+        #expect(pages < 10)
+    } while cursor != nil
+
+    #expect(sawEmptyContinuation)
+    #expect(matched == ["search-history-100", "search-history-0"])
+    #expect(Set(matched).count == matched.count)
+    try await storage.shutdown()
+}
+
+@Test
+func boundedSearchCarriesURLPreviewOverlapAcrossCandidatePages() async throws {
+    let fixture = try MessageDatabaseFixture()
+    try insertSearchHistory(into: fixture, count: 400) { index in
+        index == 143 ? "Boundary https://example.com" : "Haystack \(index)"
+    }
+    try fixture.execute("""
+        UPDATE message
+        SET text = NULL, balloon_bundle_id = 'com.apple.messages.URLBalloonProvider'
+        WHERE guid = 'search-history-144'
+        """)
+    let storage = fixture.makeStorage()
+    let conversationID = try ConversationID(validating: MessageDatabaseFixture.oneToOneID)
+
+    let first = try await storage.messages.listMessages(
+        conversationID: conversationID,
+        options: MessageListOptions(limit: 1, search: "boundary")
+    )
+    let firstCursor = try #require(first.nextCursor)
+    #expect(first.items.isEmpty)
+    #expect(first.hasMore)
+    var cursor: Cursor? = firstCursor
+    var match: Message?
+    var continuations = 0
+    while let current = cursor, match == nil {
+        let page = try await storage.messages.listMessages(
+            conversationID: conversationID,
+            options: MessageListOptions(
+                limit: 1,
+                cursor: current,
+                search: "boundary"
+            )
+        )
+        match = page.items.first
+        cursor = page.hasMore ? page.nextCursor : nil
+        continuations += 1
+        #expect(continuations < 5)
+    }
+    let resolvedMatch = try #require(match)
+    #expect(resolvedMatch.id.rawValue == "search-history-143")
+    #expect(resolvedMatch.urlPreview?.messageID.rawValue == "search-history-144")
     try await storage.shutdown()
 }
 
@@ -279,6 +447,47 @@ func providerMediaOpensOnlyLinkedRegularFilesWithinTheAttachmentRoot() async thr
 
     #expect(media.reference.filename == "photo.jpg")
     #expect(String(data: try media.readChunk(offset: 0), encoding: .utf8) == "fixture attachment")
+
+    let file = fixture.attachmentDirectory
+        .appendingPathComponent("fixture", isDirectory: true)
+        .appendingPathComponent("photo.jpg")
+    let hardLink = fixture.attachmentDirectory.appendingPathComponent("linked-photo.jpg")
+    try FileManager.default.linkItem(at: file, to: hardLink)
+    #expect(try await storage.media.media(
+        id: MediaID(validating: MessageDatabaseFixture.attachmentID)
+    ) == nil)
+    try FileManager.default.removeItem(at: hardLink)
+
+    let alias = fixture.attachmentDirectory.appendingPathComponent("alias")
+    try FileManager.default.createSymbolicLink(
+        at: alias,
+        withDestinationURL: file.deletingLastPathComponent()
+    )
+    try fixture.execute("""
+        UPDATE attachment SET filename = '\(alias.appendingPathComponent("photo.jpg").path)'
+        WHERE guid = '\(MessageDatabaseFixture.attachmentID)'
+        """)
+    #expect(try await storage.media.media(
+        id: MediaID(validating: MessageDatabaseFixture.attachmentID)
+    ) == nil)
+
+    let pipe = fixture.attachmentDirectory.appendingPathComponent("attachment.pipe")
+    #expect(mkfifo(pipe.path, 0o600) == 0)
+    try fixture.execute("""
+        UPDATE attachment SET filename = '\(pipe.path)'
+        WHERE guid = '\(MessageDatabaseFixture.attachmentID)'
+        """)
+    #expect(try await storage.media.media(
+        id: MediaID(validating: MessageDatabaseFixture.attachmentID)
+    ) == nil)
+
+    let handle = try FileHandle(forWritingTo: file)
+    try handle.seekToEnd()
+    try handle.write(contentsOf: Data("changed".utf8))
+    try handle.close()
+    #expect(throws: SQLiteStorageError.self) {
+        try media.readChunk(offset: 0)
+    }
 
     try fixture.execute("""
         UPDATE attachment SET filename = '/etc/passwd'
@@ -574,4 +783,33 @@ func sendCorrelationReportsAReplyRelationshipMismatch() async throws {
         return
     }
     try await storage.shutdown()
+}
+
+private func insertSearchHistory(
+    into fixture: MessageDatabaseFixture,
+    count: Int,
+    text: (Int) -> String
+) throws {
+    try fixture.execute("BEGIN")
+    for start in stride(from: 0, to: count, by: 200) {
+        let end = min(start + 200, count)
+        let messages = (start..<end).map { index in
+            let escaped = text(index).replacingOccurrences(of: "'", with: "''")
+            return """
+                (\(1_000 + index), 'search-history-\(index)', '\(escaped)', 10, 0,
+                 \(800000000000000000 + index), 0)
+                """
+        }.joined(separator: ",")
+        let joins = (start..<end).map { index in
+            "(1, \(1_000 + index), \(800000000000000000 + index), 0)"
+        }.joined(separator: ",")
+        try fixture.execute("""
+            INSERT INTO message
+                (ROWID, guid, text, handle_id, is_from_me, date, associated_message_type)
+            VALUES \(messages);
+            INSERT INTO chat_message_join (chat_id, message_id, message_date, filter_action)
+            VALUES \(joins)
+            """)
+    }
+    try fixture.execute("COMMIT")
 }

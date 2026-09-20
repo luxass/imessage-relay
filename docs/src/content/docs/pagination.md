@@ -5,7 +5,11 @@ description: Follow opaque cursors and handle database identity changes.
 
 The conversation and message-list endpoints return `items`, `has_more`, and
 `next_cursor` when another page exists. Pass `next_cursor` unchanged as the next
-request's `cursor` parameter. Keep the original query options.
+request's `cursor` parameter. Keep the original query options. Continue while
+`has_more` is true rather than stopping when `items` is empty. A bounded message
+search can return an empty continuation page while advancing through candidates
+that do not match or resolving a URL-preview group at a scan boundary; that page
+still includes a `next_cursor`.
 
 ## Ordering
 

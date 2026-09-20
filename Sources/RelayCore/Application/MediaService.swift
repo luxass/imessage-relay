@@ -1,12 +1,25 @@
 import Foundation
+import ImageIO
 
 public struct MediaPolicy: Equatable, Sendable {
     public let maximumBytes: Int64
     public let maximumFilenameBytes: Int
+    public let maximumImageDimension: Int
+    public let maximumImagePixels: Int64
+    public let maximumImageFrames: Int
 
-    public init(maximumBytes: Int64 = 25 * 1024 * 1024, maximumFilenameBytes: Int = 255) {
+    public init(
+        maximumBytes: Int64 = 25 * 1024 * 1024,
+        maximumFilenameBytes: Int = 255,
+        maximumImageDimension: Int = 16_384,
+        maximumImagePixels: Int64 = 100_000_000,
+        maximumImageFrames: Int = 500
+    ) {
         self.maximumBytes = maximumBytes
         self.maximumFilenameBytes = maximumFilenameBytes
+        self.maximumImageDimension = maximumImageDimension
+        self.maximumImagePixels = maximumImagePixels
+        self.maximumImageFrames = maximumImageFrames
     }
 }
 
@@ -34,6 +47,7 @@ public struct MediaService: Sendable {
         }
         let safeFilename = try validateFilename(filename)
         let safeMIME = try validateMIME(mimeType)
+        if safeMIME.hasPrefix("image/") { try validateImage(data) }
         let reference = try await uploads.save(
             MediaUpload(filename: safeFilename, mimeType: safeMIME, data: data)
         )
@@ -62,11 +76,43 @@ public struct MediaService: Sendable {
         throw RelayServiceError.unknownMedia
     }
 
+    private func validateImage(_ data: Data) throws {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else {
+            throw RelayServiceError.unsafeMedia("The image data is invalid.")
+        }
+        let frameCount = CGImageSourceGetCount(source)
+        guard frameCount > 0 else {
+            throw RelayServiceError.unsafeMedia("The image data is invalid.")
+        }
+        guard frameCount <= policy.maximumImageFrames else {
+            throw RelayServiceError.unsafeMedia("The image has too many frames.")
+        }
+        var decodedPixels: Int64 = 0
+        for index in 0..<frameCount {
+            guard let properties = CGImageSourceCopyPropertiesAtIndex(source, index, nil)
+                as? [CFString: Any],
+                let width = (properties[kCGImagePropertyPixelWidth] as? NSNumber)?.intValue,
+                let height = (properties[kCGImagePropertyPixelHeight] as? NSNumber)?.intValue,
+                width > 0,
+                height > 0,
+                width <= policy.maximumImageDimension,
+                height <= policy.maximumImageDimension,
+                Int64(width) <= policy.maximumImagePixels / Int64(height) else {
+                throw RelayServiceError.unsafeMedia("The image dimensions are unsafe.")
+            }
+            decodedPixels += Int64(width) * Int64(height)
+            guard decodedPixels <= policy.maximumImagePixels else {
+                throw RelayServiceError.unsafeMedia("The image is too large when decoded.")
+            }
+        }
+    }
+
     private func validateFilename(_ value: String) throws -> String {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty,
               trimmed != ".",
               trimmed != "..",
+              trimmed != "metadata.json",
               trimmed.utf8.count <= policy.maximumFilenameBytes,
               !trimmed.contains("/"),
               !trimmed.contains("\\"),

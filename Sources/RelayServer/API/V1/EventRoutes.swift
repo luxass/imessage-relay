@@ -23,20 +23,14 @@ struct EventRoutes {
     }
 
     @Sendable private func stream(_ request: Request, context: RelayRequestContext) async throws -> Response {
-        if request.headers[.init("last-event-id")!] != nil {
-            throw APIHTTPError(
-                status: .badRequest,
-                code: .invalidRequest,
-                message: "Event replay is not supported. Reconnect without Last-Event-ID and refetch REST resources."
-            )
-        }
+        let cursor = request.headers[.init("last-event-id")!].map(EventCursor.init(rawValue:))
         let databaseStatus = await database.databaseStatus()
         guard databaseStatus.ready else {
             throw RelayServiceError.databaseUnavailable(
                 databaseStatus.error ?? "The Messages database is unavailable."
             )
         }
-        let eventStream = await events.events()
+        let eventStream = await events.events(after: cursor)
         let heartbeatInterval = heartbeatInterval
         let body = ResponseBody { writer in
             try await writer.write(ByteBuffer(string: "retry: 3000\n\n"))
@@ -93,7 +87,8 @@ struct EventRoutes {
     }
 }
 
-func serverSentEventFrame(_ event: RelayEvent) throws -> String {
+func serverSentEventFrame(_ delivery: RelayEventDelivery) throws -> String {
+    let event = delivery.event
     let data = try RelayJSON.encoder.encode(event.payload)
     guard let json = String(data: data, encoding: .utf8) else {
         throw EncodingError.invalidValue(
@@ -101,12 +96,13 @@ func serverSentEventFrame(_ event: RelayEvent) throws -> String {
             EncodingError.Context(codingPath: [], debugDescription: "The event payload is not UTF-8 JSON.")
         )
     }
-    return "event: \(event.type.rawValue)\ndata: \(json)\n\n"
+    let eventID = delivery.eventID.map { "id: \($0.rawValue)\n" } ?? ""
+    return "\(eventID)event: \(event.type.rawValue)\ndata: \(json)\n\n"
 }
 
 private actor SSEWriteCoordinator {
     enum Item: Sendable {
-        case event(RelayEvent)
+        case event(RelayEventDelivery)
         case heartbeat
     }
 

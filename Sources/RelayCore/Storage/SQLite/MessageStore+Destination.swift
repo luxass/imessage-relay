@@ -1,5 +1,3 @@
-import SQLite3
-
 extension SQLiteMessageStore {
     static func destinationMatches(
         database: SQLiteDatabase,
@@ -47,12 +45,14 @@ extension SQLiteMessageStore {
             JOIN handle h ON h.ROWID = chj.handle_id
             WHERE c.guid = ?
             """) { statement in
-                sqlite3_bind_text(statement, 1, conversationID.rawValue, -1, sqliteTransient)
+                try statement.bind(conversationID.rawValue, at: 1)
                 var values: [RecipientHandle] = []
-                while sqlite3_step(statement) == SQLITE_ROW {
+                while try statement.step() == .row {
+                    let value = try SQLiteValue.text(statement, 0)
+                    let originalValue = try SQLiteValue.optionalText(statement, 1)
                     if let handle = try? RecipientHandle.stored(
-                        value: SQLiteValue.text(statement, 0),
-                        originalValue: SQLiteValue.optionalText(statement, 1)
+                        value: value,
+                        originalValue: originalValue
                     ) {
                         values.append(handle)
                     }
@@ -76,9 +76,9 @@ extension SQLiteMessageStore {
             WHERE guid = ? AND account_id = ?
             LIMIT 1
             """) { statement in
-                sqlite3_bind_text(statement, 1, id.rawValue, -1, sqliteTransient)
-                sqlite3_bind_text(statement, 2, accountID, -1, sqliteTransient)
-                return sqlite3_step(statement) == SQLITE_ROW
+                try statement.bind(id.rawValue, at: 1)
+                try statement.bind(accountID, at: 2)
+                return try statement.step() == .row
             }
     }
 }

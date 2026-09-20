@@ -83,6 +83,11 @@ public struct RecipientHandle: Codable, Equatable, Hashable, Sendable {
         throw ValidationError.invalidOther
     }
 
+    public static func resolvable(value: String) throws -> Self {
+        if let direct = try? direct(value: value) { return direct }
+        return try Self(type: .other, value: value)
+    }
+
     private static func normalizePhone(_ value: String) throws -> String {
         let removable = CharacterSet.whitespacesAndNewlines.union(
             CharacterSet(charactersIn: "()-.")

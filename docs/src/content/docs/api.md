@@ -216,7 +216,8 @@ keeps two relationships separate:
 {
   "thread": {
     "reply_to_message_id": null,
-    "thread_originator_message_id": "root-message-guid"
+    "thread_originator_message_id": "root-message-guid",
+    "provider_reply_to_message_id": "parent-message-guid"
   }
 }
 ```
@@ -228,8 +229,29 @@ On the tested macOS schema, `reply_to_guid` does not reliably identify the
 immediate parent. Messages uses it to chain ordinary top-level bubbles and can
 also point a nested reply at a preceding bubble from an unrelated thread. The
 relay therefore reports `reply_to_message_id` as null instead of exposing that
-column as a false parent relationship. A send request still accepts the exact
-message to target in `reply_to.message_id`.
+column as a verified parent relationship. For inline-thread rows,
+`provider_reply_to_message_id` preserves the raw provider relationship while
+`thread_originator_message_id` identifies the verified root. A send request
+still accepts the exact message to target in `reply_to.message_id`.
+
+### Native message metadata
+
+Message responses decode additional optional provider metadata:
+
+- `is_audio_message` marks native audio messages.
+- `schedule` includes `scheduled_at`, `type`, and `state` when native scheduling
+  columns are active.
+- `poll.kind` is `created` for native poll balloons and `vote` for vote rows;
+  votes include `original_message_id` when available.
+- `balloon_bundle_id` identifies extension messages.
+- Attachments include `is_sticker`.
+- Recipient `display_value` uses the matching Contacts name when Contacts access
+  is available.
+
+Messages may store a URL send as adjacent text and preview rows. List and search
+responses fold a `com.apple.messages.URLBalloonProvider` row into the preceding
+same-sender text message as `url_preview`, avoiding a duplicate message. The
+preview metadata retains its own `message_id`, `provider_guid`, and timestamp.
 
 ### Message parts
 
@@ -324,8 +346,8 @@ message before retrying.
 
 ## Send a message
 
-Send to one phone number or email address. The relay detects the handle type and
-normalizes it for matching:
+Send to one phone number, email address, or unique Contacts name. Phone numbers
+are normalized with `RELAY_PHONE_REGION` before matching:
 
 ```http
 POST /v1/messages
@@ -361,8 +383,9 @@ Start or reuse a group by supplying at least two other participants:
 
 Provide exactly one of `to`, `participants`, and `conversation_id`. A direct or
 new-group send requires `RELAY_SENDER_ACCOUNT_ID`. A conversation send uses the
-account ID stored on the conversation. Every destination participant must match
-`RELAY_ALLOWED_RECIPIENTS`.
+account ID stored on the conversation. Every resolved destination participant must match
+`RELAY_ALLOWED_RECIPIENTS`. Contact lookup never bypasses the allowlist. An
+ambiguous or missing contact name returns `400 invalid_destination`.
 
 The relay normalizes every group participant and rejects duplicates. It reuses
 one conversation whose normalized participant set matches exactly. If several
@@ -514,10 +537,15 @@ X-Filename: photo.jpg
 
 The maximum size defaults to 25 MiB and cannot exceed 25 MiB. Filenames cannot
 contain path separators, control characters, quotes, or semicolons. Allowed MIME
-types include image, video, audio, text, PDF, and octet-stream.
+types include image, video, audio, text, PDF, and octet-stream. Image uploads
+must decode as images and stay within bounded dimensions, frame count, and total
+decoded pixels.
 
 `GET /v1/media/{media_id}` returns metadata. Add `?download=true` to receive the
-bytes. The endpoint never returns a stored filesystem path.
+bytes. The endpoint never returns a stored filesystem path. Stored uploads and
+Messages attachments are opened component by component without following
+symlinks. Pipes, non-regular files, and files with extra hard links are rejected.
+Downloads also stop if file identity, size, or timestamps change during a read.
 
 ## Stream live events
 
@@ -529,14 +557,19 @@ curl -N http://127.0.0.1:8080/v1/events \
   -H 'Accept: text/event-stream'
 ```
 
-The observer starts when the first client connects and stops after the final
-client disconnects. It uses a dedicated read-only SQLite connection. The
-endpoint does not send messages or change the Messages database.
+The observer starts when the first client connects and remains active until the
+relay shuts down, allowing it to retain events while every client is
+disconnected. It uses a dedicated read-only SQLite connection. The endpoint
+does not send messages or change the Messages database.
 
-The stream is live-only. It does not replay changes that happened before the
-connection opened, and it does not emit event IDs. A request with
-`Last-Event-ID` returns `400 invalid_request` because replay is not supported.
-After any reconnect, refetch the REST resources needed by the client.
+Each data event carries an SSE `id`. The relay retains a bounded history for the
+current process. Reconnect with that value in `Last-Event-ID` to replay later
+events in order. Browser `EventSource` clients send this header automatically.
+
+Replay does not survive a relay restart and old cursors expire when they leave
+the bounded history. In either case the server sends `stream.reset` with
+`replay_unavailable`; reconnect without the cursor and refetch the required REST
+resources.
 
 The first frame identifies the database and states the replay policy:
 
@@ -544,7 +577,7 @@ The first frame identifies the database and states the replay policy:
 retry: 3000
 
 event: stream.ready
-data: {"database_identity":"v1:...","replay_supported":false}
+data: {"database_identity":"v1:...","replay_supported":true}
 ```
 
 Events contain stable resource IDs instead of full message objects. Fetch
@@ -562,18 +595,24 @@ Events contain stable resource IDs instead of full message objects. Fetch
 For example:
 
 ```text
+id: 4f74f9cf-73fb-49d8-a596-3c724a5ce4a2:1
 event: message.created
 data: {"conversation_id":"chat-guid","is_from_me":false,"message_id":"message-guid","observed_at":"2026-09-15T12:00:00.000Z"}
 
+id: 4f74f9cf-73fb-49d8-a596-3c724a5ce4a2:2
 event: message.updated
 data: {"changed_fields":["delivery_state","read_state"],"conversation_id":"chat-guid","message_id":"message-guid","observed_at":"2026-09-15T12:00:01.000Z"}
 ```
 
-The server writes `: keep-alive` comments every 15 seconds. If the Messages
-database file is replaced, the observer fails, or a client falls behind its
-bounded buffer, the server sends `stream.reset` and closes that stream. An
-unavailable database detected before streaming starts returns the normal JSON
-error shape with HTTP `503`.
+The server writes `: keep-alive` comments every 15 seconds. If a client falls
+behind its bounded buffer, `stream.reset` includes `resume_after_event_id` and
+`refetch_required` is `false`. Reconnect with that cursor in `Last-Event-ID`.
+This safe cursor may replay duplicate events, so clients should apply events
+idempotently.
+
+A replaced database or observer failure also sends `stream.reset`, but requires
+a REST refetch. An unavailable database detected before streaming starts returns
+the normal JSON error shape with HTTP `503`.
 
 ## Error responses
 
