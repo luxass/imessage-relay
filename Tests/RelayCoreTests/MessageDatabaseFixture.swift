@@ -251,7 +251,7 @@ final class MessageDatabaseFixture: @unchecked Sendable {
             value: 1,
             range: NSRange(location: 1, length: body.length - 1)
         )
-        try bindAttributedBody(
+        try setAttributedBody(
             messageRowID: messageRowID,
             data: Self.archivedAttributedString(body)
         )
@@ -271,7 +271,7 @@ final class MessageDatabaseFixture: @unchecked Sendable {
             """)
     }
 
-    private func bindAttributedBody(messageRowID: Int64, data: Data) throws {
+    func setAttributedBody(messageRowID: Int64, data: Data) throws {
         var statement: OpaquePointer?
         guard sqlite3_prepare_v2(
             database,

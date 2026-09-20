@@ -18,8 +18,14 @@ let package = Package(
     ],
     targets: [
         .target(
+            name: "AttributedBodyBridge",
+            path: "Sources/AttributedBodyBridge",
+            publicHeadersPath: "include"
+        ),
+        .target(
             name: "RelayCore",
             dependencies: [
+                "AttributedBodyBridge",
                 .product(name: "NIOPosix", package: "swift-nio"),
                 .product(name: "PhoneNumberKit", package: "PhoneNumberKit"),
             ]

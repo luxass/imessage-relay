@@ -491,12 +491,13 @@ public final class SQLiteMessageStore: MessageStoring, SendCorrelating, Sendable
     }
 
     private static func decode(_ statement: SQLiteStatement) throws -> MessageRow {
-        MessageRow(
+        let attributedBody = try SQLiteValue.optionalData(statement, 4)
+        return MessageRow(
             rowID: try statement.int64(0),
             guid: try SQLiteValue.text(statement, 1),
             conversationGUID: try SQLiteValue.text(statement, 2),
             text: try SQLiteValue.optionalText(statement, 3),
-            attributedBody: try SQLiteValue.optionalData(statement, 4),
+            decodedBody: DecodedMessageBody(attributedBody),
             handle: try SQLiteValue.optionalText(statement, 5),
             originalHandle: try SQLiteValue.optionalText(statement, 6),
             isFromMe: try statement.int64(7) != 0,
