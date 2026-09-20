@@ -89,8 +89,10 @@ curl -N localhost:8080/v1/events \
   -H 'Accept: text/event-stream'
 ```
 
-The event stream is live-only. Reconnects do not replay missed events, so fetch
-the relevant REST resources after reconnecting.
+Each data event carries an SSE `id`. Reconnect with `Last-Event-ID` to replay
+retained events from the current relay process. If the cursor has expired or the
+process restarted, the stream sends `stream.reset` and the client must refetch
+its REST resources.
 
 From another terminal, send a top-level message. The relay detects whether `to`
 is a phone number or an email address:

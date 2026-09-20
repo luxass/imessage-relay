@@ -529,14 +529,19 @@ curl -N http://127.0.0.1:8080/v1/events \
   -H 'Accept: text/event-stream'
 ```
 
-The observer starts when the first client connects and stops after the final
-client disconnects. It uses a dedicated read-only SQLite connection. The
-endpoint does not send messages or change the Messages database.
+The observer starts when the first client connects and remains active until the
+relay shuts down, allowing it to retain events while every client is
+disconnected. It uses a dedicated read-only SQLite connection. The endpoint
+does not send messages or change the Messages database.
 
-The stream is live-only. It does not replay changes that happened before the
-connection opened, and it does not emit event IDs. A request with
-`Last-Event-ID` returns `400 invalid_request` because replay is not supported.
-After any reconnect, refetch the REST resources needed by the client.
+Each data event carries an SSE `id`. The relay retains a bounded history for the
+current process. Reconnect with that value in `Last-Event-ID` to replay later
+events in order. Browser `EventSource` clients send this header automatically.
+
+Replay does not survive a relay restart and old cursors expire when they leave
+the bounded history. In either case the server sends `stream.reset` with
+`replay_unavailable`; reconnect without the cursor and refetch the required REST
+resources.
 
 The first frame identifies the database and states the replay policy:
 
@@ -544,7 +549,7 @@ The first frame identifies the database and states the replay policy:
 retry: 3000
 
 event: stream.ready
-data: {"database_identity":"v1:...","replay_supported":false}
+data: {"database_identity":"v1:...","replay_supported":true}
 ```
 
 Events contain stable resource IDs instead of full message objects. Fetch
@@ -562,18 +567,24 @@ Events contain stable resource IDs instead of full message objects. Fetch
 For example:
 
 ```text
+id: 4f74f9cf-73fb-49d8-a596-3c724a5ce4a2:1
 event: message.created
 data: {"conversation_id":"chat-guid","is_from_me":false,"message_id":"message-guid","observed_at":"2026-09-15T12:00:00.000Z"}
 
+id: 4f74f9cf-73fb-49d8-a596-3c724a5ce4a2:2
 event: message.updated
 data: {"changed_fields":["delivery_state","read_state"],"conversation_id":"chat-guid","message_id":"message-guid","observed_at":"2026-09-15T12:00:01.000Z"}
 ```
 
-The server writes `: keep-alive` comments every 15 seconds. If the Messages
-database file is replaced, the observer fails, or a client falls behind its
-bounded buffer, the server sends `stream.reset` and closes that stream. An
-unavailable database detected before streaming starts returns the normal JSON
-error shape with HTTP `503`.
+The server writes `: keep-alive` comments every 15 seconds. If a client falls
+behind its bounded buffer, `stream.reset` includes `resume_after_event_id` and
+`refetch_required` is `false`. Reconnect with that cursor in `Last-Event-ID`.
+This safe cursor may replay duplicate events, so clients should apply events
+idempotently.
+
+A replaced database or observer failure also sends `stream.reset`, but requires
+a REST refetch. An unavailable database detected before streaming starts returns
+the normal JSON error shape with HTTP `503`.
 
 ## Error responses
 
