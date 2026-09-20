@@ -67,8 +67,10 @@ public final class SQLiteMessageChangeObserver: MessageChangeObserving, @uncheck
         let fileMonitor = SQLiteFileChangeMonitor(path: snapshotStore.path) {
             triggers.continuation.yield()
         }
-        let fallbackTask = fallbackTask(continuation: triggers.continuation)
         fileMonitor.start()
+        let fallbackTask = fallbackTask {
+            fileMonitor.reconcile()
+        }
         defer {
             fallbackTask.cancel()
             fileMonitor.stop()
@@ -77,7 +79,7 @@ public final class SQLiteMessageChangeObserver: MessageChangeObserving, @uncheck
         }
 
         do {
-            var previous = try await snapshotStore.snapshot()
+            var previous = try await initialSnapshot()
             continuation.yield(.streamReady(StreamReadyEvent(
                 databaseIdentity: previous.databaseIdentity
             )))
@@ -100,8 +102,19 @@ public final class SQLiteMessageChangeObserver: MessageChangeObserving, @uncheck
         }
     }
 
+    private func initialSnapshot() async throws -> Snapshot {
+        while true {
+            switch try await snapshotStore.snapshot() {
+            case .snapshot(let snapshot):
+                return snapshot
+            case .databaseChanged:
+                try await snapshotStore.resetDatabaseConnection()
+            }
+        }
+    }
+
     private func fallbackTask(
-        continuation: AsyncStream<Void>.Continuation
+        onFallback: @escaping @Sendable () -> Void
     ) -> Task<Void, Never> {
         Task { [fallbackPollInterval] in
             while !Task.isCancelled {
@@ -111,7 +124,7 @@ public final class SQLiteMessageChangeObserver: MessageChangeObserving, @uncheck
                     return
                 }
                 guard !Task.isCancelled else { return }
-                continuation.yield()
+                onFallback()
             }
         }
     }
@@ -122,18 +135,17 @@ public final class SQLiteMessageChangeObserver: MessageChangeObserving, @uncheck
         availableMedia: inout Set<MediaKey>,
         continuation: AsyncThrowingStream<RelayEvent, any Error>.Continuation
     ) async throws -> Bool {
-        let state = try await snapshotStore.databaseState()
-        guard state.fileIdentity == previous.fileIdentity else {
-            continuation.yield(.streamReset(StreamResetEvent(
-                reason: .databaseChanged,
-                message: "The Messages database changed. Reconnect and refetch REST resources."
-            )))
-            continuation.finish()
-            return false
+        guard let databaseState = try await snapshotStore.databaseState(),
+              databaseState.fileIdentity == previous.fileIdentity else {
+            try? await snapshotStore.resetDatabaseConnection()
+            return finishForDatabaseChange(continuation)
         }
-        guard state.dataVersion != previous.dataVersion || !pendingMedia.isEmpty else { return true }
+        guard databaseState.dataVersion != previous.dataVersion || !pendingMedia.isEmpty else { return true }
 
-        let current = try await snapshotStore.snapshot()
+        guard case .snapshot(let current) = try await snapshotStore.snapshot() else {
+            try? await snapshotStore.resetDatabaseConnection()
+            return finishForDatabaseChange(continuation)
+        }
         pendingMedia.formUnion(Set(current.media.keys).subtracting(previous.media.keys))
         pendingMedia.formIntersection(current.media.keys)
         let nowAvailable = snapshotStore.availableMedia(
@@ -152,5 +164,16 @@ public final class SQLiteMessageChangeObserver: MessageChangeObserving, @uncheck
         pendingMedia.subtract(nowAvailable)
         previous = current
         return true
+    }
+
+    private func finishForDatabaseChange(
+        _ continuation: AsyncThrowingStream<RelayEvent, any Error>.Continuation
+    ) -> Bool {
+        continuation.yield(.streamReset(StreamResetEvent(
+            reason: .databaseChanged,
+            message: "The Messages database changed. Reconnect and refetch REST resources."
+        )))
+        continuation.finish()
+        return false
     }
 }

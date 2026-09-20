@@ -38,6 +38,16 @@ final class SQLiteExecutor: @unchecked Sendable {
         }
     }
 
+    func resetDatabase() async throws {
+        let capturedState = state
+        try capturedState.lock.withLock {
+            if capturedState.shutdownTask != nil { throw SQLiteStorageError.shutDown }
+        }
+        try await pool.runIfActive {
+            capturedState.database = nil
+        }
+    }
+
     func shutdown() async throws {
         let task = state.lock.withLock { () -> Task<Void, Error> in
             if let existing = state.shutdownTask { return existing }

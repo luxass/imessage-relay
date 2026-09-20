@@ -31,11 +31,13 @@ public enum SQLiteStorageError: Error, CustomStringConvertible, Equatable, Senda
 final class SQLiteDatabase {
     let path: String
     let schema: SchemaInspector
+    let connectionFileIdentity: String
 
     private var handle: OpaquePointer?
 
     init(path: String) throws {
         self.path = path
+        let identityBeforeOpen = try Self.pathFileIdentity(path)
         var opened: OpaquePointer?
         let result = sqlite3_open_v2(
             path,
@@ -51,6 +53,11 @@ final class SQLiteDatabase {
         }
         handle = opened
         do {
+            let identityAfterOpen = try Self.pathFileIdentity(path)
+            guard identityAfterOpen == identityBeforeOpen else {
+                throw SQLiteStorageError.cannotOpen("Database changed while opening it.")
+            }
+            connectionFileIdentity = identityAfterOpen
             guard sqlite3_exec(opened, "PRAGMA query_only=ON", nil, nil, nil) == SQLITE_OK else {
                 throw SQLiteStorageError.queryFailed(String(cString: sqlite3_errmsg(opened)))
             }
@@ -90,8 +97,20 @@ final class SQLiteDatabase {
         }
     }
 
+    func withReadTransaction<Value>(_ body: () throws -> Value) throws -> Value {
+        try execute("BEGIN DEFERRED TRANSACTION")
+        do {
+            let value = try body()
+            try execute("COMMIT")
+            return value
+        } catch {
+            try? execute("ROLLBACK")
+            throw error
+        }
+    }
+
     func identity() throws -> String {
-        let fileIdentity = try fileIdentity()
+        let fileIdentity = connectionFileIdentity
         let schemaText = try firstText("""
             SELECT COALESCE(group_concat(value, '|'), '') FROM (
                 SELECT type || ':' || name || ':' || COALESCE(sql, '') AS value
@@ -109,6 +128,10 @@ final class SQLiteDatabase {
     }
 
     func fileIdentity() throws -> String {
+        try Self.pathFileIdentity(path)
+    }
+
+    private static func pathFileIdentity(_ path: String) throws -> String {
         let attributes = try FileManager.default.attributesOfItem(atPath: path)
         let device = (attributes[.systemNumber] as? NSNumber)?.uint64Value
         let inode = (attributes[.systemFileNumber] as? NSNumber)?.uint64Value

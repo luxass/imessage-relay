@@ -112,6 +112,76 @@ func sqliteObserverUsesFilesystemChangesBeforeTheFallbackPoll() async throws {
 }
 
 @Test
+func sqliteObserverReopensAfterDatabaseReplacement() async throws {
+    let fixture = try MessageDatabaseFixture()
+    let replacement = try MessageDatabaseFixture()
+    let observer = SQLiteMessageChangeObserver(
+        path: fixture.path,
+        attachmentDirectory: fixture.attachmentDirectory.path,
+        pollInterval: .milliseconds(10)
+    )
+    var firstIterator = observer.events().makeAsyncIterator()
+    let firstEvent = try #require(try await firstIterator.next())
+    guard case .streamReady(let firstReady) = firstEvent else {
+        Issue.record("Expected the first stream to become ready.")
+        return
+    }
+
+    try FileManager.default.removeItem(atPath: fixture.path)
+    try FileManager.default.moveItem(atPath: replacement.path, toPath: fixture.path)
+
+    let reset = try #require(try await nextEvent(of: .streamReset, from: &firstIterator))
+    guard case .streamReset(let resetPayload) = reset else {
+        Issue.record("Expected a database replacement reset.")
+        return
+    }
+    #expect(resetPayload.reason == .databaseChanged)
+
+    var secondIterator = observer.events().makeAsyncIterator()
+    let secondEvent = try #require(try await secondIterator.next())
+    guard case .streamReady(let secondReady) = secondEvent else {
+        Issue.record("Expected the replacement database stream to become ready.")
+        return
+    }
+    #expect(secondReady.databaseIdentity != firstReady.databaseIdentity)
+    try await observer.shutdown()
+}
+
+@Test
+func sqliteFileMonitorWatchesASidecarCreatedAfterStartup() async throws {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("relay-file-watch-create-\(UUID().uuidString)", isDirectory: true)
+    let databaseDirectory = root.appendingPathComponent("messages", isDirectory: true)
+    try FileManager.default.createDirectory(at: databaseDirectory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+
+    let database = databaseDirectory.appendingPathComponent("chat.db")
+    let writeAheadLog = URL(fileURLWithPath: database.path + "-wal")
+    FileManager.default.createFile(atPath: database.path, contents: Data())
+
+    let changes = FileChangeCounter()
+    let monitor = SQLiteFileChangeMonitor(
+        path: database.path,
+        debounceInterval: 0.01
+    ) {
+        changes.increment()
+    }
+    monitor.start()
+    defer { monitor.stop() }
+
+    FileManager.default.createFile(atPath: writeAheadLog.path, contents: Data())
+    try await waitForChange(after: 0, in: changes)
+    try await Task.sleep(for: .milliseconds(100))
+    let countAfterCreation = changes.value
+
+    let handle = try FileHandle(forWritingTo: writeAheadLog)
+    try handle.write(contentsOf: Data("change".utf8))
+    try handle.close()
+
+    try await waitForChange(after: countAfterCreation, in: changes)
+}
+
+@Test
 func sqliteFileMonitorRearmsAReplacedSidecar() async throws {
     let directory = FileManager.default.temporaryDirectory
         .appendingPathComponent("relay-file-watch-\(UUID().uuidString)", isDirectory: true)

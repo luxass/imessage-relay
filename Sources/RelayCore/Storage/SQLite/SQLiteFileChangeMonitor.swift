@@ -1,34 +1,42 @@
-import Darwin
 import Foundation
 
 final class SQLiteFileChangeMonitor: @unchecked Sendable {
-    private struct FileIdentity: Equatable {
-        let device: UInt64
-        let inode: UInt64
-    }
-
-    private struct Registration {
-        let source: DispatchSourceFileSystemObject
-        let identity: FileIdentity
-    }
-
-    private let databasePath: String
     private let debounceInterval: TimeInterval
     private let onChange: @Sendable () -> Void
     private let queue = DispatchQueue(label: "imessage-relay.sqlite-file-watch", qos: .utility)
+    private let watchedPaths: [String]
+    private let directoryPath: String
 
-    private var registrations: [String: Registration] = [:]
-    private var directorySource: DispatchSourceFileSystemObject?
     private var pendingNotification: DispatchWorkItem?
+    private var needsFollowUpNotification = false
     private var isStarted = false
     private var isStopped = false
+
+    private lazy var vnodeMonitor = VnodeMonitor(
+        paths: watchedPaths,
+        queue: queue
+    ) { [weak self] in
+        self?.handleVnodeChange()
+    }
+
+    private lazy var directoryMonitor = DirectoryMonitor(
+        directoryPath: directoryPath,
+        watchedPaths: watchedPaths,
+        queue: queue
+    ) { [weak self] notice in
+        self?.handleDirectoryNotice(notice)
+    }
 
     init(
         path: String,
         debounceInterval: TimeInterval = 0.1,
         onChange: @escaping @Sendable () -> Void
     ) {
-        databasePath = path
+        let databasePath = URL(fileURLWithPath: path).standardizedFileURL.path
+        watchedPaths = [databasePath, databasePath + "-wal", databasePath + "-shm"]
+        directoryPath = URL(fileURLWithPath: databasePath)
+            .deletingLastPathComponent()
+            .path
         self.debounceInterval = max(0, debounceInterval)
         self.onChange = onChange
     }
@@ -37,8 +45,19 @@ final class SQLiteFileChangeMonitor: @unchecked Sendable {
         queue.sync {
             guard !isStarted else { return }
             isStarted = true
-            refreshFileSources()
-            installDirectorySource()
+            _ = directoryMonitor.start()
+            vnodeMonitor.refresh()
+        }
+    }
+
+    func reconcile() {
+        queue.async { [weak self] in
+            guard let self, !self.isStopped else { return }
+            if !self.directoryMonitor.isRunning {
+                _ = self.directoryMonitor.start()
+            }
+            self.vnodeMonitor.refresh()
+            self.scheduleNotification()
         }
     }
 
@@ -48,98 +67,51 @@ final class SQLiteFileChangeMonitor: @unchecked Sendable {
             isStopped = true
             pendingNotification?.cancel()
             pendingNotification = nil
-            for registration in registrations.values {
-                registration.source.cancel()
-            }
-            registrations.removeAll()
-            directorySource?.cancel()
-            directorySource = nil
+            needsFollowUpNotification = false
+            vnodeMonitor.stop()
+            directoryMonitor.stop()
         }
     }
 
-    private var watchedPaths: [String] {
-        [databasePath, databasePath + "-wal", databasePath + "-shm"]
-    }
-
-    private var directoryPath: String? {
-        guard databasePath.hasPrefix("/") else { return nil }
-        let path = URL(fileURLWithPath: databasePath).deletingLastPathComponent().path
-        var isDirectory: ObjCBool = false
-        guard !path.isEmpty,
-              FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory),
-              isDirectory.boolValue else { return nil }
-        return path
-    }
-
-    private func refreshFileSources() {
+    private func handleVnodeChange() {
         guard !isStopped else { return }
-        for path in watchedPaths {
-            guard let currentIdentity = identity(of: path) else {
-                registrations.removeValue(forKey: path)?.source.cancel()
-                continue
-            }
-            if let registration = registrations[path] {
-                guard registration.identity != currentIdentity else { continue }
-                registration.source.cancel()
-                registrations[path] = nil
-            }
-            guard let source = makeFileSource(path: path) else { continue }
-            registrations[path] = Registration(source: source, identity: currentIdentity)
-        }
+        vnodeMonitor.refresh()
+        scheduleNotification()
     }
 
-    private func installDirectorySource() {
-        guard directorySource == nil, let path = directoryPath else { return }
-        let descriptor = open(path, O_EVTONLY)
-        guard descriptor >= 0 else { return }
-        let source = DispatchSource.makeFileSystemObjectSource(
-            fileDescriptor: descriptor,
-            eventMask: [.write, .rename, .delete],
-            queue: queue
-        )
-        source.setEventHandler { [weak self] in
-            self?.refreshFileSources()
-            self?.scheduleNotification()
+    private func handleDirectoryNotice(_ notice: DirectoryMonitor.Notice) {
+        guard !isStopped else { return }
+        if notice.requiresRescan {
+            vnodeMonitor.rebuild()
+        } else {
+            vnodeMonitor.refresh()
         }
-        source.setCancelHandler { close(descriptor) }
-        source.resume()
-        directorySource = source
-    }
-
-    private func makeFileSource(path: String) -> DispatchSourceFileSystemObject? {
-        let descriptor = open(path, O_EVTONLY)
-        guard descriptor >= 0 else { return nil }
-        let source = DispatchSource.makeFileSystemObjectSource(
-            fileDescriptor: descriptor,
-            eventMask: [.write, .extend, .rename, .delete],
-            queue: queue
-        )
-        source.setEventHandler { [weak self] in
-            self?.refreshFileSources()
-            self?.scheduleNotification()
+        scheduleNotification()
+        guard notice.rootChanged else { return }
+        queue.async { [weak self] in
+            guard let self, !self.isStopped else { return }
+            self.directoryMonitor.restart()
+            self.vnodeMonitor.refresh()
         }
-        source.setCancelHandler { close(descriptor) }
-        source.resume()
-        return source
     }
 
     private func scheduleNotification() {
-        guard !isStopped, pendingNotification == nil else { return }
+        guard !isStopped else { return }
+        guard pendingNotification == nil else {
+            needsFollowUpNotification = true
+            return
+        }
         let work = DispatchWorkItem { [weak self] in
             guard let self, !self.isStopped else { return }
             self.pendingNotification = nil
+            let scheduleFollowUp = self.needsFollowUpNotification
+            self.needsFollowUpNotification = false
             self.onChange()
+            if scheduleFollowUp {
+                self.scheduleNotification()
+            }
         }
         pendingNotification = work
         queue.asyncAfter(deadline: .now() + debounceInterval, execute: work)
-    }
-
-    private func identity(of path: String) -> FileIdentity? {
-        var information = stat()
-        guard stat(path, &information) == 0 else { return nil }
-        return FileIdentity(
-            device: UInt64(information.st_dev),
-            inode: UInt64(information.st_ino)
-        )
     }
 }
