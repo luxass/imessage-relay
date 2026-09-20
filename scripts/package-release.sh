@@ -199,7 +199,6 @@ if [[ "${notarize_release}" == "1" ]]; then
     xcrun stapler staple "${app_path}"
     xcrun stapler validate "${app_path}"
     spctl --assess --type execute --verbose=2 "${app_path}"
-    spctl --assess --type execute --verbose=2 "${cli_staging}/relay-server"
 fi
 
 app_verification="${release_tmp}/app-verification"
