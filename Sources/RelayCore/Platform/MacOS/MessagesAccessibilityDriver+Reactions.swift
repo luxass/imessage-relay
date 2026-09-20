@@ -38,12 +38,14 @@ extension MacOSAccessibilityMessagesDriver {
                 reactionPressed = true
             }
             if request.useOverlay {
-                try await Task.sleep(for: .milliseconds(1_500))
-                dismissReactionPickerIfPresent(
-                    action: pickerAction,
-                    messageCell: messageCell,
-                    window: window
-                )
+                if let pickerAction {
+                    try await Task.sleep(for: .milliseconds(1_500))
+                    dismissReactionPickerIfPresent(
+                        action: pickerAction,
+                        messageCell: messageCell,
+                        window: window
+                    )
+                }
                 try? await closeReplyTranscriptIfPresent(in: window)
             }
         } catch let error as MessageSenderError {
@@ -72,15 +74,15 @@ extension MacOSAccessibilityMessagesDriver {
     }
 
     private func firstReactionMessageCell(in transcript: AXUIElement) throws -> AXUIElement? {
-        let reactActionPrefix = "Name:\(reactionPickerActionTitle())"
         for container in try elementsAttribute("AXChildren", of: transcript) {
-            guard try stringAttribute("AXDescription", of: container)?.isEmpty == false,
-                  let messageCell = try elementsAttribute("AXChildren", of: container).first else {
+            guard let messageCell = try elementsAttribute("AXChildren", of: container).first else {
                 continue
             }
-            if try actionNames(of: messageCell).contains(where: {
-                $0.hasPrefix(reactActionPrefix)
-            }) {
+            if accessibilityAction(
+                namedOneOf: Self.directReactionActionTitles
+                    .union(Self.reactionPickerActionTitles),
+                in: try actionNames(of: messageCell)
+            ) != nil {
                 return messageCell
             }
         }
@@ -93,10 +95,19 @@ extension MacOSAccessibilityMessagesDriver {
         to messageCell: AXUIElement,
         in window: AXUIElement,
         beforePress: @MainActor () -> Void
-    ) async throws -> String {
-        guard let pickerAction = try messageAction(
-            named: reactionPickerActionTitle(),
-            on: messageCell
+    ) async throws -> String? {
+        let actions = try actionNames(of: messageCell)
+        if let directAction = accessibilityAction(
+            namedOneOf: reactionActionTitles(reaction),
+            in: actions
+        ) {
+            beforePress()
+            try perform(directAction, on: messageCell, failure: "The reaction action failed.")
+            return nil
+        }
+        guard let pickerAction = accessibilityAction(
+            namedOneOf: Self.reactionPickerActionTitles,
+            in: actions
         ) else {
             throw AccessibilityDriverFailure("The selected message has no reaction action.")
         }
@@ -123,8 +134,15 @@ extension MacOSAccessibilityMessagesDriver {
         return pickerAction
     }
 
-    private func messageAction(named title: String, on element: AXUIElement) throws -> String? {
-        try actionNames(of: element).first { $0.hasPrefix("Name:\(title)") }
+    private func reactionActionTitles(_ reaction: WritableReaction) -> Set<String> {
+        switch reaction {
+        case .love: Self.loveReactionActionTitles
+        case .like: Self.likeReactionActionTitles
+        case .dislike: Self.dislikeReactionActionTitles
+        case .laugh: Self.laughReactionActionTitles
+        case .emphasis: Self.emphasisReactionActionTitles
+        case .question: Self.questionReactionActionTitles
+        }
     }
 
     private func reactionButton(
@@ -179,15 +197,6 @@ extension MacOSAccessibilityMessagesDriver {
         return try elementsAttribute("AXChildren", of: reactionsView).contains {
             try self.stringAttribute("AXRole", of: $0) == kAXButtonRole
         }
-    }
-
-    private func reactionPickerActionTitle() -> String {
-        Bundle(path: Self.replyBundlePath)?
-            .localizedString(
-                forKey: "acknowledgments.action.title",
-                value: "React",
-                table: "Accessibility"
-            ) ?? "React"
     }
 
     private func reactionIdentifier(_ reaction: WritableReaction) -> String {

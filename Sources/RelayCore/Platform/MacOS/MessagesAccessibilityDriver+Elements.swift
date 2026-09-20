@@ -2,6 +2,73 @@ import AppKit
 import ApplicationServices
 import Foundation
 
+struct MessagesTranscriptSnapshot: Equatable, Sendable {
+    let transcriptIdentifier: String?
+    let transcriptDescription: String?
+    let composerIdentifier: String?
+    let composerPlaceholder: String?
+    let composerIsFocused: Bool
+}
+
+func isReplyTranscript(
+    _ snapshot: MessagesTranscriptSnapshot,
+    normalComposerPlaceholders: Set<String>
+) -> Bool {
+    guard !normalComposerPlaceholders.isEmpty,
+          snapshot.transcriptIdentifier == "TranscriptCollectionView",
+          snapshot.composerIdentifier == "messageBodyField",
+          snapshot.composerIsFocused,
+          let placeholder = snapshot.composerPlaceholder,
+          !placeholder.isEmpty else {
+        return false
+    }
+    return !normalComposerPlaceholders.contains(placeholder)
+}
+
+func accessibilityAction(namedOneOf titles: Set<String>, in actions: [String]) -> String? {
+    actions.first { action in
+        guard let firstLine = action.split(separator: "\n", maxSplits: 1).first,
+              firstLine.hasPrefix("Name:") else {
+            return false
+        }
+        let title = String(firstLine.dropFirst("Name:".count))
+        let normalized = title.hasSuffix("…") ? String(title.dropLast()) : title
+        return titles.contains(title) || titles.contains(normalized)
+    }
+}
+
+func localizedStringVariants(
+    bundlePath: String,
+    table: String,
+    key: String,
+    fallbacks: Set<String>
+) -> Set<String> {
+    guard let bundle = Bundle(path: bundlePath) else { return fallbacks }
+    var variants = fallbacks
+
+    let automatic = bundle.localizedString(forKey: key, value: nil, table: table)
+    if automatic != key { variants.insert(automatic) }
+
+    if let tableURL = bundle.url(forResource: table, withExtension: "loctable"),
+       let data = try? Data(contentsOf: tableURL),
+       let tables = try? PropertyListSerialization.propertyList(from: data, format: nil)
+        as? [String: Any] {
+        for case let localization as [String: Any] in tables.values {
+            if let value = localization[key] as? String { variants.insert(value) }
+        }
+    }
+
+    for localization in bundle.localizations {
+        guard let path = bundle.path(forResource: localization, ofType: "lproj"),
+              let localizedBundle = Bundle(path: path) else {
+            continue
+        }
+        let value = localizedBundle.localizedString(forKey: key, value: nil, table: table)
+        if value != key { variants.insert(value) }
+    }
+    return variants
+}
+
 extension MacOSAccessibilityMessagesDriver {
     @MainActor func mainWindow(in app: AXUIElement) async throws -> AXUIElement {
         try await waitUntilValue("The Messages main window was not found.") {
@@ -200,28 +267,32 @@ extension MacOSAccessibilityMessagesDriver {
     }
 
     private func transcriptCandidate(in window: AXUIElement, reply: Bool) throws -> AXUIElement? {
-        let replyTranscriptName = Bundle(path: Self.replyBundlePath)?
-            .localizedString(
-                forKey: "group.reply.collection",
-                value: nil,
-                table: "Accessibility"
-            )
-        return try descendants(of: window).first {
-            guard try stringAttribute("AXIdentifier", of: $0) == "TranscriptCollectionView" else {
-                return false
-            }
-            let description = try stringAttribute("AXDescription", of: $0)
-            return reply ? description == replyTranscriptName : description != replyTranscriptName
+        let elements = try descendants(of: window)
+        guard let transcript = try elements.first(where: {
+            try stringAttribute("AXIdentifier", of: $0) == "TranscriptCollectionView"
+        }) else {
+            return nil
         }
+        let composers = try elements.filter {
+            try stringAttribute("AXIdentifier", of: $0) == "messageBodyField"
+        }
+        let replyVisible = try composers.contains { composer in
+            isReplyTranscript(
+                MessagesTranscriptSnapshot(
+                    transcriptIdentifier: try stringAttribute("AXIdentifier", of: transcript),
+                    transcriptDescription: try stringAttribute("AXDescription", of: transcript),
+                    composerIdentifier: try stringAttribute("AXIdentifier", of: composer),
+                    composerPlaceholder: try stringAttribute("AXPlaceholderValue", of: composer),
+                    composerIsFocused: try boolAttribute("AXFocused", of: composer)
+                ),
+                normalComposerPlaceholders: Self.normalComposerPlaceholders
+            )
+        }
+        return replyVisible == reply ? transcript : nil
     }
 
     private func normalComposerIsVisible(in window: AXUIElement) throws -> Bool {
-        let bundle = Bundle(path: Self.chatKitBundlePath)
-        let normalPlaceholders = Set([
-            bundle?.localizedString(forKey: "MADRID", value: nil, table: "ChatKit"),
-            bundle?.localizedString(forKey: "TEXT_MESSAGE", value: nil, table: "ChatKit"),
-        ].compactMap { $0 })
-        guard !normalPlaceholders.isEmpty else { return false }
+        guard !Self.normalComposerPlaceholders.isEmpty else { return false }
         return try descendants(of: window).contains {
             guard try stringAttribute("AXIdentifier", of: $0) == "messageBodyField" else {
                 return false
@@ -229,7 +300,7 @@ extension MacOSAccessibilityMessagesDriver {
             guard let placeholder = try stringAttribute("AXPlaceholderValue", of: $0) else {
                 return false
             }
-            return normalPlaceholders.contains(placeholder)
+            return Self.normalComposerPlaceholders.contains(placeholder)
         }
     }
 
