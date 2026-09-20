@@ -295,6 +295,89 @@ func messageListsExcludeReactionEventsAlwaysIncludeReactionsAndHonorAttachmentPr
 }
 
 @Test
+func boundedSearchReturnsAdvancingEmptyContinuationPagesWithoutSkippingMatches() async throws {
+    let fixture = try MessageDatabaseFixture()
+    try insertSearchHistory(into: fixture, count: 600) { index in
+        (index == 0 || index == 100) ? "Needle \(index)" : "Haystack \(index)"
+    }
+    let storage = fixture.makeStorage()
+    let conversationID = try ConversationID(validating: MessageDatabaseFixture.oneToOneID)
+    var cursor: Cursor?
+    var pages = 0
+    var matched: [String] = []
+    var sawEmptyContinuation = false
+    repeat {
+        let page = try await storage.messages.listMessages(
+            conversationID: conversationID,
+            options: MessageListOptions(limit: 1, cursor: cursor, search: "needle")
+        )
+        pages += 1
+        if page.items.isEmpty && page.hasMore {
+            sawEmptyContinuation = true
+            #expect(page.nextCursor != nil)
+        }
+        matched.append(contentsOf: page.items.map(\.id.rawValue))
+        if page.hasMore {
+            let next = try #require(page.nextCursor)
+            #expect(next != cursor)
+            cursor = next
+        } else {
+            cursor = nil
+        }
+        #expect(pages < 10)
+    } while cursor != nil
+
+    #expect(sawEmptyContinuation)
+    #expect(matched == ["search-history-100", "search-history-0"])
+    #expect(Set(matched).count == matched.count)
+    try await storage.shutdown()
+}
+
+@Test
+func boundedSearchCarriesURLPreviewOverlapAcrossCandidatePages() async throws {
+    let fixture = try MessageDatabaseFixture()
+    try insertSearchHistory(into: fixture, count: 400) { index in
+        index == 143 ? "Boundary https://example.com" : "Haystack \(index)"
+    }
+    try fixture.execute("""
+        UPDATE message
+        SET text = NULL, balloon_bundle_id = 'com.apple.messages.URLBalloonProvider'
+        WHERE guid = 'search-history-144'
+        """)
+    let storage = fixture.makeStorage()
+    let conversationID = try ConversationID(validating: MessageDatabaseFixture.oneToOneID)
+
+    let first = try await storage.messages.listMessages(
+        conversationID: conversationID,
+        options: MessageListOptions(limit: 1, search: "boundary")
+    )
+    let firstCursor = try #require(first.nextCursor)
+    #expect(first.items.isEmpty)
+    #expect(first.hasMore)
+    var cursor: Cursor? = firstCursor
+    var match: Message?
+    var continuations = 0
+    while let current = cursor, match == nil {
+        let page = try await storage.messages.listMessages(
+            conversationID: conversationID,
+            options: MessageListOptions(
+                limit: 1,
+                cursor: current,
+                search: "boundary"
+            )
+        )
+        match = page.items.first
+        cursor = page.hasMore ? page.nextCursor : nil
+        continuations += 1
+        #expect(continuations < 5)
+    }
+    let resolvedMatch = try #require(match)
+    #expect(resolvedMatch.id.rawValue == "search-history-143")
+    #expect(resolvedMatch.urlPreview?.messageID.rawValue == "search-history-144")
+    try await storage.shutdown()
+}
+
+@Test
 func cursorsAreOpaqueStableAndBoundToTheirQuery() async throws {
     let fixture = try MessageDatabaseFixture()
     let storage = fixture.makeStorage()
@@ -700,4 +783,33 @@ func sendCorrelationReportsAReplyRelationshipMismatch() async throws {
         return
     }
     try await storage.shutdown()
+}
+
+private func insertSearchHistory(
+    into fixture: MessageDatabaseFixture,
+    count: Int,
+    text: (Int) -> String
+) throws {
+    try fixture.execute("BEGIN")
+    for start in stride(from: 0, to: count, by: 200) {
+        let end = min(start + 200, count)
+        let messages = (start..<end).map { index in
+            let escaped = text(index).replacingOccurrences(of: "'", with: "''")
+            return """
+                (\(1_000 + index), 'search-history-\(index)', '\(escaped)', 10, 0,
+                 \(800000000000000000 + index), 0)
+                """
+        }.joined(separator: ",")
+        let joins = (start..<end).map { index in
+            "(1, \(1_000 + index), \(800000000000000000 + index), 0)"
+        }.joined(separator: ",")
+        try fixture.execute("""
+            INSERT INTO message
+                (ROWID, guid, text, handle_id, is_from_me, date, associated_message_type)
+            VALUES \(messages);
+            INSERT INTO chat_message_join (chat_id, message_id, message_date, filter_action)
+            VALUES \(joins)
+            """)
+    }
+    try fixture.execute("COMMIT")
 }

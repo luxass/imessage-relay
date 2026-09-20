@@ -47,6 +47,27 @@ enum SQLiteNumber: Codable, Equatable, Sendable {
     }
 }
 
+struct SearchPreviewCursor: Codable, Sendable {
+    enum Phase: String, Codable, Sendable {
+        case resolving
+        case replayingStart
+        case replaying
+    }
+
+    let phase: Phase
+    let groupStartDate: SQLiteNumber?
+    let groupStartRowID: Int64
+    let contextDate: SQLiteNumber?
+    let contextRowID: Int64?
+    let selectedPreviewRowID: Int64?
+
+    var isValid: Bool {
+        groupStartRowID > 0
+            && contextRowID.map { $0 > 0 } != false
+            && selectedPreviewRowID.map { $0 > 0 } != false
+    }
+}
+
 struct StorageCursor: Codable, Sendable {
     let version: Int
     let route: String
@@ -54,6 +75,7 @@ struct StorageCursor: Codable, Sendable {
     let querySignature: String
     let date: SQLiteNumber?
     let rowID: Int64
+    let searchPreview: SearchPreviewCursor?
 }
 
 enum CursorCodec {
@@ -74,7 +96,8 @@ enum CursorCodec {
               payload.route == route,
               payload.databaseIdentity == databaseIdentity,
               payload.querySignature == querySignature,
-              payload.rowID > 0 else {
+              payload.rowID > 0,
+              payload.searchPreview?.isValid != false else {
             throw SQLiteStorageError.invalidCursor
         }
         return payload
@@ -85,7 +108,8 @@ enum CursorCodec {
         databaseIdentity: String,
         querySignature: String,
         date: SQLiteNumber?,
-        rowID: Int64
+        rowID: Int64,
+        searchPreview: SearchPreviewCursor? = nil
     ) throws -> Cursor {
         let payload = StorageCursor(
             version: 1,
@@ -93,7 +117,8 @@ enum CursorCodec {
             databaseIdentity: databaseIdentity,
             querySignature: querySignature,
             date: date,
-            rowID: rowID
+            rowID: rowID,
+            searchPreview: searchPreview
         )
         let data = try RelayJSON.encoder.encode(payload)
         let encoded = data.base64EncodedString()
