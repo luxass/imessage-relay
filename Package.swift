@@ -8,6 +8,7 @@ let package = Package(
     ],
     products: [
         .executable(name: "relay-server", targets: ["RelayCLI"]),
+        .executable(name: "imessage-relay-app", targets: ["RelayApp"]),
         .library(name: "RelayCore", targets: ["RelayCore"]),
     ],
     dependencies: [
@@ -47,7 +48,17 @@ let package = Package(
                 "RelayServer",
             ]
         ),
+        .executableTarget(
+            name: "RelayApp",
+            dependencies: ["RelayServer"],
+            linkerSettings: [
+                .linkedFramework("AppKit"),
+                .linkedFramework("Security"),
+                .linkedFramework("ServiceManagement"),
+            ]
+        ),
         .testTarget(name: "RelayCoreTests", dependencies: ["RelayCore"]),
+        .testTarget(name: "RelayAppTests", dependencies: ["RelayApp"]),
         .testTarget(
             name: "RelayServerTests",
             dependencies: [

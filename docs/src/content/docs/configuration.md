@@ -3,7 +3,38 @@ title: Configuration
 description: Configure the local database, sender, media, authentication, and allowlist.
 ---
 
-The server accepts these command-line options:
+## Menu-bar app
+
+The app stores its API token in the login Keychain under the service
+`dev.luxass.imessage-relay.api-token`. Use **Copy API Token** in the menu rather
+than placing the token in a settings file.
+
+Non-secret settings live in
+`~/Library/Application Support/imessage-relay/config.json`:
+
+```json
+{
+  "allowRemoteConnections": false,
+  "allowedRecipients": [],
+  "hostname": "127.0.0.1",
+  "maximumMediaBytes": 26214400,
+  "port": 8080,
+  "senderAccountID": null
+}
+```
+
+The app creates its directory with mode `0700` and the settings file with mode
+`0600`. It refuses a non-loopback hostname unless `allowRemoteConnections` is
+`true`. This opt-in does not add TLS. Terminate TLS in front of the relay before
+sending traffic over a network.
+
+Choose **Reload Configuration** after editing the file. The app retries server
+startup after failures and can register itself as a macOS login item when it is
+installed in `/Applications`.
+
+## Command-line server
+
+The standalone server accepts these command-line options:
 
 | Option | Default | Purpose |
 | --- | --- | --- |

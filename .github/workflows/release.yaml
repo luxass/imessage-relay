@@ -38,6 +38,8 @@ jobs:
   package:
     needs: release-guard
     runs-on: macos-26
+    environment:
+      name: release-signing
     timeout-minutes: 30
     permissions:
       contents: read
@@ -58,9 +60,50 @@ jobs:
             swiftpm-${{ runner.os }}-${{ runner.arch }}-macos-26-
           lookup-only: true
 
-      - name: Package release
+      - name: Import Developer ID certificate
+        env:
+          CERTIFICATE_BASE64: ${{ secrets.APPLE_DEVELOPER_ID_CERTIFICATE_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD }}
+          SIGNING_IDENTITY: ${{ secrets.APPLE_CODESIGN_IDENTITY }}
+        run: |
+          : "${CERTIFICATE_BASE64:?Missing APPLE_DEVELOPER_ID_CERTIFICATE_BASE64}"
+          : "${CERTIFICATE_PASSWORD:?Missing APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD}"
+          : "${SIGNING_IDENTITY:?Missing APPLE_CODESIGN_IDENTITY}"
+          keychain="${RUNNER_TEMP}/release-signing.keychain-db"
+          keychain_password="$(openssl rand -hex 32)"
+          certificate="${RUNNER_TEMP}/developer-id.p12"
+          printf '%s' "${CERTIFICATE_BASE64}" | base64 --decode > "${certificate}"
+          security create-keychain -p "${keychain_password}" "${keychain}"
+          security set-keychain-settings -lut 21600 "${keychain}"
+          security unlock-keychain -p "${keychain_password}" "${keychain}"
+          security import "${certificate}" -k "${keychain}" \
+            -P "${CERTIFICATE_PASSWORD}" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: \
+            -s -k "${keychain_password}" "${keychain}"
+          security list-keychains -d user -s "${keychain}"
+          security find-identity -v -p codesigning "${keychain}"
+          echo "CODESIGN_IDENTITY=${SIGNING_IDENTITY}" >> "${GITHUB_ENV}"
+
+      - name: Configure App Store Connect notary key
+        env:
+          NOTARY_KEY_BASE64: ${{ secrets.APPLE_NOTARY_PRIVATE_KEY_BASE64 }}
+          NOTARY_KEY_ID_SECRET: ${{ secrets.APPLE_NOTARY_KEY_ID }}
+          NOTARY_ISSUER_ID_SECRET: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
+        run: |
+          : "${NOTARY_KEY_BASE64:?Missing APPLE_NOTARY_PRIVATE_KEY_BASE64}"
+          : "${NOTARY_KEY_ID_SECRET:?Missing APPLE_NOTARY_KEY_ID}"
+          : "${NOTARY_ISSUER_ID_SECRET:?Missing APPLE_NOTARY_ISSUER_ID}"
+          notary_key="${RUNNER_TEMP}/notary-api-key.p8"
+          printf '%s' "${NOTARY_KEY_BASE64}" | base64 --decode > "${notary_key}"
+          chmod 600 "${notary_key}"
+          echo "NOTARY_KEY_PATH=${notary_key}" >> "${GITHUB_ENV}"
+          echo "NOTARY_KEY_ID=${NOTARY_KEY_ID_SECRET}" >> "${GITHUB_ENV}"
+          echo "NOTARY_ISSUER_ID=${NOTARY_ISSUER_ID_SECRET}" >> "${GITHUB_ENV}"
+
+      - name: Package, sign, and notarize release
         env:
           INPUT_VERSION: ${{ inputs.version }}
+          NOTARIZE_RELEASE: "1"
         run: |
           if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
             version="${GITHUB_REF_NAME#v}"
@@ -72,10 +115,16 @@ jobs:
       - name: Upload release assets
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: imessage-relay-server-release-assets
+          name: imessage-relay-release-assets
           path: dist/*
           if-no-files-found: error
           retention-days: 7
+
+      - name: Remove signing credentials
+        if: ${{ always() }}
+        run: |
+          security delete-keychain "${RUNNER_TEMP}/release-signing.keychain-db" || true
+          rm -f "${RUNNER_TEMP}/developer-id.p12" "${RUNNER_TEMP}/notary-api-key.p8"
 
   publish:
     if: github.event_name == 'push'
@@ -94,7 +143,7 @@ jobs:
       - name: Download release assets
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          name: imessage-relay-server-release-assets
+          name: imessage-relay-release-assets
           path: dist
 
       - name: Generate release app token

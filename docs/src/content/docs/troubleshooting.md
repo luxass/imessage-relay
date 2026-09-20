@@ -5,18 +5,20 @@ description: Resolve database access and sending problems on macOS.
 
 ## The database is not ready
 
-Check `GET /v1/status`. Grant the terminal or service running `relay-server` Full
-Disk Access in **System Settings > Privacy & Security**, then restart that
-process. If you set `RELAY_CHAT_DB_PATH`, check that it points to the intended
-Messages database.
+Check `GET /v1/status`. Grant **iMessage Relay**, or the terminal running the
+standalone server, Full Disk Access in **System Settings > Privacy & Security**.
+Reload the app configuration or restart the standalone process. If you set
+`RELAY_CHAT_DB_PATH`, check that it points to the intended Messages database.
 
 ## Sending is denied
 
-Sending is disabled until `RELAY_ALLOWED_RECIPIENTS` is set. An empty allowlist denies every send. For an existing group chat, every participant must be allowed.
+Sending is disabled until the app's `allowedRecipients` setting or the CLI's
+`RELAY_ALLOWED_RECIPIENTS` variable contains recipients. An empty allowlist
+denies every send. For an existing group chat, every participant must be allowed.
 
-Set `RELAY_SENDER_ACCOUNT_ID` for direct sends. The value identifies your local
-iMessage account, not the recipient. A conversation send uses the account context
-stored in `chat.db`.
+Set the app's `senderAccountID` or the CLI's `RELAY_SENDER_ACCOUNT_ID` for direct
+sends. The value identifies your local iMessage account, not the recipient. A
+conversation send uses the account context stored in `chat.db`.
 
 The first send can prompt for **Automation > Messages** permission. Neither
 `/v1/status` nor `/v1/sender` triggers this prompt. Both routes report the sender
@@ -48,6 +50,9 @@ possible. Unknown or undecodable content remains `null`.
 
 ## macOS compatibility
 
-The binary requires macOS 14 or newer. It is ad hoc signed and not notarized.
+The app and standalone binary require macOS 14 or newer. GitHub release artifacts
+carry a Developer ID signature, and Apple notarizes both executables. The app also
+carries a stapled notarization ticket. Local packages use ad hoc signing and are
+not notarized.
 
 The Messages database has a private schema that changes between macOS releases. The relay is tested on macOS 27. Other versions may require changes.
