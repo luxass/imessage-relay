@@ -1,5 +1,8 @@
 # SQLite storage redesign
 
+The completed behavior, measurements, and remaining limitations are recorded in
+[the implementation report](sqlite-storage-implementation-report.md).
+
 ## Scope
 
 This work changes `Sources/RelayCore/Storage/SQLite/` and the narrow integration points required by it. It does not redesign application sending, typing, reactions, read verification, event distribution, or HTTP contracts.
@@ -25,8 +28,8 @@ Each database generation owns independent in-memory observation positions. Posit
 Incremental discovery uses independent ordered streams:
 
 - New rows ordered by `ROWID`.
-- Read changes ordered by `(date_read, ROWID)` when `date_read` exists.
-- Delivery changes ordered by `(date_delivered, ROWID)` when `date_delivered` exists and tests establish useful behavior.
+- Read changes ordered by `(date_read, ROWID)` when `date_read` has a usable leading index and the production query shape demonstrates seek behavior.
+- Delivery changes ordered by `(date_delivered, ROWID)` under the same index and query-work checks.
 
 Compound positions prevent equal-timestamp rows from being skipped while an ordered result is drained in batches. They are not a complete change log. A later update may land at or behind an existing position, or change a boolean without advancing a timestamp. Targeted rechecks and reconciliation remain required.
 
@@ -40,11 +43,11 @@ The retained full-history baseline consumes memory proportional to observed hist
 | --- | --- | --- | --- | --- | --- |
 | New message | `ROWID` stream | `message.ROWID`, message/chat join | Reconciliation | Filesystem debounce or fallback check plus bounded backlog turns | Deterministic ordering and large backlog |
 | Reaction addition or removal | `ROWID` stream and associated-message classification | Associated message type and GUID | Reconciliation where reaction columns are absent or relationships arrive late | Same as new rows | Addition and removal classification |
-| Message initially missing a chat join | Bounded pending row-ID retries | Message/chat join | Reconciliation after expiry or eviction | Retry schedule, otherwise reconciliation | Row precedes join |
+| Message initially missing a chat join | Bounded pending row-ID retries plus the rotating row-ID recheck | Message/chat join | Reconciliation after expiry or eviction | Retry schedule, otherwise reconciliation | Orphan batches advance and a row preceding its join resolves |
 | Read update with advancing timestamp | `(date_read, ROWID)` stream | `date_read` with a usable leading index | Targeted nonterminal recheck, then reconciliation | Filesystem debounce or fallback check | Equal timestamps and old-row read update |
-| Read update behind the watermark or without timestamp movement | Targeted nonterminal recheck | Read-state columns | Reconciliation | Targeted check interval or reconciliation | Update behind cursor and no timestamp advance |
+| Read update behind the watermark or without timestamp movement | Independently scheduled rotating row-ID recheck | Read-state columns | Reconciliation | One bounded recheck batch per fallback interval or reconciliation | Update beyond the first recheck batch and no timestamp advance |
 | Delivery update with advancing timestamp | `(date_delivered, ROWID)` stream if validated | `date_delivered` with a usable leading index | Targeted nonterminal recheck, then reconciliation | Filesystem debounce or fallback check | Old-row delivery update |
-| Delivery update behind the watermark or without timestamp movement | Targeted nonterminal recheck | Delivery-state columns | Reconciliation | Targeted check interval or reconciliation | No useful timestamp advance |
+| Delivery update behind the watermark or without timestamp movement | Independently scheduled rotating row-ID recheck | Delivery-state columns | Reconciliation | One bounded recheck batch per fallback interval or reconciliation | No useful timestamp advance |
 | Known attachment and path, file missing | Secure direct file check | Attachment path | Reconciliation | Pending-media poll | File appears after metadata |
 | Known attachment, path missing | Targeted attachment metadata refresh | Attachment identity | Reconciliation after expiry or eviction | Pending-media poll or reconciliation | Path appears later |
 | New message, association not yet visible | Targeted association lookup for a bounded candidate window | Message/attachment join | Reconciliation | Candidate retry schedule or reconciliation | Association appears later |
@@ -79,7 +82,7 @@ Messages database and relay-owned state database connections, schemas, permissio
 
 One logical result uses a short read transaction when assembled by multiple statements. This includes message list and hydration, a single message and hydration, conversation list and participants, multi-read send-context resolution, and send-correlation candidates with related data. No transaction remains open across UI automation, timers, async sleeps, or filesystem downloads.
 
-Before a logical operation, a cached connection verifies the path generation and reopens when needed. Reopening refreshes schema inspection. Missing databases produce controlled failures. Post-operation checks and retries are finite.
+Before a logical operation, a cached connection verifies the path generation and reopens when needed. Reopening refreshes schema inspection. Missing databases produce controlled failures. Post-operation checks and retries are finite. Observer operations also receive the generation expected by the stream; a transparent reopen cannot apply old positions or reconciliation state to a replacement database.
 
 ## Attributed bodies
 
@@ -89,7 +92,7 @@ Successful decoding produces one operation-local value containing plain text and
 
 ## Search
 
-Search scans physical candidates in bounded batches and stops after enough logical matches plus lookahead, or after a documented request budget. It preserves case-insensitive and diacritic-insensitive matching, attributed-body text, integer timestamp precision, null-date ordering, query-bound cursors, and URL-preview coalescing across batch and continuation boundaries.
+Search scans physical candidates in bounded batches and stops after enough logical matches plus lookahead, or after a documented request budget. It preserves case-insensitive and diacritic-insensitive matching, attributed-body text, integer timestamp precision, null-date ordering, and query-bound cursors. When a candidate window ends inside a URL-preview group, the opaque cursor records bounded group state while later continuations locate the original text or the end of history. The search then replays that range in bounded turns, coalescing the complete group or returning its previews as standalone results. It does not guess an overlap length or make logical results depend on page size.
 
 A bounded no-match scan may return an empty page with `has_more` set and an advancing `next_cursor`. Clients continue according to `has_more` and `next_cursor`, not item count. Tests cover repeated empty pages and prove that scanned-position continuations do not skip or duplicate logical messages.
 
