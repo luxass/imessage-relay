@@ -25,12 +25,16 @@ just package-release
 
 The command writes these files to `dist/`:
 
+- `imessage-relay-<version>-macos-universal.zip` and its `.sha256` checksum
+- `imessage-relay-macos-universal.zip` and its `.sha256` checksum
 - `imessage-relay-server-<version>-macos-universal.tar.gz` and its `.sha256` checksum
-- `relay-server-macos-universal.tar.gz` and its `.sha256` checksum (stable download names)
+- `relay-server-macos-universal.tar.gz` and its `.sha256` checksum
 
-The packaging script checks the binary version, architectures, ad hoc
-signature, archive contents, and checksum. Pass a version to require it to
-match `packageVersion`:
+Local builds are ad hoc signed and are not submitted to Apple. Release CI uses
+Developer ID, hardened runtime, and the Apple Events entitlement. It notarizes
+both executables, staples the app, then verifies the signatures, ticket,
+architectures, versions, archive contents, and checksums. Pass a version to require it to match
+`packageVersion`:
 
 ```sh
 just package-release 0.1.0
@@ -41,8 +45,9 @@ just package-release 0.1.0
 1. Merge normal changes to `main`. Release Please opens a release PR that updates
    the version and manifest. Merge that PR to create a matching tag such as
    `v0.1.0`.
-2. **Package:** build and verify the universal binary, archives, and checksums.
-   Upload them as workflow artifacts.
+2. **Package:** import the protected Developer ID identity, build universal CLI
+   and app executables, sign and notarize both, staple the app, then verify and
+   upload every archive and checksum as workflow artifacts.
 3. **Publish:** verify the downloaded checksums, upload all assets to a draft
    GitHub release, then publish it with generated release notes.
 4. **Homebrew:** a stable published release calls
@@ -67,6 +72,7 @@ Create these GitHub Actions environments before merging a release PR:
 | --- | --- | --- |
 | `release-guard` | `release-guard` job | Approval gate before release packaging |
 | `release` | `release-please` and `publish` jobs | Protects release automation and stores the release App credentials |
+| `release-signing` | `package` job | Protects the Developer ID certificate and notarization key |
 | `homebrew-tap` | shared Homebrew workflow | Protects formula update PRs |
 
 Add these Actions secrets before merging a release PR:
@@ -77,6 +83,27 @@ Add these Actions secrets before merging a release PR:
 | `RELEASE_APP_PRIVATE_KEY` in `release` | Private key for that GitHub App |
 | `HOMEBREW_TAP_APP_ID` | Client ID of the GitHub App installed on `luxass/homebrew-tap` |
 | `HOMEBREW_TAP_APP_PRIVATE_KEY` | Private key for that GitHub App |
+
+Add these secrets to the `release-signing` environment:
+
+| Secret | Purpose |
+| --- | --- |
+| `APPLE_DEVELOPER_ID_CERTIFICATE_BASE64` | Base64-encoded Developer ID Application `.p12` |
+| `APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD` | Password protecting the `.p12` |
+| `APPLE_CODESIGN_IDENTITY` | Full identity, such as `Developer ID Application: Name (TEAMID)` |
+| `APPLE_NOTARY_PRIVATE_KEY_BASE64` | Base64-encoded App Store Connect API `.p8` key |
+| `APPLE_NOTARY_KEY_ID` | App Store Connect API key ID |
+| `APPLE_NOTARY_ISSUER_ID` | App Store Connect issuer ID |
+
+Use an App Store Connect key that can submit software for notarization. Keep the
+certificate and key in the protected environment, require reviewers, and do not
+make them available to pull-request workflows.
+
+Keep the bundle identifier `dev.luxass.imessage-relay` and Developer ID team
+stable across releases. macOS uses that signed identity for Keychain access,
+Automation, Accessibility, and Full Disk Access. Changing it can make existing
+permissions and the stored token unavailable, so any identity change needs an
+explicit migration and release note.
 
 The Homebrew App needs Contents and Pull requests read/write permissions on
 the tap. The reusable workflow runs in the `homebrew-tap` environment; add at

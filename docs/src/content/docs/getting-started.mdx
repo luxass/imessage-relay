@@ -8,6 +8,20 @@ import { Aside, TabItem, Tabs } from '@astrojs/starlight/components';
 Choose one installation method.
 
 <Tabs>
+	<TabItem label="macOS app">
+
+	```sh
+	curl -fsSL -o imessage-relay.zip \
+	  https://github.com/luxass/imessage-relay/releases/latest/download/imessage-relay-macos-universal.zip
+	unzip imessage-relay.zip
+	mv "iMessage Relay.app" /Applications/
+	open "/Applications/iMessage Relay.app"
+	```
+
+	The universal app requires macOS 14 or newer. Releases are signed with
+	Developer ID and notarized by Apple. The menu-bar app starts at login after
+	you run it from `/Applications`.
+	</TabItem>
 	<TabItem label="Release binary">
 
 	```sh
@@ -15,8 +29,6 @@ Choose one installation method.
 	  https://github.com/luxass/imessage-relay/releases/latest/download/relay-server-macos-universal.tar.gz
 	tar xzf relay-server.tgz
 	```
-
-	The binary requires macOS 14 or newer. It is ad hoc signed and not notarized.
 	</TabItem>
 	<TabItem label="Build from source">
 
@@ -32,11 +44,34 @@ Choose one installation method.
 
 ## Grant access and start the relay
 
-Grant the terminal or service that runs `relay-server` **Full Disk Access** in
-**System Settings > Privacy & Security**, then restart that process.
+For the app, grant **iMessage Relay** Full Disk Access in **System Settings >
+Privacy & Security**, then choose **Reload Configuration** from its menu. Choose
+**Copy API Token** and export the copied value in the terminal where you run the
+examples:
 
-Set the required bearer token. To send directly, set the local iMessage account
-ID and an allowlist too:
+```sh
+export RELAY_TOKEN='paste-the-copied-token-here'
+```
+
+The app generates the token with 256 bits of randomness and stores it in your
+login Keychain. It creates its non-secret settings at
+`~/Library/Application Support/imessage-relay/config.json`. Add your local
+account ID and send allowlist there, then reload the configuration. An empty
+allowlist denies every send.
+
+```json
+{
+  "allowRemoteConnections": false,
+  "allowedRecipients": ["person@example.com", "+1 202 555 0123"],
+  "hostname": "127.0.0.1",
+  "maximumMediaBytes": 26214400,
+  "port": 8080,
+  "senderAccountID": "your-local-imessage-account-id"
+}
+```
+
+If you use the standalone binary, grant Full Disk Access to its terminal or
+service and start it with environment variables:
 
 ```sh
 export RELAY_TOKEN='replace-with-a-long-random-token'
@@ -45,9 +80,8 @@ export RELAY_ALLOWED_RECIPIENTS='person@example.com,+1 202 555 0123'
 ./relay-server
 ```
 
-An empty allowlist denies every send. The first send can prompt for
-**Automation > Messages** permission. `GET /v1/status` and `GET /v1/sender`
-never trigger this prompt.
+The first send can prompt for **Automation > Messages** permission. `GET
+/v1/status` and `GET /v1/sender` never trigger this prompt.
 
 <Aside type="tip" title="Built from source">
 	If you built the relay instead of downloading it, replace `./relay-server` in
