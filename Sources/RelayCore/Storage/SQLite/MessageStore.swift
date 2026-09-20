@@ -6,7 +6,7 @@ public final class SQLiteMessageStore: MessageStoring, SendCorrelating, Sendable
         let reference: MediaReference
     }
 
-    private struct Record: Sendable {
+    struct Record: Sendable {
         let row: MessageRow
         var message: Message
     }
@@ -16,10 +16,9 @@ public final class SQLiteMessageStore: MessageStoring, SendCorrelating, Sendable
         let attachment: MediaReference
     }
 
-    private struct RecordQuery {
+    struct RecordQuery {
         let conversationID: ConversationID
         let cursor: StorageCursor?
-        let hasSearch: Bool
         let limit: Int
     }
 
@@ -90,20 +89,29 @@ public final class SQLiteMessageStore: MessageStoring, SendCorrelating, Sendable
             databaseIdentity: identity,
             querySignature: signature
         )
+        if let search {
+            return try searchPage(
+                database: database,
+                conversationID: conversationID,
+                options: options,
+                search: search,
+                cursor: cursor,
+                identity: identity,
+                signature: signature,
+                limit: limit
+            )
+        }
+        guard cursor?.searchPreview == nil else { throw SQLiteStorageError.invalidCursor }
         var records = try records(
             database: database,
-            sql: listSQL(schema: database.schema, cursor: cursor, hasSearch: search != nil),
+            sql: listSQL(schema: database.schema, cursor: cursor),
             query: RecordQuery(
                 conversationID: conversationID,
                 cursor: cursor,
-                hasSearch: search != nil,
                 limit: limit * 2
             )
         )
         records = coalesceURLPreviews(records)
-        if let search {
-            records = records.filter { matches($0.message.text, search: search, mode: options.searchMode) }
-        }
         let hasMore = records.count > limit
         records = Array(records.prefix(limit))
         try hydrate(
@@ -314,7 +322,7 @@ public final class SQLiteMessageStore: MessageStoring, SendCorrelating, Sendable
             && row.threadOriginatorGUID == criteria.threadOriginatorMessageID?.rawValue
     }
 
-    private static func records(
+    static func records(
         database: SQLiteDatabase,
         sql: String,
         query: RecordQuery
@@ -334,9 +342,7 @@ public final class SQLiteMessageStore: MessageStoring, SendCorrelating, Sendable
                     binding += 1
                 }
             }
-            if !query.hasSearch {
-                try statement.bind(Int64(query.limit + 1), at: binding)
-            }
+            try statement.bind(Int64(query.limit + 1), at: binding)
             var result: [Record] = []
             while try statement.step() == .row {
                 let row = try decode(statement)
@@ -347,24 +353,35 @@ public final class SQLiteMessageStore: MessageStoring, SendCorrelating, Sendable
         }
     }
 
-    private static func coalesceURLPreviews(_ records: [Record]) -> [Record] {
-        let previewBundleID = "com.apple.messages.URLBalloonProvider"
+    static func isURLPreview(_ record: Record) -> Bool {
+        record.row.balloonBundleID == "com.apple.messages.URLBalloonProvider"
+    }
+
+    static func canCoalesceURLPreview(_ preview: Record, with message: Record) -> Bool {
+        isURLPreview(preview)
+            && message.row.isFromMe == preview.row.isFromMe
+            && message.row.handle == preview.row.handle
+            && containsURL(message.message.text)
+    }
+
+    static func attachURLPreview(_ preview: Record, to message: inout Record) {
+        message.message.urlPreview = URLPreview(
+            messageID: preview.message.id,
+            providerGUID: preview.row.guid,
+            balloonBundleID: "com.apple.messages.URLBalloonProvider",
+            createdAt: preview.message.createdAt
+        )
+    }
+
+    static func coalesceURLPreviews(_ records: [Record]) -> [Record] {
         var logical: [Record] = []
         for record in records.reversed() {
-            guard record.row.balloonBundleID == previewBundleID,
-                  let index = logical.indices.last,
-                  logical[index].row.isFromMe == record.row.isFromMe,
-                  logical[index].row.handle == record.row.handle,
-                  containsURL(logical[index].message.text) else {
+            guard let index = logical.indices.last,
+                  canCoalesceURLPreview(record, with: logical[index]) else {
                 logical.append(record)
                 continue
             }
-            logical[index].message.urlPreview = URLPreview(
-                messageID: record.message.id,
-                providerGUID: record.row.guid,
-                balloonBundleID: previewBundleID,
-                createdAt: record.message.createdAt
-            )
+            attachURLPreview(record, to: &logical[index])
         }
         return Array(logical.reversed())
     }
@@ -394,10 +411,9 @@ public final class SQLiteMessageStore: MessageStoring, SendCorrelating, Sendable
         ])
     }
 
-    private static func listSQL(
+    static func listSQL(
         schema: SchemaInspector,
-        cursor: StorageCursor?,
-        hasSearch: Bool
+        cursor: StorageCursor?
     ) -> String {
         var sql = """
             SELECT \(projection(schema))
@@ -419,9 +435,38 @@ public final class SQLiteMessageStore: MessageStoring, SendCorrelating, Sendable
                 ? " AND m.date IS NULL AND m.ROWID < ?"
                 : " AND (m.date IS NULL OR m.date < ? OR (m.date = ? AND m.ROWID < ?))"
         }
-        sql += " ORDER BY m.date IS NULL, m.date DESC, m.ROWID DESC"
-        if !hasSearch { sql += " LIMIT ?" }
+        sql += " ORDER BY m.date IS NULL, m.date DESC, m.ROWID DESC LIMIT ?"
         return sql
+    }
+
+    static func record(
+        database: SQLiteDatabase,
+        rowID: Int64,
+        conversationID: ConversationID
+    ) throws -> Record? {
+        var sql = """
+            SELECT \(projection(database.schema))
+            FROM message m
+            JOIN chat_message_join cmj ON cmj.message_id = m.ROWID
+            JOIN chat c ON c.ROWID = cmj.chat_id
+            LEFT JOIN handle h ON h.ROWID = m.handle_id
+            WHERE c.guid = ? AND m.ROWID = ?
+            """
+        if database.schema.hasColumn("associated_message_type", in: "message") {
+            sql += " AND NOT (COALESCE(m.associated_message_type, 0) BETWEEN 2000 AND 2006)"
+            sql += " AND NOT (COALESCE(m.associated_message_type, 0) BETWEEN 3000 AND 3006)"
+        }
+        if database.schema.hasColumn("filter_action", in: "chat_message_join") {
+            sql += " AND cmj.filter_action = 0"
+        }
+        sql += " LIMIT 1"
+        return try database.withStatement(sql) { statement in
+            try statement.bind(conversationID.rawValue, at: 1)
+            try statement.bind(rowID, at: 2)
+            guard try statement.step() == .row else { return nil }
+            let row = try decode(statement)
+            return Record(row: row, message: try SQLiteRows.message(row))
+        }
     }
 
     private static func record(
@@ -527,7 +572,7 @@ public final class SQLiteMessageStore: MessageStoring, SendCorrelating, Sendable
         }
     }
 
-    private static func matches(
+    static func matches(
         _ text: String?,
         search: String?,
         mode: MessageSearchMode
@@ -543,7 +588,7 @@ public final class SQLiteMessageStore: MessageStoring, SendCorrelating, Sendable
         }
     }
 
-    private static func hydrate(
+    static func hydrate(
         database: SQLiteDatabase,
         records: inout [Record],
         attachments: Bool,
