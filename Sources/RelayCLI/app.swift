@@ -3,9 +3,9 @@ import Foundation
 import RelayServer
 
 @main
-struct RelayServerCommand: AsyncParsableCommand {
+struct RelayCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
-        commandName: "relay-server",
+        commandName: "imessage-relay",
         abstract: "Expose the local Messages database and sender through the /v1 API.",
         version: packageVersion
     )

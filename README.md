@@ -14,6 +14,12 @@ injection.
 
 ## Install
 
+Install the menu bar app and CLI together with Homebrew:
+
+```sh
+brew install --cask luxass/tap/imessage-relay
+```
+
 Download the signed and notarized universal app for Apple silicon and Intel Macs:
 
 ```sh
@@ -29,13 +35,16 @@ as a login item when launched from `/Applications`. The relay binds to
 `127.0.0.1:8080` by default.
 
 <details>
-<summary>Install the command-line server</summary><br/>
+<summary>Install the CLI</summary><br/>
+
+Install only the CLI with Homebrew using `brew install luxass/tap/imessage-relay-cli`,
+or download its archive:
 
 ```sh
-curl -fsSL -o relay-server.tgz \
-  https://github.com/luxass/imessage-relay/releases/latest/download/relay-server-macos-universal.tar.gz
-tar xzf relay-server.tgz
-./relay-server
+curl -fsSL -o imessage-relay-cli.tgz \
+  https://github.com/luxass/imessage-relay/releases/latest/download/imessage-relay-cli-macos-universal.tar.gz
+tar xzf imessage-relay-cli.tgz
+./imessage-relay
 ```
 
 <br/></details>
@@ -49,7 +58,7 @@ Building requires Swift 6.3 or newer.
 git clone https://github.com/luxass/imessage-relay.git
 cd imessage-relay
 swift build
-.build/debug/relay-server
+.build/debug/imessage-relay
 ```
 
 <br/></details>
@@ -80,14 +89,14 @@ The app refuses to bind outside loopback unless `allowRemoteConnections` is
 explicitly set to `true`. It does not provide TLS, so terminate TLS in front of
 it whenever traffic leaves the Mac.
 
-When using the command-line server instead, grant Full Disk Access to the
+When using the CLI instead, grant Full Disk Access to the
 terminal or service and configure it with environment variables:
 
 ```sh
 export RELAY_TOKEN='replace-with-a-long-random-token'
 export RELAY_SENDER_ACCOUNT_ID='your-local-imessage-account-id'
 export RELAY_ALLOWED_RECIPIENTS='person@example.com,+1 202 555 0123'
-./relay-server
+./imessage-relay
 ```
 
 From another terminal, check that the relay can read the Messages database:
@@ -231,8 +240,8 @@ The command writes these files to `dist/`:
 
 - `imessage-relay-<version>-macos-universal.zip` and its `.sha256` checksum
 - `imessage-relay-macos-universal.zip` and its `.sha256` checksum
-- `imessage-relay-server-<version>-macos-universal.tar.gz` and its `.sha256` checksum
-- `relay-server-macos-universal.tar.gz` and its `.sha256` checksum
+- `imessage-relay-cli-<version>-macos-universal.tar.gz` and its `.sha256` checksum
+- `imessage-relay-cli-macos-universal.tar.gz` and its `.sha256` checksum
 
 Local packages use ad hoc signing. Release CI applies a Developer ID signature,
 submits the app to Apple for notarization, staples the ticket, and verifies the

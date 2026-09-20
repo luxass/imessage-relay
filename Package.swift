@@ -7,7 +7,7 @@ let package = Package(
         .macOS(.v14)
     ],
     products: [
-        .executable(name: "relay-server", targets: ["RelayCLI"]),
+        .executable(name: "imessage-relay", targets: ["RelayCLI"]),
         .executable(name: "imessage-relay-app", targets: ["RelayApp"]),
         .library(name: "RelayCore", targets: ["RelayCore"]),
     ],

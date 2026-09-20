@@ -19,8 +19,8 @@ jobs:
     uses: luxass/shared-workflows/.github/workflows/reusable-homebrew-tap.yaml@7be4a924607be148a2093d4651d920cfcc9a264f # v0.13.0
     with:
       tap-repository: luxass/homebrew-tap
-      formula-path: Formula/imessage-relay-server.rb
-      formula-name: imessage-relay-server
+      formula-path: Formula/imessage-relay-cli.rb
+      formula-name: imessage-relay-cli
       environment: homebrew-tap
       targets: '["macos-universal"]'
       cask-path: Casks/imessage-relay.rb

@@ -3,7 +3,7 @@ title: API reference
 description: The /v1 endpoints, request models, status values, and error contract.
 ---
 
-`relay-server` listens on `http://127.0.0.1:8080` by default. Every endpoint uses
+`imessage-relay` listens on `http://127.0.0.1:8080` by default. Every endpoint uses
 the `/v1` prefix.
 
 ## Authentication
