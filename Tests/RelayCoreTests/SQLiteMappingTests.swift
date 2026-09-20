@@ -13,8 +13,30 @@ func attributedAttachmentPlaceholderIsNotExposedAsText() throws {
         NSAttributedString(string: "Caption\u{fffc}")
     )
 
-    #expect(SQLiteRows.attributedText(placeholder) == nil)
-    #expect(SQLiteRows.attributedText(mixed) == "Caption")
+    #expect(DecodedMessageBody(placeholder)?.text == nil)
+    #expect(DecodedMessageBody(mixed)?.text == "Caption")
+}
+
+@Test
+func malformedAttributedBodyDoesNotEscapeAsAnObjectiveCException() async throws {
+    let malformed = Data("not a legacy archive".utf8)
+    #expect(DecodedMessageBody(malformed) == nil)
+    let valid = try MessageDatabaseFixture.archivedAttributedString(
+        NSAttributedString(string: "Truncated archive")
+    )
+    #expect(DecodedMessageBody(Data(valid.prefix(20))) == nil)
+    #expect(DecodedMessageBody(Data(valid.dropLast(5))) == nil)
+
+    let fixture = try MessageDatabaseFixture()
+    try fixture.setAttributedBody(messageRowID: 100, data: malformed)
+    let storage = fixture.makeStorage()
+    let message = try #require(try await storage.messages.message(
+        id: MessageID(validating: MessageDatabaseFixture.rootMessageID)
+    ))
+
+    #expect(message.text == "Root message")
+    #expect(message.parts == [.text(index: 0, text: "Root message")])
+    try await storage.shutdown()
 }
 
 @Test

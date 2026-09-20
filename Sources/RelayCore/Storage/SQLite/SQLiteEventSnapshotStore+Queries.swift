@@ -37,7 +37,7 @@ extension SQLiteEventSnapshotStore {
                     guid: messageID.rawValue,
                     conversationGUID: try SQLiteValue.text(statement, 2),
                     text: nil,
-                    attributedBody: nil,
+                    decodedBody: nil,
                     handle: nil,
                     originalHandle: nil,
                     isFromMe: isFromMe,
