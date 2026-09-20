@@ -31,6 +31,19 @@ public actor ContactRecipientResolver: RecipientResolving {
         }
     }
 
+    public func displayName(for handle: RecipientHandle) async -> String? {
+        guard handle.type != .other else { return nil }
+        do {
+            try await refreshIfNeeded()
+            let normalized = try await resolve(handle)
+            return contacts.first { contact in
+                contact.handles.contains { $0.matches(normalized) }
+            }?.name
+        } catch {
+            return nil
+        }
+    }
+
     private func normalizedPhone(_ candidate: RecipientHandle) throws -> RecipientHandle {
         let input = candidate.displayValue ?? candidate.value
         do {

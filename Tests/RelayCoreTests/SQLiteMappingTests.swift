@@ -133,6 +133,7 @@ func messagesMapAttributedTextThreadsReactionsAttachmentsAndReceipts() async thr
         id: MessageID(validating: MessageDatabaseFixture.nestedReplyID)
     ))
     #expect(nested.thread?.replyToMessageID == nil)
+    #expect(nested.thread?.providerReplyToMessageID?.rawValue == MessageDatabaseFixture.immediateReplyID)
     #expect(nested.thread?.threadOriginatorMessageID?.rawValue == MessageDatabaseFixture.rootMessageID)
     #expect(nested.isFromMe)
     #expect(nested.deliveryState == .sent)
@@ -170,6 +171,67 @@ func messagesMapAttributedTextThreadsReactionsAttachmentsAndReceipts() async thr
     #expect(outgoing.readAt != nil)
     #expect(outgoing.thread == nil)
 
+    try await storage.shutdown()
+}
+
+@Test
+func messagesDecodePreviewsPollsSchedulesAudioAndStickers() async throws {
+    let fixture = try MessageDatabaseFixture()
+    let storage = fixture.makeStorage()
+    let textID = "00000000-0000-0000-0000-000000000110"
+    let previewID = "00000000-0000-0000-0000-000000000111"
+    let pollID = "00000000-0000-0000-0000-000000000112"
+    let voteID = "00000000-0000-0000-0000-000000000113"
+    let scheduledID = "00000000-0000-0000-0000-000000000114"
+    try fixture.execute("""
+        UPDATE attachment SET is_sticker = 1
+        WHERE guid = '\(MessageDatabaseFixture.attachmentID)';
+        INSERT INTO message
+            (ROWID, guid, text, handle_id, is_from_me, date, balloon_bundle_id,
+             is_audio_message, schedule_type, schedule_state,
+             associated_message_guid, associated_message_type)
+        VALUES
+            (110, '\(textID)', 'Read https://example.com', 10, 0,
+             700000310000000000, NULL, 0, 0, 0, NULL, 0),
+            (111, '\(previewID)', NULL, 10, 0,
+             700000311000000000, 'com.apple.messages.URLBalloonProvider', 0, 0, 0, NULL, 0),
+            (112, '\(pollID)', NULL, 10, 0,
+             700000312000000000, 'com.apple.messages.Polls', 0, 0, 0, NULL, 0),
+            (113, '\(voteID)', NULL, 10, 0,
+             700000313000000000, NULL, 0, 0, 0, 'p:0/\(pollID)', 4000),
+            (114, '\(scheduledID)', 'Later', NULL, 1,
+             900000000000000000, NULL, 1, 2, 1, NULL, 0);
+        INSERT INTO chat_message_join (chat_id, message_id, message_date, filter_action)
+        VALUES
+            (1, 110, 700000310000000000, 0),
+            (1, 111, 700000311000000000, 0),
+            (1, 112, 700000312000000000, 0),
+            (1, 113, 700000313000000000, 0),
+            (1, 114, 900000000000000000, 0);
+        """)
+
+    let page = try await storage.messages.listMessages(
+        conversationID: ConversationID(validating: MessageDatabaseFixture.oneToOneID),
+        options: MessageListOptions(limit: 20, includeAttachments: true)
+    )
+    let link = try #require(page.items.first { $0.id.rawValue == textID })
+    #expect(page.items.contains { $0.id.rawValue == previewID } == false)
+    #expect(link.urlPreview?.messageID.rawValue == previewID)
+    #expect(link.urlPreview?.balloonBundleID == "com.apple.messages.URLBalloonProvider")
+    #expect(page.items.first { $0.id.rawValue == pollID }?.poll?.kind == .created)
+    #expect(page.items.first { $0.id.rawValue == voteID }?.poll?.kind == .vote)
+    #expect(page.items.first { $0.id.rawValue == voteID }?.poll?.originalMessageID?.rawValue == pollID)
+    let scheduled = try #require(page.items.first { $0.id.rawValue == scheduledID })
+    #expect(scheduled.isAudioMessage == true)
+    #expect(scheduled.schedule?.type == 2)
+    #expect(scheduled.schedule?.state == 1)
+    #expect(page.items.flatMap(\.attachments).first?.isSticker == true)
+    let search = try await storage.messages.listMessages(
+        conversationID: ConversationID(validating: MessageDatabaseFixture.oneToOneID),
+        options: MessageListOptions(limit: 20, search: "example.com")
+    )
+    #expect(search.items.map(\.id.rawValue) == [textID])
+    #expect(search.items.first?.urlPreview?.messageID.rawValue == previewID)
     try await storage.shutdown()
 }
 

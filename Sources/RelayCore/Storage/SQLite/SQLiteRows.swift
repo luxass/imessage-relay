@@ -33,6 +33,12 @@ struct MessageRow: Sendable {
     let replyToGUID: String?
     let threadOriginatorGUID: String?
     let partCount: Int64?
+    let balloonBundleID: String?
+    let isAudioMessage: Bool?
+    let scheduleType: Int64?
+    let scheduleState: Int64?
+    let associatedMessageGUID: String?
+    let associatedMessageType: Int64?
 }
 
 private struct AttributedPart {
@@ -154,15 +160,36 @@ enum SQLiteRows {
     static func message(_ row: MessageRow) throws -> Message {
         let messageID = try MessageID(validating: row.guid)
         let conversationID = try ConversationID(validating: row.conversationGUID)
-        let thread: ThreadReference?
         let root = try row.threadOriginatorGUID.map(MessageID.init(validating:))
-        if let root {
-            thread = ThreadReference(
+        let reply = try row.replyToGUID.map(MessageID.init(validating:))
+        let thread = root.map {
+            ThreadReference(
                 replyToMessageID: nil,
-                threadOriginatorMessageID: root
+                threadOriginatorMessageID: $0,
+                providerReplyToMessageID: reply
+            )
+        }
+        let schedule: MessageSchedule?
+        if row.scheduleType.map({ $0 != 0 }) == true || row.scheduleState.map({ $0 != 0 }) == true {
+            schedule = MessageSchedule(
+                scheduledAt: timestamp(row.date),
+                type: row.scheduleType ?? 0,
+                state: row.scheduleState ?? 0
             )
         } else {
-            thread = nil
+            schedule = nil
+        }
+        let poll: NativePoll?
+        if row.balloonBundleID?.split(separator: ":").last == "com.apple.messages.Polls" {
+            poll = NativePoll(kind: .created, originalMessageID: nil)
+        } else if row.associatedMessageType == 4000 {
+            poll = NativePoll(
+                kind: .vote,
+                originalMessageID: try normalizedAssociatedGUID(row.associatedMessageGUID)
+                    .map(MessageID.init(validating:))
+            )
+        } else {
+            poll = nil
         }
         return Message(
             id: messageID,
@@ -179,8 +206,21 @@ enum SQLiteRows {
             thread: thread,
             parts: messageParts(row),
             reactions: [],
-            attachments: []
+            attachments: [],
+            balloonBundleID: row.balloonBundleID,
+            poll: poll,
+            schedule: schedule,
+            isAudioMessage: row.isAudioMessage
         )
+    }
+
+    private static func normalizedAssociatedGUID(_ value: String?) -> String? {
+        guard let value else { return nil }
+        if value.hasPrefix("p:"), let slash = value.firstIndex(of: "/") {
+            return String(value[value.index(after: slash)...])
+        }
+        if value.hasPrefix("bp:") { return String(value.dropFirst(3)) }
+        return value
     }
 
     static func deliveryState(_ row: MessageRow) -> DeliveryState {

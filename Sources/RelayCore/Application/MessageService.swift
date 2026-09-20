@@ -81,14 +81,17 @@ public struct MessageService: Sendable {
         conversationID: ConversationID,
         options: MessageListOptions
     ) async throws -> PaginatedResponse<Message> {
-        try await messages.listMessages(conversationID: conversationID, options: options)
+        let page = try await messages.listMessages(conversationID: conversationID, options: options)
+        var items: [Message] = []
+        for message in page.items { items.append(await addingContactNames(to: message)) }
+        return PaginatedResponse(items: items, nextCursor: page.nextCursor, hasMore: page.hasMore)
     }
 
     public func get(id: MessageID) async throws -> Message {
         guard let message = try await messages.message(id: id) else {
             throw RelayServiceError.unknownMessage
         }
-        return message
+        return await addingContactNames(to: message)
     }
 
     public func request(id: RequestID) async throws -> SendMessageResponse {
@@ -127,6 +130,51 @@ public struct MessageService: Sendable {
         return try await identificationGate.run {
             try await dispatchAndIdentify(operation, prepared: prepared)
         }
+    }
+
+    private func addingContactNames(to message: Message) async -> Message {
+        let sender = await named(message.sender)
+        var reactions: [Reaction] = []
+        for reaction in message.reactions {
+            reactions.append(Reaction(
+                id: reaction.id,
+                targetPartIndex: reaction.targetPartIndex,
+                kind: reaction.kind,
+                emoji: reaction.emoji,
+                action: reaction.action,
+                sender: await named(reaction.sender),
+                isFromMe: reaction.isFromMe,
+                createdAt: reaction.createdAt
+            ))
+        }
+        return Message(
+            id: message.id,
+            providerGUID: message.providerGUID,
+            conversationID: message.conversationID,
+            text: message.text,
+            sender: sender,
+            isFromMe: message.isFromMe,
+            createdAt: message.createdAt,
+            deliveryState: message.deliveryState,
+            readState: message.readState,
+            deliveredAt: message.deliveredAt,
+            readAt: message.readAt,
+            thread: message.thread,
+            parts: message.parts,
+            reactions: reactions,
+            attachments: message.attachments,
+            balloonBundleID: message.balloonBundleID,
+            urlPreview: message.urlPreview,
+            poll: message.poll,
+            schedule: message.schedule,
+            isAudioMessage: message.isAudioMessage
+        )
+    }
+
+    private func named(_ handle: RecipientHandle?) async -> RecipientHandle? {
+        guard let handle,
+              let name = await recipientResolver.displayName(for: handle) else { return handle }
+        return try? RecipientHandle(type: handle.type, value: handle.value, displayValue: name)
     }
 
     private func dispatchAndIdentify(

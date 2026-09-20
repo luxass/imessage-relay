@@ -27,8 +27,9 @@ public final class SQLiteMediaStore: MessageMediaStoring, Sendable {
         let transferName = schema.expression("transfer_name", table: "attachment", alias: "a", fallback: "NULL")
         let mime = schema.expression("mime_type", table: "attachment", alias: "a", fallback: "NULL")
         let size = schema.expression("total_bytes", table: "attachment", alias: "a", fallback: "NULL")
-        let row: (path: String?, filename: String?, mime: String?, size: Int64?)? = try database.withStatement("""
-            SELECT a.filename, \(transferName), \(mime), \(size)
+        let sticker = schema.expression("is_sticker", table: "attachment", alias: "a", fallback: "0")
+        let row: (path: String?, filename: String?, mime: String?, size: Int64?, isSticker: Bool)? = try database.withStatement("""
+            SELECT a.filename, \(transferName), \(mime), \(size), \(sticker)
             FROM attachment a
             WHERE a.guid = ?
               AND EXISTS (
@@ -45,7 +46,8 @@ public final class SQLiteMediaStore: MessageMediaStoring, Sendable {
                         SQLiteValue.optionalText(statement, 0),
                         SQLiteValue.optionalText(statement, 1),
                         SQLiteValue.optionalText(statement, 2),
-                        SQLiteValue.optionalInt64(statement, 3)
+                        SQLiteValue.optionalInt64(statement, 3),
+                        SQLiteRows.bool(statement, 4) ?? false
                     )
                 case SQLITE_DONE: return nil
                 default: throw SQLiteStorageError.queryFailed(database.lastError())
@@ -59,7 +61,8 @@ public final class SQLiteMediaStore: MessageMediaStoring, Sendable {
             filename: row.filename,
             mimeType: row.mime,
             byteSize: opened.byteCount,
-            source: .messages
+            source: .messages,
+            isSticker: row.isSticker
         )
         return ReadableMedia(
             reference: reference,

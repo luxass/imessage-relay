@@ -54,7 +54,13 @@ extension SQLiteEventSnapshotStore {
                         dateRead: SQLiteNumber.read(statement, 9),
                         replyToGUID: nil,
                         threadOriginatorGUID: nil,
-                        partCount: nil
+                        partCount: nil,
+                        balloonBundleID: nil,
+                        isAudioMessage: nil,
+                        scheduleType: nil,
+                        scheduleState: nil,
+                        associatedMessageGUID: nil,
+                        associatedMessageType: nil
                     )
                     values[messageID] = ObservedMessage(
                         rowID: row.rowID,

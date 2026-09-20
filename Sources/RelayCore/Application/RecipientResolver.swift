@@ -6,6 +6,11 @@ public enum RecipientResolutionError: Error, Equatable, Sendable {
 
 public protocol RecipientResolving: Sendable {
     func resolve(_ candidate: RecipientHandle) async throws -> RecipientHandle
+    func displayName(for handle: RecipientHandle) async -> String?
+}
+
+public extension RecipientResolving {
+    func displayName(for handle: RecipientHandle) async -> String? { nil }
 }
 
 public struct DirectRecipientResolver: RecipientResolving {

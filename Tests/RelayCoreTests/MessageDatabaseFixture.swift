@@ -94,11 +94,13 @@ final class MessageDatabaseFixture: @unchecked Sendable {
                 part_count INTEGER,
                 associated_message_guid TEXT, associated_message_type INTEGER,
                 associated_message_emoji TEXT, item_type INTEGER,
-                is_finished INTEGER, is_system_message INTEGER
+                is_finished INTEGER, is_system_message INTEGER,
+                balloon_bundle_id TEXT, is_audio_message INTEGER,
+                schedule_type INTEGER, schedule_state INTEGER
               """
             : ""
         let attachmentOptional = options.includeOptionalAttachmentColumns
-            ? ", transfer_name TEXT, mime_type TEXT, uti TEXT, total_bytes INTEGER"
+            ? ", transfer_name TEXT, mime_type TEXT, uti TEXT, total_bytes INTEGER, is_sticker INTEGER"
             : ""
         try execute("""
             CREATE TABLE chat (

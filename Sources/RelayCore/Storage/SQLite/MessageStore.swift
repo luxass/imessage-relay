@@ -20,8 +20,7 @@ public final class SQLiteMessageStore: MessageStoring, SendCorrelating, Sendable
     private struct RecordQuery {
         let conversationID: ConversationID
         let cursor: StorageCursor?
-        let search: String?
-        let searchMode: MessageSearchMode
+        let hasSearch: Bool
         let limit: Int
     }
 
@@ -92,11 +91,14 @@ public final class SQLiteMessageStore: MessageStoring, SendCorrelating, Sendable
             query: RecordQuery(
                 conversationID: conversationID,
                 cursor: cursor,
-                search: search,
-                searchMode: options.searchMode,
-                limit: limit
+                hasSearch: search != nil,
+                limit: limit * 2
             )
         )
+        records = coalesceURLPreviews(records)
+        if let search {
+            records = records.filter { matches($0.message.text, search: search, mode: options.searchMode) }
+        }
         let hasMore = records.count > limit
         records = Array(records.prefix(limit))
         try hydrate(
@@ -331,7 +333,7 @@ public final class SQLiteMessageStore: MessageStoring, SendCorrelating, Sendable
                     binding += 1
                 }
             }
-            if query.search == nil {
+            if !query.hasSearch {
                 sqlite3_bind_int64(statement, binding, Int64(query.limit + 1))
             }
             var result: [Record] = []
@@ -340,14 +342,40 @@ public final class SQLiteMessageStore: MessageStoring, SendCorrelating, Sendable
                 case SQLITE_ROW:
                     let row = try decode(statement)
                     let message = try SQLiteRows.message(row)
-                    if matches(message.text, search: query.search, mode: query.searchMode) {
-                        result.append(Record(row: row, message: message))
-                    }
+                    result.append(Record(row: row, message: message))
                 case SQLITE_DONE: return result
                 default: throw SQLiteStorageError.queryFailed(database.lastError())
                 }
             }
         }
+    }
+
+    private static func coalesceURLPreviews(_ records: [Record]) -> [Record] {
+        let previewBundleID = "com.apple.messages.URLBalloonProvider"
+        var logical: [Record] = []
+        for record in records.reversed() {
+            guard record.row.balloonBundleID == previewBundleID,
+                  let index = logical.indices.last,
+                  logical[index].row.isFromMe == record.row.isFromMe,
+                  logical[index].row.handle == record.row.handle,
+                  containsURL(logical[index].message.text) else {
+                logical.append(record)
+                continue
+            }
+            logical[index].message.urlPreview = URLPreview(
+                messageID: record.message.id,
+                providerGUID: record.row.guid,
+                balloonBundleID: previewBundleID,
+                createdAt: record.message.createdAt
+            )
+        }
+        return Array(logical.reversed())
+    }
+
+    private static func containsURL(_ text: String?) -> Bool {
+        guard let text else { return false }
+        return text.localizedCaseInsensitiveContains("https://")
+            || text.localizedCaseInsensitiveContains("http://")
     }
 
     private static func normalizedSearch(_ search: String?) -> String? {
@@ -451,10 +479,21 @@ public final class SQLiteMessageStore: MessageStoring, SendCorrelating, Sendable
             "thread_originator_guid", table: "message", alias: "m", fallback: "NULL"
         )
         let partCount = schema.expression("part_count", table: "message", alias: "m", fallback: "NULL")
+        let balloon = schema.expression("balloon_bundle_id", table: "message", alias: "m", fallback: "NULL")
+        let audio = schema.expression("is_audio_message", table: "message", alias: "m", fallback: "NULL")
+        let scheduleType = schema.expression("schedule_type", table: "message", alias: "m", fallback: "NULL")
+        let scheduleState = schema.expression("schedule_state", table: "message", alias: "m", fallback: "NULL")
+        let associatedGUID = schema.expression(
+            "associated_message_guid", table: "message", alias: "m", fallback: "NULL"
+        )
+        let associatedType = schema.expression(
+            "associated_message_type", table: "message", alias: "m", fallback: "NULL"
+        )
         return """
             m.ROWID, m.guid, c.guid, m.text, \(attributedBody), h.id, \(originalHandle),
             m.is_from_me, m.date, \(error), \(sent), \(delivered), \(read),
-            \(deliveredDate), \(readDate), \(reply), \(root), \(partCount)
+            \(deliveredDate), \(readDate), \(reply), \(root), \(partCount),
+            \(balloon), \(audio), \(scheduleType), \(scheduleState), \(associatedGUID), \(associatedType)
             """
     }
 
@@ -477,7 +516,13 @@ public final class SQLiteMessageStore: MessageStoring, SendCorrelating, Sendable
             dateRead: SQLiteNumber.read(statement, 14),
             replyToGUID: SQLiteValue.optionalText(statement, 15),
             threadOriginatorGUID: SQLiteValue.optionalText(statement, 16),
-            partCount: SQLiteValue.optionalInt64(statement, 17)
+            partCount: SQLiteValue.optionalInt64(statement, 17),
+            balloonBundleID: SQLiteValue.optionalText(statement, 18),
+            isAudioMessage: SQLiteRows.bool(statement, 19),
+            scheduleType: SQLiteValue.optionalInt64(statement, 20),
+            scheduleState: SQLiteValue.optionalInt64(statement, 21),
+            associatedMessageGUID: SQLiteValue.optionalText(statement, 22),
+            associatedMessageType: SQLiteValue.optionalInt64(statement, 23)
         )
     }
 
@@ -558,9 +603,10 @@ public final class SQLiteMessageStore: MessageStoring, SendCorrelating, Sendable
         let transferName = schema.expression("transfer_name", table: "attachment", alias: "a", fallback: "NULL")
         let mime = schema.expression("mime_type", table: "attachment", alias: "a", fallback: "NULL")
         let size = schema.expression("total_bytes", table: "attachment", alias: "a", fallback: "NULL")
+        let sticker = schema.expression("is_sticker", table: "attachment", alias: "a", fallback: "0")
         let placeholders = messageRowIDs.map { _ in "?" }.joined(separator: ",")
         return try database.withStatement("""
-            SELECT maj.message_id, a.guid, \(transferName), \(mime), \(size)
+            SELECT maj.message_id, a.guid, \(transferName), \(mime), \(size), \(sticker)
             FROM message_attachment_join maj
             JOIN attachment a ON a.ROWID = maj.attachment_id
             WHERE maj.message_id IN (\(placeholders))
@@ -580,7 +626,8 @@ public final class SQLiteMessageStore: MessageStoring, SendCorrelating, Sendable
                             filename: SQLiteValue.optionalText(statement, 2),
                             mimeType: SQLiteValue.optionalText(statement, 3),
                             byteSize: SQLiteValue.optionalInt64(statement, 4),
-                            source: .messages
+                            source: .messages,
+                            isSticker: SQLiteRows.bool(statement, 5) ?? false
                         )
                     ))
                 }

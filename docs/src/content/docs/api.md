@@ -216,7 +216,8 @@ keeps two relationships separate:
 {
   "thread": {
     "reply_to_message_id": null,
-    "thread_originator_message_id": "root-message-guid"
+    "thread_originator_message_id": "root-message-guid",
+    "provider_reply_to_message_id": "parent-message-guid"
   }
 }
 ```
@@ -228,8 +229,29 @@ On the tested macOS schema, `reply_to_guid` does not reliably identify the
 immediate parent. Messages uses it to chain ordinary top-level bubbles and can
 also point a nested reply at a preceding bubble from an unrelated thread. The
 relay therefore reports `reply_to_message_id` as null instead of exposing that
-column as a false parent relationship. A send request still accepts the exact
-message to target in `reply_to.message_id`.
+column as a verified parent relationship. For inline-thread rows,
+`provider_reply_to_message_id` preserves the raw provider relationship while
+`thread_originator_message_id` identifies the verified root. A send request
+still accepts the exact message to target in `reply_to.message_id`.
+
+### Native message metadata
+
+Message responses decode additional optional provider metadata:
+
+- `is_audio_message` marks native audio messages.
+- `schedule` includes `scheduled_at`, `type`, and `state` when native scheduling
+  columns are active.
+- `poll.kind` is `created` for native poll balloons and `vote` for vote rows;
+  votes include `original_message_id` when available.
+- `balloon_bundle_id` identifies extension messages.
+- Attachments include `is_sticker`.
+- Recipient `display_value` uses the matching Contacts name when Contacts access
+  is available.
+
+Messages may store a URL send as adjacent text and preview rows. List and search
+responses fold a `com.apple.messages.URLBalloonProvider` row into the preceding
+same-sender text message as `url_preview`, avoiding a duplicate message. The
+preview metadata retains its own `message_id`, `provider_guid`, and timestamp.
 
 ### Message parts
 

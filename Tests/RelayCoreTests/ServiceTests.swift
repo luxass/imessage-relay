@@ -202,6 +202,31 @@ func sendServiceResolvesAContactNameBeforeAllowlistAndDispatch() async throws {
 }
 
 @Test
+func messageServiceAddsCachedContactNamesToSenders() async throws {
+    let conversationID = try ConversationID(validating: "chat-guid")
+    let senderHandle = try RecipientHandle(type: .phone, value: "+14155550100")
+    let message = fixtureMessage(
+        id: try MessageID(validating: "message-guid"),
+        conversationID: conversationID,
+        sender: senderHandle
+    )
+    let stores = StubStores(conversation: nil, context: nil, messages: [message])
+    let service = MessageService(
+        conversations: stores,
+        messages: stores,
+        sender: FakeMessageSender.available(),
+        media: MediaService(uploads: MemoryUploadStore(), messagesMedia: NilMessageMediaStore()),
+        recipientResolver: StubRecipientResolver(values: [:], names: [senderHandle.value: "Alice"]),
+        allowlist: RecipientAllowlist(values: [])
+    )
+
+    let enriched = try await service.get(id: message.id)
+
+    #expect(enriched.sender?.value == senderHandle.value)
+    #expect(enriched.sender?.displayValue == "Alice")
+}
+
+@Test
 func sendServiceRejectsUnsupportedFeaturesBeforeCallingTheSender() async throws {
     let conversationID = try ConversationID(validating: "chat-guid")
     let phone = try RecipientHandle(type: .phone, value: "+15005550006")
@@ -766,6 +791,7 @@ private final class StubStores: ConversationStoring, MessageStoring, @unchecked 
 
 private struct StubRecipientResolver: RecipientResolving {
     let values: [String: RecipientHandle]
+    var names: [String: String] = [:]
 
     func resolve(_ candidate: RecipientHandle) async throws -> RecipientHandle {
         if let resolved = values[candidate.value] { return resolved }
@@ -773,6 +799,10 @@ private struct StubRecipientResolver: RecipientResolving {
             throw RecipientResolutionError.notFound(candidate.value)
         }
         return candidate
+    }
+
+    func displayName(for handle: RecipientHandle) async -> String? {
+        names[handle.value]
     }
 }
 
@@ -872,14 +902,15 @@ private func fixtureConversation(
 private func fixtureMessage(
     id: MessageID,
     conversationID: ConversationID,
-    thread: ThreadReference? = nil
+    thread: ThreadReference? = nil,
+    sender: RecipientHandle? = nil
 ) -> Message {
     Message(
         id: id,
         providerGUID: id.rawValue,
         conversationID: conversationID,
         text: "Reply target",
-        sender: nil,
+        sender: sender,
         isFromMe: false,
         createdAt: nil,
         deliveryState: .unknown,

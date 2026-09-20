@@ -27,18 +27,22 @@ public enum MessageStatus: String, Codable, Equatable, Sendable {
 public struct ThreadReference: Codable, Equatable, Sendable {
     public let replyToMessageID: MessageID?
     public let threadOriginatorMessageID: MessageID?
+    public let providerReplyToMessageID: MessageID?
 
     private enum CodingKeys: String, CodingKey {
         case replyToMessageID = "reply_to_message_id"
         case threadOriginatorMessageID = "thread_originator_message_id"
+        case providerReplyToMessageID = "provider_reply_to_message_id"
     }
 
     public init(
         replyToMessageID: MessageID?,
-        threadOriginatorMessageID: MessageID?
+        threadOriginatorMessageID: MessageID?,
+        providerReplyToMessageID: MessageID? = nil
     ) {
         self.replyToMessageID = replyToMessageID
         self.threadOriginatorMessageID = threadOriginatorMessageID
+        self.providerReplyToMessageID = providerReplyToMessageID
     }
 }
 
@@ -164,6 +168,64 @@ public struct Reaction: Codable, Equatable, Sendable {
     }
 }
 
+public struct URLPreview: Codable, Equatable, Sendable {
+    public let messageID: MessageID
+    public let providerGUID: String
+    public let balloonBundleID: String
+    public let createdAt: Timestamp?
+
+    private enum CodingKeys: String, CodingKey {
+        case messageID = "message_id"
+        case providerGUID = "provider_guid"
+        case balloonBundleID = "balloon_bundle_id"
+        case createdAt = "created_at"
+    }
+
+    public init(messageID: MessageID, providerGUID: String, balloonBundleID: String, createdAt: Timestamp?) {
+        self.messageID = messageID
+        self.providerGUID = providerGUID
+        self.balloonBundleID = balloonBundleID
+        self.createdAt = createdAt
+    }
+}
+
+public enum NativePollKind: String, Codable, Equatable, Sendable {
+    case created
+    case vote
+}
+
+public struct NativePoll: Codable, Equatable, Sendable {
+    public let kind: NativePollKind
+    public let originalMessageID: MessageID?
+
+    private enum CodingKeys: String, CodingKey {
+        case kind
+        case originalMessageID = "original_message_id"
+    }
+
+    public init(kind: NativePollKind, originalMessageID: MessageID?) {
+        self.kind = kind
+        self.originalMessageID = originalMessageID
+    }
+}
+
+public struct MessageSchedule: Codable, Equatable, Sendable {
+    public let scheduledAt: Timestamp?
+    public let type: Int64
+    public let state: Int64
+
+    private enum CodingKeys: String, CodingKey {
+        case scheduledAt = "scheduled_at"
+        case type, state
+    }
+
+    public init(scheduledAt: Timestamp?, type: Int64, state: Int64) {
+        self.scheduledAt = scheduledAt
+        self.type = type
+        self.state = state
+    }
+}
+
 public struct Message: Codable, Equatable, Sendable {
     public let id: MessageID
     public let providerGUID: String?
@@ -180,6 +242,11 @@ public struct Message: Codable, Equatable, Sendable {
     public var parts: [MessagePart]?
     public var reactions: [Reaction]
     public var attachments: [MediaReference]
+    public let balloonBundleID: String?
+    public var urlPreview: URLPreview?
+    public let poll: NativePoll?
+    public let schedule: MessageSchedule?
+    public let isAudioMessage: Bool?
 
     private enum CodingKeys: String, CodingKey {
         case id
@@ -192,7 +259,10 @@ public struct Message: Codable, Equatable, Sendable {
         case readState = "read_state"
         case deliveredAt = "delivered_at"
         case readAt = "read_at"
-        case thread, parts, reactions, attachments
+        case thread, parts, reactions, attachments, poll, schedule
+        case balloonBundleID = "balloon_bundle_id"
+        case urlPreview = "url_preview"
+        case isAudioMessage = "is_audio_message"
     }
 
     public init(
@@ -210,7 +280,12 @@ public struct Message: Codable, Equatable, Sendable {
         thread: ThreadReference?,
         parts: [MessagePart]? = nil,
         reactions: [Reaction],
-        attachments: [MediaReference]
+        attachments: [MediaReference],
+        balloonBundleID: String? = nil,
+        urlPreview: URLPreview? = nil,
+        poll: NativePoll? = nil,
+        schedule: MessageSchedule? = nil,
+        isAudioMessage: Bool? = nil
     ) {
         self.id = id
         self.providerGUID = providerGUID
@@ -227,6 +302,11 @@ public struct Message: Codable, Equatable, Sendable {
         self.parts = parts
         self.reactions = reactions
         self.attachments = attachments
+        self.balloonBundleID = balloonBundleID
+        self.urlPreview = urlPreview
+        self.poll = poll
+        self.schedule = schedule
+        self.isAudioMessage = isAudioMessage
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -246,6 +326,11 @@ public struct Message: Codable, Equatable, Sendable {
         try container.encode(parts, forKey: .parts)
         try container.encode(reactions, forKey: .reactions)
         try container.encode(attachments, forKey: .attachments)
+        try container.encodeIfPresent(balloonBundleID, forKey: .balloonBundleID)
+        try container.encodeIfPresent(urlPreview, forKey: .urlPreview)
+        try container.encodeIfPresent(poll, forKey: .poll)
+        try container.encodeIfPresent(schedule, forKey: .schedule)
+        try container.encodeIfPresent(isAudioMessage, forKey: .isAudioMessage)
     }
 }
 
