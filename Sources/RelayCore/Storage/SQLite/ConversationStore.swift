@@ -1,5 +1,3 @@
-import SQLite3
-
 public final class SQLiteConversationStore: ConversationStoring, Sendable {
     private struct AggregateExpressions {
         let messageDate: String
@@ -18,29 +16,35 @@ public final class SQLiteConversationStore: ConversationStoring, Sendable {
         options: ConversationListOptions
     ) async throws -> PaginatedResponse<Conversation> {
         try await executor.run { database in
-            try Self.list(database: database, options: options)
+            try database.withReadTransaction {
+                try Self.list(database: database, options: options)
+            }
         }
     }
 
     public func conversation(id: ConversationID) async throws -> Conversation? {
         try await executor.run { database in
-            guard let row = try Self.row(database: database, id: id) else { return nil }
-            let participants = try Self.participants(database: database, chatRowIDs: [row.rowID])
-            return try Self.map(row, participants: participants[row.rowID] ?? [])
+            try database.withReadTransaction {
+                guard let row = try Self.row(database: database, id: id) else { return nil }
+                let participants = try Self.participants(database: database, chatRowIDs: [row.rowID])
+                return try Self.map(row, participants: participants[row.rowID] ?? [])
+            }
         }
     }
 
     public func sendContext(id: ConversationID) async throws -> ConversationSendContext? {
         try await executor.run { database in
-            guard let row = try Self.row(database: database, id: id) else { return nil }
-            let participants = try Self.participants(database: database, chatRowIDs: [row.rowID])
-            return ConversationSendContext(
-                conversationID: id,
-                providerGUID: row.guid,
-                accountID: row.accountID,
-                accountLogin: row.accountLogin,
-                recipients: participants[row.rowID] ?? []
-            )
+            try database.withReadTransaction {
+                guard let row = try Self.row(database: database, id: id) else { return nil }
+                let participants = try Self.participants(database: database, chatRowIDs: [row.rowID])
+                return ConversationSendContext(
+                    conversationID: id,
+                    providerGUID: row.guid,
+                    accountID: row.accountID,
+                    accountLogin: row.accountLogin,
+                    recipients: participants[row.rowID] ?? []
+                )
+            }
         }
     }
 
@@ -48,41 +52,40 @@ public final class SQLiteConversationStore: ConversationStoring, Sendable {
         matchingExactParticipants expected: [RecipientHandle]
     ) async throws -> [ConversationSendContext] {
         try await executor.run { database in
-            let handleRowIDs = try expected.flatMap {
-                try Self.matchingHandleRowIDs(database: database, participant: $0)
-            }
-            guard !handleRowIDs.isEmpty else { return [] }
-            let placeholders = handleRowIDs.map { _ in "?" }.joined(separator: ",")
-            let chatRowIDs = try database.withStatement("""
-                SELECT DISTINCT chat_id
-                FROM chat_handle_join
-                WHERE handle_id IN (\(placeholders))
-                """) { statement in
-                    for (index, rowID) in handleRowIDs.enumerated() {
-                        sqlite3_bind_int64(statement, Int32(index + 1), rowID)
-                    }
-                    var values: [Int64] = []
-                    while true {
-                        switch sqlite3_step(statement) {
-                        case SQLITE_ROW: values.append(sqlite3_column_int64(statement, 0))
-                        case SQLITE_DONE: return values
-                        default: throw SQLiteStorageError.queryFailed(database.lastError())
-                        }
-                    }
+            try database.withReadTransaction {
+                let handleRowIDs = try expected.flatMap {
+                    try Self.matchingHandleRowIDs(database: database, participant: $0)
                 }
-            let participantsByChat = try Self.participants(
-                database: database,
-                chatRowIDs: chatRowIDs
-            )
-            let expectedKeys = Set(expected.map(Self.handleKey))
-            let matchingRowIDs = chatRowIDs.filter {
-                Set((participantsByChat[$0] ?? []).map(Self.handleKey)) == expectedKeys
+                guard !handleRowIDs.isEmpty else { return [] }
+                let placeholders = handleRowIDs.map { _ in "?" }.joined(separator: ",")
+                let chatRowIDs = try database.withStatement("""
+                    SELECT DISTINCT chat_id
+                    FROM chat_handle_join
+                    WHERE handle_id IN (\(placeholders))
+                    """) { statement in
+                        for (index, rowID) in handleRowIDs.enumerated() {
+                            try statement.bind(rowID, at: Int32(index + 1))
+                        }
+                        var values: [Int64] = []
+                        while try statement.step() == .row {
+                            values.append(try statement.int64(0))
+                        }
+                        return values
+                    }
+                let participantsByChat = try Self.participants(
+                    database: database,
+                    chatRowIDs: chatRowIDs
+                )
+                let expectedKeys = Set(expected.map(Self.handleKey))
+                let matchingRowIDs = chatRowIDs.filter {
+                    Set((participantsByChat[$0] ?? []).map(Self.handleKey)) == expectedKeys
+                }
+                return try Self.sendContexts(
+                    database: database,
+                    chatRowIDs: matchingRowIDs,
+                    participants: participantsByChat
+                )
             }
-            return try Self.sendContexts(
-                database: database,
-                chatRowIDs: matchingRowIDs,
-                participants: participantsByChat
-            )
         }
     }
 
@@ -146,28 +149,25 @@ public final class SQLiteConversationStore: ConversationStoring, Sendable {
             var binding: Int32 = 1
             if let cursor {
                 if let date = cursor.date {
-                    date.bind(to: statement, at: binding)
-                    date.bind(to: statement, at: binding + 1)
-                    sqlite3_bind_int64(statement, binding + 2, cursor.rowID)
+                    try date.bind(to: statement, at: binding)
+                    try date.bind(to: statement, at: binding + 1)
+                    try statement.bind(cursor.rowID, at: binding + 2)
                     binding += 3
                 } else {
-                    sqlite3_bind_int64(statement, binding, cursor.rowID)
+                    try statement.bind(cursor.rowID, at: binding)
                     binding += 1
                 }
             }
             for rowID in participantHandleRowIDs {
-                sqlite3_bind_int64(statement, binding, rowID)
+                try statement.bind(rowID, at: binding)
                 binding += 1
             }
-            sqlite3_bind_int64(statement, binding, Int64(limit + 1))
+            try statement.bind(Int64(limit + 1), at: binding)
             var result: [ConversationRow] = []
-            while true {
-                switch sqlite3_step(statement) {
-                case SQLITE_ROW: result.append(try decode(statement))
-                case SQLITE_DONE: return result
-                default: throw SQLiteStorageError.queryFailed(database.lastError())
-                }
+            while try statement.step() == .row {
+                result.append(try decode(statement))
             }
+            return result
         }
     }
 
@@ -247,19 +247,13 @@ public final class SQLiteConversationStore: ConversationStoring, Sendable {
     ) throws -> [Int64] {
         try database.withStatement("SELECT ROWID, id FROM handle") { statement in
             var rowIDs: [Int64] = []
-            while true {
-                switch sqlite3_step(statement) {
-                case SQLITE_ROW:
-                    guard let value = SQLiteValue.optionalText(statement, 1),
-                          let stored = try? RecipientHandle.stored(value: value),
-                          stored.matches(participant) else { continue }
-                    rowIDs.append(sqlite3_column_int64(statement, 0))
-                case SQLITE_DONE:
-                    return rowIDs
-                default:
-                    throw SQLiteStorageError.queryFailed(database.lastError())
-                }
+            while try statement.step() == .row {
+                guard let value = try SQLiteValue.optionalText(statement, 1),
+                      let stored = try? RecipientHandle.stored(value: value),
+                      stored.matches(participant) else { continue }
+                rowIDs.append(try statement.int64(0))
             }
+            return rowIDs
         }
     }
 
@@ -283,25 +277,21 @@ public final class SQLiteConversationStore: ConversationStoring, Sendable {
             ORDER BY c.ROWID
             """) { statement in
                 for (index, rowID) in chatRowIDs.enumerated() {
-                    sqlite3_bind_int64(statement, Int32(index + 1), rowID)
+                    try statement.bind(rowID, at: Int32(index + 1))
                 }
                 var values: [ConversationSendContext] = []
-                while true {
-                    switch sqlite3_step(statement) {
-                    case SQLITE_ROW:
-                        let rowID = sqlite3_column_int64(statement, 0)
-                        let guid = try SQLiteValue.text(statement, 1)
-                        values.append(ConversationSendContext(
-                            conversationID: try ConversationID(validating: guid),
-                            providerGUID: guid,
-                            accountID: SQLiteValue.optionalText(statement, 2),
-                            accountLogin: SQLiteValue.optionalText(statement, 3),
-                            recipients: participants[rowID] ?? []
-                        ))
-                    case SQLITE_DONE: return values
-                    default: throw SQLiteStorageError.queryFailed(database.lastError())
-                    }
+                while try statement.step() == .row {
+                    let rowID = try statement.int64(0)
+                    let guid = try SQLiteValue.text(statement, 1)
+                    values.append(ConversationSendContext(
+                        conversationID: try ConversationID(validating: guid),
+                        providerGUID: guid,
+                        accountID: try SQLiteValue.optionalText(statement, 2),
+                        accountLogin: try SQLiteValue.optionalText(statement, 3),
+                        recipients: participants[rowID] ?? []
+                    ))
                 }
+                return values
             }
     }
 
@@ -326,15 +316,9 @@ public final class SQLiteConversationStore: ConversationStoring, Sendable {
             WHERE c.guid = ?
             GROUP BY c.ROWID
             """) { statement -> ConversationRow? in
-                sqlite3_bind_text(statement, 1, id.rawValue, -1, sqliteTransient)
-                switch sqlite3_step(statement) {
-                case SQLITE_ROW:
-                    return try decode(statement)
-                case SQLITE_DONE:
-                    return nil
-                default:
-                    throw SQLiteStorageError.queryFailed(database.lastError())
-                }
+                try statement.bind(id.rawValue, at: 1)
+                guard try statement.step() == .row else { return nil }
+                return try decode(statement)
             }
     }
 
@@ -368,18 +352,18 @@ public final class SQLiteConversationStore: ConversationStoring, Sendable {
         )
     }
 
-    private static func decode(_ statement: OpaquePointer) throws -> ConversationRow {
+    private static func decode(_ statement: SQLiteStatement) throws -> ConversationRow {
         ConversationRow(
-            rowID: sqlite3_column_int64(statement, 0),
+            rowID: try statement.int64(0),
             guid: try SQLiteValue.text(statement, 1),
-            identifier: SQLiteValue.optionalText(statement, 2),
-            displayName: SQLiteValue.optionalText(statement, 3),
-            service: SQLiteValue.optionalText(statement, 4),
-            roomName: SQLiteValue.optionalText(statement, 5),
-            accountID: SQLiteValue.optionalText(statement, 6),
-            accountLogin: SQLiteValue.optionalText(statement, 7),
-            lastDate: SQLiteNumber.read(statement, 8),
-            unreadCount: Int(sqlite3_column_int64(statement, 9))
+            identifier: try SQLiteValue.optionalText(statement, 2),
+            displayName: try SQLiteValue.optionalText(statement, 3),
+            service: try SQLiteValue.optionalText(statement, 4),
+            roomName: try SQLiteValue.optionalText(statement, 5),
+            accountID: try SQLiteValue.optionalText(statement, 6),
+            accountLogin: try SQLiteValue.optionalText(statement, 7),
+            lastDate: try SQLiteNumber.read(statement, 8),
+            unreadCount: Int(try statement.int64(9))
         )
     }
 
@@ -420,16 +404,17 @@ public final class SQLiteConversationStore: ConversationStoring, Sendable {
             ORDER BY chj.chat_id, h.ROWID
             """) { statement in
                 for (index, id) in chatRowIDs.enumerated() {
-                    sqlite3_bind_int64(statement, Int32(index + 1), id)
+                    try statement.bind(id, at: Int32(index + 1))
                 }
                 var result: [Int64: [RecipientHandle]] = [:]
-                while sqlite3_step(statement) == SQLITE_ROW {
-                    let chatID = sqlite3_column_int64(statement, 0)
-                    if let value = SQLiteValue.optionalText(statement, 1),
-                       let handle = try? RecipientHandle.stored(
+                while try statement.step() == .row {
+                    let chatID = try statement.int64(0)
+                    guard let value = try SQLiteValue.optionalText(statement, 1) else { continue }
+                    let originalValue = try SQLiteValue.optionalText(statement, 2)
+                    if let handle = try? RecipientHandle.stored(
                         value: value,
-                        originalValue: SQLiteValue.optionalText(statement, 2)
-                       ) {
+                        originalValue: originalValue
+                    ) {
                         result[chatID, default: []].append(handle)
                     }
                 }

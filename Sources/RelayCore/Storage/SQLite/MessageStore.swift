@@ -1,5 +1,4 @@
 import Foundation
-import SQLite3
 
 public final class SQLiteMessageStore: MessageStoring, SendCorrelating, Sendable {
     private struct AttachmentRecord: Sendable {
@@ -35,25 +34,29 @@ public final class SQLiteMessageStore: MessageStoring, SendCorrelating, Sendable
         options: MessageListOptions
     ) async throws -> PaginatedResponse<Message> {
         try await executor.run { database in
-            try Self.list(database: database, conversationID: conversationID, options: options)
+            try database.withReadTransaction {
+                try Self.list(database: database, conversationID: conversationID, options: options)
+            }
         }
     }
 
     public func message(id: MessageID) async throws -> Message? {
         try await executor.run { database in
-            guard var record = try Self.record(database: database, messageID: id) else { return nil }
-            try Self.hydrate(database: database, records: &record, attachments: true, reactions: true)
-            return record.message
+            try database.withReadTransaction {
+                guard var record = try Self.record(database: database, messageID: id) else { return nil }
+                try Self.hydrate(database: database, records: &record, attachments: true, reactions: true)
+                return record.message
+            }
         }
     }
 
     public func checkpoint() async throws -> OutgoingMessageCheckpoint {
         try await executor.run { database in
             let rowID = try database.withStatement("SELECT COALESCE(MAX(ROWID), 0) FROM message") { statement in
-                guard sqlite3_step(statement) == SQLITE_ROW else {
-                    throw SQLiteStorageError.queryFailed(database.lastError())
+                guard try statement.step() == .row else {
+                    throw SQLiteStorageError.queryFailed("Message checkpoint query returned no row.")
                 }
-                return sqlite3_column_int64(statement, 0)
+                return try statement.int64(0)
             }
             return OutgoingMessageCheckpoint(rowID: rowID)
         }
@@ -63,7 +66,9 @@ public final class SQLiteMessageStore: MessageStoring, SendCorrelating, Sendable
         _ criteria: SendCorrelationCriteria
     ) async throws -> SendCorrelationOutcome {
         try await executor.run { database in
-            try Self.correlate(database: database, criteria: criteria)
+            try database.withReadTransaction {
+                try Self.correlate(database: database, criteria: criteria)
+            }
         }
     }
 
@@ -220,17 +225,13 @@ public final class SQLiteMessageStore: MessageStoring, SendCorrelating, Sendable
         sql += " ORDER BY m.ROWID ASC LIMIT 100"
 
         return try database.withStatement(sql) { statement in
-            sqlite3_bind_int64(statement, 1, checkpoint.rowID)
+            try statement.bind(checkpoint.rowID, at: 1)
             var values: [Record] = []
-            while true {
-                switch sqlite3_step(statement) {
-                case SQLITE_ROW:
-                    let row = try decode(statement)
-                    values.append(Record(row: row, message: try SQLiteRows.message(row)))
-                case SQLITE_DONE: return values
-                default: throw SQLiteStorageError.queryFailed(database.lastError())
-                }
+            while try statement.step() == .row {
+                let row = try decode(statement)
+                values.append(Record(row: row, message: try SQLiteRows.message(row)))
             }
+            return values
         }
     }
 
@@ -320,33 +321,29 @@ public final class SQLiteMessageStore: MessageStoring, SendCorrelating, Sendable
     ) throws -> [Record] {
         try database.withStatement(sql) { statement in
             var binding: Int32 = 1
-            sqlite3_bind_text(statement, binding, query.conversationID.rawValue, -1, sqliteTransient)
+            try statement.bind(query.conversationID.rawValue, at: binding)
             binding += 1
             if let cursor = query.cursor {
                 if let date = cursor.date {
-                    date.bind(to: statement, at: binding)
-                    date.bind(to: statement, at: binding + 1)
-                    sqlite3_bind_int64(statement, binding + 2, cursor.rowID)
+                    try date.bind(to: statement, at: binding)
+                    try date.bind(to: statement, at: binding + 1)
+                    try statement.bind(cursor.rowID, at: binding + 2)
                     binding += 3
                 } else {
-                    sqlite3_bind_int64(statement, binding, cursor.rowID)
+                    try statement.bind(cursor.rowID, at: binding)
                     binding += 1
                 }
             }
             if !query.hasSearch {
-                sqlite3_bind_int64(statement, binding, Int64(query.limit + 1))
+                try statement.bind(Int64(query.limit + 1), at: binding)
             }
             var result: [Record] = []
-            while true {
-                switch sqlite3_step(statement) {
-                case SQLITE_ROW:
-                    let row = try decode(statement)
-                    let message = try SQLiteRows.message(row)
-                    result.append(Record(row: row, message: message))
-                case SQLITE_DONE: return result
-                default: throw SQLiteStorageError.queryFailed(database.lastError())
-                }
+            while try statement.step() == .row {
+                let row = try decode(statement)
+                let message = try SQLiteRows.message(row)
+                result.append(Record(row: row, message: message))
             }
+            return result
         }
     }
 
@@ -448,15 +445,11 @@ public final class SQLiteMessageStore: MessageStoring, SendCorrelating, Sendable
         }
         sql += " LIMIT 1"
         return try database.withStatement(sql) { statement in
-                sqlite3_bind_text(statement, 1, messageID.rawValue, -1, sqliteTransient)
-                switch sqlite3_step(statement) {
-                case SQLITE_ROW:
-                    let row = try decode(statement)
-                    return Record(row: row, message: try SQLiteRows.message(row))
-                case SQLITE_DONE: return nil
-                default: throw SQLiteStorageError.queryFailed(database.lastError())
-                }
-            }
+            try statement.bind(messageID.rawValue, at: 1)
+            guard try statement.step() == .row else { return nil }
+            let row = try decode(statement)
+            return Record(row: row, message: try SQLiteRows.message(row))
+        }
     }
 
     private static func projection(_ schema: SchemaInspector) -> String {
@@ -497,39 +490,39 @@ public final class SQLiteMessageStore: MessageStoring, SendCorrelating, Sendable
             """
     }
 
-    private static func decode(_ statement: OpaquePointer) throws -> MessageRow {
+    private static func decode(_ statement: SQLiteStatement) throws -> MessageRow {
         MessageRow(
-            rowID: sqlite3_column_int64(statement, 0),
+            rowID: try statement.int64(0),
             guid: try SQLiteValue.text(statement, 1),
             conversationGUID: try SQLiteValue.text(statement, 2),
-            text: SQLiteValue.optionalText(statement, 3),
-            attributedBody: SQLiteValue.optionalData(statement, 4),
-            handle: SQLiteValue.optionalText(statement, 5),
-            originalHandle: SQLiteValue.optionalText(statement, 6),
-            isFromMe: sqlite3_column_int64(statement, 7) != 0,
-            date: SQLiteNumber.read(statement, 8),
-            error: SQLiteValue.optionalInt64(statement, 9),
-            isSent: SQLiteRows.bool(statement, 10),
-            isDelivered: SQLiteRows.bool(statement, 11),
-            isRead: SQLiteRows.bool(statement, 12),
-            dateDelivered: SQLiteNumber.read(statement, 13),
-            dateRead: SQLiteNumber.read(statement, 14),
-            replyToGUID: SQLiteValue.optionalText(statement, 15),
-            threadOriginatorGUID: SQLiteValue.optionalText(statement, 16),
-            partCount: SQLiteValue.optionalInt64(statement, 17),
-            balloonBundleID: SQLiteValue.optionalText(statement, 18),
-            isAudioMessage: SQLiteRows.bool(statement, 19),
-            scheduleType: SQLiteValue.optionalInt64(statement, 20),
-            scheduleState: SQLiteValue.optionalInt64(statement, 21),
-            associatedMessageGUID: SQLiteValue.optionalText(statement, 22),
-            associatedMessageType: SQLiteValue.optionalInt64(statement, 23)
+            text: try SQLiteValue.optionalText(statement, 3),
+            attributedBody: try SQLiteValue.optionalData(statement, 4),
+            handle: try SQLiteValue.optionalText(statement, 5),
+            originalHandle: try SQLiteValue.optionalText(statement, 6),
+            isFromMe: try statement.int64(7) != 0,
+            date: try SQLiteNumber.read(statement, 8),
+            error: try SQLiteValue.optionalInt64(statement, 9),
+            isSent: try SQLiteRows.bool(statement, 10),
+            isDelivered: try SQLiteRows.bool(statement, 11),
+            isRead: try SQLiteRows.bool(statement, 12),
+            dateDelivered: try SQLiteNumber.read(statement, 13),
+            dateRead: try SQLiteNumber.read(statement, 14),
+            replyToGUID: try SQLiteValue.optionalText(statement, 15),
+            threadOriginatorGUID: try SQLiteValue.optionalText(statement, 16),
+            partCount: try SQLiteValue.optionalInt64(statement, 17),
+            balloonBundleID: try SQLiteValue.optionalText(statement, 18),
+            isAudioMessage: try SQLiteRows.bool(statement, 19),
+            scheduleType: try SQLiteValue.optionalInt64(statement, 20),
+            scheduleState: try SQLiteValue.optionalInt64(statement, 21),
+            associatedMessageGUID: try SQLiteValue.optionalText(statement, 22),
+            associatedMessageType: try SQLiteValue.optionalInt64(statement, 23)
         )
     }
 
     private static func conversationExists(database: SQLiteDatabase, id: ConversationID) throws -> Bool {
         try database.withStatement("SELECT 1 FROM chat WHERE guid = ? LIMIT 1") { statement in
-            sqlite3_bind_text(statement, 1, id.rawValue, -1, sqliteTransient)
-            return sqlite3_step(statement) == SQLITE_ROW
+            try statement.bind(id.rawValue, at: 1)
+            return try statement.step() == .row
         }
     }
 
@@ -613,21 +606,21 @@ public final class SQLiteMessageStore: MessageStoring, SendCorrelating, Sendable
             ORDER BY maj.message_id, a.ROWID
             """) { statement in
                 for (index, rowID) in messageRowIDs.enumerated() {
-                    sqlite3_bind_int64(statement, Int32(index + 1), rowID)
+                    try statement.bind(rowID, at: Int32(index + 1))
                 }
                 var result: [Int64: [AttachmentRecord]] = [:]
-                while sqlite3_step(statement) == SQLITE_ROW {
-                    let messageRowID = sqlite3_column_int64(statement, 0)
+                while try statement.step() == .row {
+                    let messageRowID = try statement.int64(0)
                     let guid = try SQLiteValue.text(statement, 1)
                     result[messageRowID, default: []].append(AttachmentRecord(
                         guid: guid,
                         reference: MediaReference(
                             mediaID: try MediaID(validating: guid),
-                            filename: SQLiteValue.optionalText(statement, 2),
-                            mimeType: SQLiteValue.optionalText(statement, 3),
-                            byteSize: SQLiteValue.optionalInt64(statement, 4),
+                            filename: try SQLiteValue.optionalText(statement, 2),
+                            mimeType: try SQLiteValue.optionalText(statement, 3),
+                            byteSize: try SQLiteValue.optionalInt64(statement, 4),
                             source: .messages,
-                            isSticker: SQLiteRows.bool(statement, 5) ?? false
+                            isSticker: try SQLiteRows.bool(statement, 5) ?? false
                         )
                     ))
                 }
@@ -670,27 +663,27 @@ public final class SQLiteMessageStore: MessageStoring, SendCorrelating, Sendable
             ORDER BY r.date, r.ROWID
             """) { statement in
                 for (index, guid) in targetGUIDs.enumerated() {
-                    sqlite3_bind_text(statement, Int32(index + 1), guid, -1, sqliteTransient)
+                    try statement.bind(guid, at: Int32(index + 1))
                 }
                 var result: [String: [Reaction]] = [:]
-                while sqlite3_step(statement) == SQLITE_ROW {
+                while try statement.step() == .row {
                     let eventGUID = try SQLiteValue.text(statement, 0)
-                    let associatedGUID = SQLiteValue.optionalText(statement, 1)
-                    guard let targetGUID = SQLiteValue.optionalText(statement, 2) else { continue }
-                    let rawType = sqlite3_column_int64(statement, 3)
+                    let associatedGUID = try SQLiteValue.optionalText(statement, 1)
+                    guard let targetGUID = try SQLiteValue.optionalText(statement, 2) else { continue }
+                    let rawType = try statement.int64(3)
                     let decoded = reactionType(rawType)
                     result[targetGUID, default: []].append(Reaction(
                         id: try MessageID(validating: eventGUID),
                         targetPartIndex: reactionPartIndex(associatedGUID),
                         kind: decoded.kind,
-                        emoji: SQLiteValue.optionalText(statement, 4),
+                        emoji: try SQLiteValue.optionalText(statement, 4),
                         action: decoded.action,
                         sender: SQLiteRows.handle(
-                            value: SQLiteValue.optionalText(statement, 5),
-                            original: SQLiteValue.optionalText(statement, 6)
+                            value: try SQLiteValue.optionalText(statement, 5),
+                            original: try SQLiteValue.optionalText(statement, 6)
                         ),
-                        isFromMe: sqlite3_column_int64(statement, 7) != 0,
-                        createdAt: SQLiteRows.timestamp(SQLiteNumber.read(statement, 8))
+                        isFromMe: try statement.int64(7) != 0,
+                        createdAt: SQLiteRows.timestamp(try SQLiteNumber.read(statement, 8))
                     ))
                 }
                 return result

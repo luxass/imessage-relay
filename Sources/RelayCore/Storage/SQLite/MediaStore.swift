@@ -1,5 +1,4 @@
 import Foundation
-import SQLite3
 
 public final class SQLiteMediaStore: MessageMediaStoring, Sendable {
     private let executor: SQLiteExecutor
@@ -38,19 +37,15 @@ public final class SQLiteMediaStore: MessageMediaStoring, Sendable {
               )
             LIMIT 1
             """) { statement in
-                sqlite3_bind_text(statement, 1, id.rawValue, -1, sqliteTransient)
-                switch sqlite3_step(statement) {
-                case SQLITE_ROW:
-                    return (
-                        SQLiteValue.optionalText(statement, 0),
-                        SQLiteValue.optionalText(statement, 1),
-                        SQLiteValue.optionalText(statement, 2),
-                        SQLiteValue.optionalInt64(statement, 3),
-                        SQLiteRows.bool(statement, 4) ?? false
-                    )
-                case SQLITE_DONE: return nil
-                default: throw SQLiteStorageError.queryFailed(database.lastError())
-                }
+                try statement.bind(id.rawValue, at: 1)
+                guard try statement.step() == .row else { return nil }
+                return (
+                    try SQLiteValue.optionalText(statement, 0),
+                    try SQLiteValue.optionalText(statement, 1),
+                    try SQLiteValue.optionalText(statement, 2),
+                    try SQLiteValue.optionalInt64(statement, 3),
+                    try SQLiteRows.bool(statement, 4) ?? false
+                )
             }
         guard let row, let storedPath = row.path else { return nil }
         let expanded = (storedPath as NSString).expandingTildeInPath

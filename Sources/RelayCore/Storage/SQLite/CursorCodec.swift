@@ -1,6 +1,5 @@
 import CryptoKit
 import Foundation
-import SQLite3
 
 enum SQLiteNumber: Codable, Equatable, Sendable {
     case integer(Int64)
@@ -29,10 +28,10 @@ enum SQLiteNumber: Codable, Equatable, Sendable {
         }
     }
 
-    func bind(to statement: OpaquePointer, at index: Int32) {
+    func bind(to statement: SQLiteStatement, at index: Int32) throws {
         switch self {
-        case .integer(let value): sqlite3_bind_int64(statement, index, value)
-        case .real(let value): sqlite3_bind_double(statement, index, value)
+        case .integer(let value): try statement.bind(value, at: index)
+        case .real(let value): try statement.bind(value, at: index)
         }
     }
 
@@ -43,12 +42,8 @@ enum SQLiteNumber: Codable, Equatable, Sendable {
         }
     }
 
-    static func read(_ statement: OpaquePointer, _ index: Int32) -> Self? {
-        switch sqlite3_column_type(statement, index) {
-        case SQLITE_NULL: nil
-        case SQLITE_INTEGER: .integer(sqlite3_column_int64(statement, index))
-        default: .real(sqlite3_column_double(statement, index))
-        }
+    static func read(_ statement: SQLiteStatement, _ index: Int32) throws -> Self? {
+        try statement.number(index)
     }
 }
 

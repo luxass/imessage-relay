@@ -27,14 +27,59 @@ final class SQLiteExecutor: @unchecked Sendable {
         }
         let capturedPath = path
         return try await pool.runIfActive {
-            let database: SQLiteDatabase
-            if let existing = capturedState.database {
-                database = existing
-            } else {
-                database = try SQLiteDatabase(path: capturedPath)
-                capturedState.database = database
+            var postOperationRetries = 0
+            while true {
+                let database: SQLiteDatabase
+                if let existing = capturedState.database {
+                    do {
+                        if try existing.isCurrentGeneration() {
+                            database = existing
+                        } else {
+                            capturedState.database = nil
+                            let reopened = try SQLiteDatabase(path: capturedPath)
+                            capturedState.database = reopened
+                            database = reopened
+                        }
+                    } catch {
+                        capturedState.database = nil
+                        throw error
+                    }
+                } else {
+                    let opened = try SQLiteDatabase(path: capturedPath)
+                    capturedState.database = opened
+                    database = opened
+                }
+
+                let result: Result<Value, Error>
+                do {
+                    result = .success(try operation(database))
+                } catch {
+                    result = .failure(error)
+                }
+
+                let generation: Result<Bool, Error>
+                do {
+                    generation = .success(try database.isCurrentGeneration())
+                } catch {
+                    generation = .failure(error)
+                }
+                switch generation {
+                case .success(true):
+                    return try result.get()
+                case .success(false):
+                    capturedState.database = nil
+                    guard postOperationRetries == 0 else {
+                        throw SQLiteStorageError.cannotOpen(
+                            "Database changed repeatedly during one logical read."
+                        )
+                    }
+                    postOperationRetries += 1
+                case .failure(let error):
+                    capturedState.database = nil
+                    guard postOperationRetries == 0 else { throw error }
+                    postOperationRetries += 1
+                }
             }
-            return try operation(database)
         }
     }
 

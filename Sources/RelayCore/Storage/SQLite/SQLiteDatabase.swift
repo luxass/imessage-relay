@@ -58,6 +58,10 @@ final class SQLiteDatabase {
                 throw SQLiteStorageError.cannotOpen("Database changed while opening it.")
             }
             connectionFileIdentity = identityAfterOpen
+            sqlite3_extended_result_codes(opened, 1)
+            guard sqlite3_busy_timeout(opened, 5_000) == SQLITE_OK else {
+                throw SQLiteStorageError.queryFailed(String(cString: sqlite3_errmsg(opened)))
+            }
             guard sqlite3_exec(opened, "PRAGMA query_only=ON", nil, nil, nil) == SQLITE_OK else {
                 throw SQLiteStorageError.queryFailed(String(cString: sqlite3_errmsg(opened)))
             }
@@ -73,27 +77,22 @@ final class SQLiteDatabase {
 
     deinit { sqlite3_close(handle) }
 
-    func withStatement<Value>(_ sql: String, _ body: (OpaquePointer) throws -> Value) throws -> Value {
-        var statement: OpaquePointer?
-        guard sqlite3_prepare_v2(handle, sql, -1, &statement, nil) == SQLITE_OK,
-              let statement else {
-            throw SQLiteStorageError.queryFailed(lastError())
-        }
-        defer { sqlite3_finalize(statement) }
+    func withStatement<Value>(_ sql: String, _ body: (SQLiteStatement) throws -> Value) throws -> Value {
+        guard let handle else { throw SQLiteStorageError.shutDown }
+        let statement = try SQLiteStatement(connection: handle, sql: sql)
         do {
-            return try body(statement)
-        } catch let error as SQLiteStorageError {
-            throw error
+            let value = try body(statement)
+            if let cleanupError = statement.finalize() { throw cleanupError }
+            return value
         } catch {
-            throw SQLiteStorageError.queryFailed(String(describing: error))
+            _ = statement.finalize()
+            throw error
         }
     }
 
     func execute(_ sql: String) throws {
         try withStatement(sql) { statement in
-            guard sqlite3_step(statement) == SQLITE_DONE else {
-                throw SQLiteStorageError.queryFailed(lastError())
-            }
+            try statement.expectDone()
         }
     }
 
@@ -131,8 +130,17 @@ final class SQLiteDatabase {
         try Self.pathFileIdentity(path)
     }
 
+    func isCurrentGeneration() throws -> Bool {
+        try fileIdentity() == connectionFileIdentity
+    }
+
     private static func pathFileIdentity(_ path: String) throws -> String {
-        let attributes = try FileManager.default.attributesOfItem(atPath: path)
+        let attributes: [FileAttributeKey: Any]
+        do {
+            attributes = try FileManager.default.attributesOfItem(atPath: path)
+        } catch {
+            throw SQLiteStorageError.cannotOpen("Cannot inspect database file: \(error)")
+        }
         let device = (attributes[.systemNumber] as? NSNumber)?.uint64Value
         let inode = (attributes[.systemFileNumber] as? NSNumber)?.uint64Value
         guard let device, let inode else {
@@ -143,51 +151,35 @@ final class SQLiteDatabase {
 
     func dataVersion() throws -> Int64 {
         try withStatement("PRAGMA data_version") { statement in
-            guard sqlite3_step(statement) == SQLITE_ROW else {
-                throw SQLiteStorageError.queryFailed(lastError())
+            guard try statement.step() == .row else {
+                throw SQLiteStorageError.queryFailed("PRAGMA data_version returned no row.")
             }
-            return sqlite3_column_int64(statement, 0)
+            return try statement.int64(0)
         }
     }
 
     func firstText(_ sql: String) throws -> String? {
         try withStatement(sql) { statement in
-            switch sqlite3_step(statement) {
-            case SQLITE_ROW: SQLiteValue.optionalText(statement, 0)
-            case SQLITE_DONE: nil
-            default: throw SQLiteStorageError.queryFailed(lastError())
-            }
+            guard try statement.step() == .row else { return nil }
+            return try statement.optionalText(0)
         }
-    }
-
-    func lastError() -> String {
-        handle.map { String(cString: sqlite3_errmsg($0)) } ?? "No SQLite connection."
     }
 }
 
 enum SQLiteValue {
-    static func text(_ statement: OpaquePointer, _ index: Int32) throws -> String {
-        guard let value = optionalText(statement, index) else {
-            throw SQLiteStorageError.corruptValue(column: "column \(index)", detail: "expected text, found NULL")
-        }
-        return value
+    static func text(_ statement: SQLiteStatement, _ index: Int32) throws -> String {
+        try statement.text(index)
     }
 
-    static func optionalText(_ statement: OpaquePointer, _ index: Int32) -> String? {
-        guard sqlite3_column_type(statement, index) != SQLITE_NULL,
-              let bytes = sqlite3_column_text(statement, index) else { return nil }
-        return String(cString: bytes)
+    static func optionalText(_ statement: SQLiteStatement, _ index: Int32) throws -> String? {
+        try statement.optionalText(index)
     }
 
-    static func optionalInt64(_ statement: OpaquePointer, _ index: Int32) -> Int64? {
-        sqlite3_column_type(statement, index) == SQLITE_NULL
-            ? nil
-            : sqlite3_column_int64(statement, index)
+    static func optionalInt64(_ statement: SQLiteStatement, _ index: Int32) throws -> Int64? {
+        try statement.optionalInt64(index)
     }
 
-    static func optionalData(_ statement: OpaquePointer, _ index: Int32) -> Data? {
-        guard sqlite3_column_type(statement, index) != SQLITE_NULL,
-              let bytes = sqlite3_column_blob(statement, index) else { return nil }
-        return Data(bytes: bytes, count: Int(sqlite3_column_bytes(statement, index)))
+    static func optionalData(_ statement: SQLiteStatement, _ index: Int32) throws -> Data? {
+        try statement.optionalData(index)
     }
 }
