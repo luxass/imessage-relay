@@ -246,12 +246,13 @@ just package-release 0.1.0
 Release Please opens a release PR from conventional commits. Merging it creates
 a matching tag, such as `v0.1.0`, which runs validation, packages the binary,
 and publishes a GitHub release. Stable releases then use the shared Homebrew
-workflow to open a formula update in `luxass/homebrew-tap`. Prereleases, such as
+workflow to open one PR updating the formula and app Cask in
+`luxass/homebrew-tap`. Prereleases, such as
 `v0.2.0-rc.1`, do not update Homebrew or the latest release.
 
 Run the Release workflow manually to build artifacts without publishing. See
 the [release setup guide](docs/src/content/docs/development.md#release-setup)
-for required secrets, the tap formula format, and recovery steps.
+for required secrets, tap file formats, and recovery steps.
 
 ## 📄 License
 
