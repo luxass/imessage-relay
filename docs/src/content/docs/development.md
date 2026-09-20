@@ -43,8 +43,8 @@ just package-release 0.1.0
 ## Release phases
 
 1. Merge normal changes to `main`. Release Please opens a release PR that updates
-   the version and manifest. Merge that PR to create a matching tag such as
-   `v0.1.0`.
+   the version and manifest. Merging that PR creates a matching tag such as
+   `v0.1.0` and a draft GitHub release.
 2. **Package:** import the protected Developer ID identity, build universal CLI
    and app executables, sign and notarize both, staple the app, then verify and
    upload every archive and checksum as workflow artifacts.
@@ -56,13 +56,16 @@ just package-release 0.1.0
 
 Tags such as `v0.2.0-rc.1` produce GitHub prereleases. They do not become the
 latest release or update Homebrew. The tag version must match `packageVersion`.
-Run the Release workflow manually to validate and package the selected ref
-without creating a release or updating Homebrew.
+Run the Release workflow manually on an existing `v*` tag to package that tag
+without publishing a release or updating Homebrew. The `release-signing`
+environment does not permit branch refs.
 
-Release Please uses the release GitHub App to open release PRs and create tags.
-The App token must have Contents and Pull requests write permissions on
-`luxass/imessage-relay`. Using an App token instead of the default
-`GITHUB_TOKEN` ensures the generated tag triggers the tag-based package workflow.
+Release Please uses the release GitHub App to open release PRs, create tags,
+and create draft releases. The App token must have Contents and Pull requests
+write permissions on `luxass/imessage-relay`. The App token matters here because
+a tag created with the default `GITHUB_TOKEN` would not trigger the Release
+workflow. That workflow signs the artifacts and publishes the draft only after
+all artifacts pass verification.
 
 ## Release setup
 
@@ -70,21 +73,25 @@ Create these GitHub Actions environments before merging a release PR:
 
 | Environment | Used by | Purpose |
 | --- | --- | --- |
-| `release-guard` | `release-guard` job | Approval gate before release packaging |
-| `release` | `release-please` and `publish` jobs | Protects release automation and stores the release App credentials |
-| `release-signing` | `package` job | Protects the Developer ID certificate and notarization key |
+| `release-plz` | `release-please` job | Protects release PR, tag, and draft release creation |
+| `release-guard` | `release-guard` job | Requires approval before release packaging starts |
+| `release-signing` | `package` job | Stores the Developer ID certificate and notarization key |
+| `release` | `publish` job | Protects publication of the signed draft release |
 | `homebrew-tap` | shared Homebrew workflow | Protects formula update PRs |
 
 Add these Actions secrets before merging a release PR:
 
 | Secret | Purpose |
 | --- | --- |
-| `RELEASE_APP_ID` in `release` | Client ID of the GitHub App used by Release Please and publication |
-| `RELEASE_APP_PRIVATE_KEY` in `release` | Private key for that GitHub App |
-| `HOMEBREW_TAP_APP_ID` | Client ID of the GitHub App installed on `luxass/homebrew-tap` |
-| `HOMEBREW_TAP_APP_PRIVATE_KEY` | Private key for that GitHub App |
+| `RELEASE_APP_ID` in `release-plz` and `release` | Client ID of the GitHub App used by Release Please and publication |
+| `RELEASE_APP_PRIVATE_KEY` in `release-plz` and `release` | Private key for that GitHub App |
+| `HOMEBREW_TAP_APP_ID` as a repository secret | Client ID of the GitHub App installed on `luxass/homebrew-tap` |
+| `HOMEBREW_TAP_APP_PRIVATE_KEY` as a repository secret | Private key for that GitHub App |
 
-Add these secrets to the `release-signing` environment:
+Store the release App credentials in both environments because the
+`release-plz` and `release` jobs each generate a token. The Homebrew workflow
+passes repository secrets to a reusable workflow. Add these secrets to the
+`release-signing` environment:
 
 | Secret | Purpose |
 | --- | --- |
@@ -96,8 +103,9 @@ Add these secrets to the `release-signing` environment:
 | `APPLE_NOTARY_ISSUER_ID` | App Store Connect issuer ID |
 
 Use an App Store Connect key that can submit software for notarization. Keep the
-certificate and key in the protected environment, require reviewers, and do not
-make them available to pull-request workflows.
+certificate and key in the protected environment, restrict it to release tags,
+and do not make it available to pull-request workflows. The `release-guard`
+environment provides the human approval before the signing job starts.
 
 Keep the bundle identifier `dev.luxass.imessage-relay` and Developer ID team
 stable across releases. macOS uses that signed identity for Keychain access,

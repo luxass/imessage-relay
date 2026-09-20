@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-: "${GH_TOKEN:?Set RELEASE_TOKEN to a token with contents:write on this repository}"
+: "${GH_TOKEN:?Set GH_TOKEN to a token with contents:write on this repository}"
 : "${GH_REPO:?Set GH_REPO to the release repository}"
 
 tag="${1:?Usage: publish-release.sh TAG [ASSET_DIRECTORY]}"
