@@ -10,6 +10,14 @@ Choose one installation method.
 <Tabs>
 	<TabItem label="macOS app">
 
+	Install the app and CLI together with Homebrew:
+
+	```sh
+	brew install --cask luxass/tap/imessage-relay
+	```
+
+	Or download the app archive:
+
 	```sh
 	curl -fsSL -o imessage-relay.zip \
 	  https://github.com/luxass/imessage-relay/releases/latest/download/imessage-relay-macos-universal.zip
@@ -22,12 +30,20 @@ Choose one installation method.
 	Developer ID and notarized by Apple. The menu-bar app starts at login after
 	you run it from `/Applications`.
 	</TabItem>
-	<TabItem label="Release binary">
+	<TabItem label="CLI release">
+
+	Install only the CLI with Homebrew:
 
 	```sh
-	curl -fsSL -o relay-server.tgz \
-	  https://github.com/luxass/imessage-relay/releases/latest/download/relay-server-macos-universal.tar.gz
-	tar xzf relay-server.tgz
+	brew install luxass/tap/imessage-relay-cli
+	```
+
+	Or download its archive:
+
+	```sh
+	curl -fsSL -o imessage-relay-cli.tgz \
+	  https://github.com/luxass/imessage-relay/releases/latest/download/imessage-relay-cli-macos-universal.tar.gz
+	tar xzf imessage-relay-cli.tgz
 	```
 	</TabItem>
 	<TabItem label="Build from source">
@@ -70,22 +86,22 @@ allowlist denies every send.
 }
 ```
 
-If you use the standalone binary, grant Full Disk Access to its terminal or
+If you use the CLI, grant Full Disk Access to its terminal or
 service and start it with environment variables:
 
 ```sh
 export RELAY_TOKEN='replace-with-a-long-random-token'
 export RELAY_SENDER_ACCOUNT_ID='your-local-imessage-account-id'
 export RELAY_ALLOWED_RECIPIENTS='person@example.com,+1 202 555 0123'
-./relay-server
+./imessage-relay
 ```
 
 The first send can prompt for **Automation > Messages** permission. `GET
 /v1/status` and `GET /v1/sender` never trigger this prompt.
 
 <Aside type="tip" title="Built from source">
-	If you built the relay instead of downloading it, replace `./relay-server` in
-	the start command with `.build/debug/relay-server`.
+	If you built the relay instead of downloading it, replace `./imessage-relay` in
+	the start command with `.build/debug/imessage-relay`.
 </Aside>
 
 ## Check the database

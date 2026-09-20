@@ -32,7 +32,7 @@ default: build
 
 # Run the server locally.
 @run *args:
-    swift run relay-server {{ args }}
+    swift run imessage-relay {{ args }}
 
 # Remove build artifacts.
 @clean:

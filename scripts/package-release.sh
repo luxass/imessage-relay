@@ -32,8 +32,8 @@ if [[ "${output_dir}" != /* ]]; then
     output_dir="${repo_root}/${output_dir}"
 fi
 
-cli_archive_name="imessage-relay-server-${requested_version}-macos-universal.tar.gz"
-latest_cli_archive_name="relay-server-macos-universal.tar.gz"
+cli_archive_name="imessage-relay-cli-${requested_version}-macos-universal.tar.gz"
+latest_cli_archive_name="imessage-relay-cli-macos-universal.tar.gz"
 app_archive_name="imessage-relay-${requested_version}-macos-universal.zip"
 latest_app_archive_name="imessage-relay-macos-universal.zip"
 release_tmp="$(mktemp -d "${TMPDIR:-/tmp}/imessage-relay-release.XXXXXX")"
@@ -52,6 +52,15 @@ checksum() {
         shasum -a 256 "${filename}" > "${filename}.sha256"
         shasum -a 256 --check "${filename}.sha256"
     )
+}
+
+copy_resource_bundles() {
+    local destination="$1"
+    local bundle
+    for bundle in "${binary_dir}"/*.bundle; do
+        [[ -d "${bundle}" ]] || continue
+        ditto "${bundle}" "${destination}/$(basename "${bundle}")"
+    done
 }
 
 create_icon() {
@@ -99,11 +108,21 @@ sign_path() {
 
 cd "${repo_root}"
 ./scripts/check-swift-version.sh
-swift build -c release --arch arm64 --arch x86_64 --product relay-server
+swift build -c release --arch arm64 --arch x86_64 --product imessage-relay
 swift build -c release --arch arm64 --arch x86_64 --product imessage-relay-app
 binary_dir="$(swift build -c release --arch arm64 --arch x86_64 --show-bin-path)"
-cli_binary="${binary_dir}/relay-server"
+cli_binary="${binary_dir}/imessage-relay"
 app_binary="${binary_dir}/imessage-relay-app"
+
+if [[ ! -d "${binary_dir}/PhoneNumberKit_PhoneNumberKit.bundle" ]]; then
+    echo "PhoneNumberKit resource bundle is missing from ${binary_dir}" >&2
+    exit 1
+fi
+resource_bundle_names=()
+for bundle in "${binary_dir}"/*.bundle; do
+    [[ -d "${bundle}" ]] || continue
+    resource_bundle_names+=("$(basename "${bundle}")")
+done
 
 for binary in "${cli_binary}" "${app_binary}"; do
     if [[ ! -x "${binary}" ]]; then
@@ -124,17 +143,18 @@ mkdir -p "${output_dir}"
 cli_staging="${release_tmp}/cli-staging"
 cli_verification="${release_tmp}/cli-verification"
 mkdir -p "${cli_staging}" "${cli_verification}"
-install -m 0755 "${cli_binary}" "${cli_staging}/relay-server"
+install -m 0755 "${cli_binary}" "${cli_staging}/imessage-relay"
 install -m 0644 "${repo_root}/LICENSE" "${cli_staging}/LICENSE"
+copy_resource_bundles "${cli_staging}"
 sign_path \
-    "${cli_staging}/relay-server" \
+    "${cli_staging}/imessage-relay" \
     "dev.luxass.imessage-relay.cli" \
     "${repo_root}/Distribution/iMessageRelay.entitlements"
-codesign --verify --strict --verbose=2 "${cli_staging}/relay-server"
-touch -t 198001010000 "${cli_staging}/relay-server" "${cli_staging}/LICENSE"
+codesign --verify --strict --verbose=2 "${cli_staging}/imessage-relay"
+touch -t 198001010000 "${cli_staging}/imessage-relay" "${cli_staging}/LICENSE"
 
 export COPYFILE_DISABLE=1
-tar -C "${cli_staging}" -cf - relay-server LICENSE \
+tar -C "${cli_staging}" -cf - imessage-relay LICENSE "${resource_bundle_names[@]}" \
     | gzip -n > "${output_dir}/${cli_archive_name}"
 checksum "${cli_archive_name}"
 install -m 0644 \
@@ -142,8 +162,8 @@ install -m 0644 \
     "${output_dir}/${latest_cli_archive_name}"
 checksum "${latest_cli_archive_name}"
 
-archive_entries="$(tar -tzf "${output_dir}/${cli_archive_name}")"
-expected_entries=$'relay-server\nLICENSE'
+archive_entries="$(tar -tzf "${output_dir}/${cli_archive_name}" | awk -F/ '{print $1}' | LC_ALL=C sort -u)"
+expected_entries="$(printf '%s\n' imessage-relay LICENSE "${resource_bundle_names[@]}" | LC_ALL=C sort -u)"
 if [[ "${archive_entries}" != "${expected_entries}" ]]; then
     echo "CLI archive contains unexpected entries:" >&2
     printf '%s\n' "${archive_entries}" >&2
@@ -151,10 +171,16 @@ if [[ "${archive_entries}" != "${expected_entries}" ]]; then
 fi
 
 tar -xzf "${output_dir}/${cli_archive_name}" -C "${cli_verification}"
-lipo "${cli_verification}/relay-server" -verify_arch arm64
-lipo "${cli_verification}/relay-server" -verify_arch x86_64
-codesign --verify --strict --verbose=2 "${cli_verification}/relay-server"
-if [[ "$("${cli_verification}/relay-server" --version)" != "${requested_version}" ]]; then
+lipo "${cli_verification}/imessage-relay" -verify_arch arm64
+lipo "${cli_verification}/imessage-relay" -verify_arch x86_64
+codesign --verify --strict --verbose=2 "${cli_verification}/imessage-relay"
+for bundle_name in "${resource_bundle_names[@]}"; do
+    [[ -d "${cli_verification}/${bundle_name}" ]] || {
+        echo "CLI archive is missing resource bundle ${bundle_name}." >&2
+        exit 1
+    }
+done
+if [[ "$("${cli_verification}/imessage-relay" --version)" != "${requested_version}" ]]; then
     echo "Packaged CLI version does not match ${requested_version}." >&2
     exit 1
 fi
@@ -163,6 +189,7 @@ app_path="${release_tmp}/iMessage Relay.app"
 mkdir -p "${app_path}/Contents/MacOS" "${app_path}/Contents/Resources"
 install -m 0755 "${app_binary}" "${app_path}/Contents/MacOS/iMessage Relay"
 install -m 0644 "${repo_root}/LICENSE" "${app_path}/Contents/Resources/LICENSE"
+copy_resource_bundles "${app_path}/Contents/Resources"
 create_icon "${app_path}/Contents/Resources/AppIcon.icns"
 build_version="${requested_version%%[-+]*}"
 sed \
@@ -189,7 +216,8 @@ if [[ "${notarize_release}" == "1" ]]; then
     notary_staging="${release_tmp}/notary-staging"
     mkdir -p "${notary_staging}"
     ditto "${app_path}" "${notary_staging}/iMessage Relay.app"
-    install -m 0755 "${cli_staging}/relay-server" "${notary_staging}/relay-server"
+    install -m 0755 "${cli_staging}/imessage-relay" "${notary_staging}/imessage-relay"
+    copy_resource_bundles "${notary_staging}"
     ditto -c -k --sequesterRsrc "${notary_staging}" "${notary_submission}"
     xcrun notarytool submit "${notary_submission}" \
         --key "${NOTARY_KEY_PATH}" \
@@ -213,6 +241,12 @@ mkdir -p "${app_verification}"
 ditto -x -k "${output_dir}/${app_archive_name}" "${app_verification}"
 verified_app="${app_verification}/iMessage Relay.app"
 codesign --verify --deep --strict --verbose=2 "${verified_app}"
+for bundle_name in "${resource_bundle_names[@]}"; do
+    [[ -d "${verified_app}/Contents/Resources/${bundle_name}" ]] || {
+        echo "App archive is missing resource bundle ${bundle_name}." >&2
+        exit 1
+    }
+done
 lipo "${verified_app}/Contents/MacOS/iMessage Relay" -verify_arch arm64
 lipo "${verified_app}/Contents/MacOS/iMessage Relay" -verify_arch x86_64
 if [[ "$(defaults read "${verified_app}/Contents/Info" CFBundleShortVersionString)" != "${requested_version}" ]]; then

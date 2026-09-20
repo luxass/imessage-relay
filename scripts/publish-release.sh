@@ -8,8 +8,8 @@ set -euo pipefail
 tag="${1:?Usage: publish-release.sh TAG [ASSET_DIRECTORY]}"
 version="${tag#v}"
 asset_dir="${2:-dist}"
-cli_archive="imessage-relay-server-${version}-macos-universal.tar.gz"
-latest_cli_archive="relay-server-macos-universal.tar.gz"
+cli_archive="imessage-relay-cli-${version}-macos-universal.tar.gz"
+latest_cli_archive="imessage-relay-cli-macos-universal.tar.gz"
 app_archive="imessage-relay-${version}-macos-universal.zip"
 latest_app_archive="imessage-relay-macos-universal.zip"
 

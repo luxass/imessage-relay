@@ -25,7 +25,7 @@ The first send can prompt for **Automation > Messages** permission. Neither
 capability as `permission_unknown` without probing Messages.
 
 Attachment sends use Accessibility and require an existing conversation. Grant
-Accessibility permission to the process that runs `relay-server`. Direct media
+Accessibility permission to the process that runs `imessage-relay`. Direct media
 sends to `to` are unsupported.
 
 See [send errors](/api/#retry-a-send-safely) before retrying. A `502` response
