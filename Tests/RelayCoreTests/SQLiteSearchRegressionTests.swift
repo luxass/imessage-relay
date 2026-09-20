@@ -68,6 +68,92 @@ func boundedSearchPreservesMultiPreviewGroupsAcrossPageSizes() async throws {
     try await storage.shutdown()
 }
 
+enum PreviewBoundaryScenario: CaseIterable, Sendable {
+    case mixedSenders
+    case previewContainingURL
+}
+
+@Test(arguments: PreviewBoundaryScenario.allCases)
+func boundedSearchUsesTheSamePreviewRulesAcrossContinuations(
+    scenario: PreviewBoundaryScenario
+) async throws {
+    let fixture = try MessageDatabaseFixture()
+    try insertPreviewBoundaryHistory(into: fixture, count: 300)
+    try fixture.execute("""
+        UPDATE message SET text = 'Boundary preview'
+        WHERE guid IN ('preview-boundary-44', 'preview-boundary-45');
+        UPDATE message SET text = 'Boundary before' WHERE guid = 'preview-boundary-299';
+        UPDATE message SET text = 'Boundary after' WHERE guid = 'preview-boundary-0';
+        """)
+    let expectedGroup: [Int]
+    let expectedPreview: String?
+    switch scenario {
+    case .mixedSenders:
+        try fixture.execute("UPDATE message SET is_from_me = 1 WHERE guid = 'preview-boundary-44'")
+        expectedGroup = [45, 44, 43]
+        expectedPreview = nil
+    case .previewContainingURL:
+        try fixture.execute("""
+            UPDATE message SET text = 'Boundary base' WHERE guid = 'preview-boundary-43';
+            UPDATE message SET text = 'Boundary https://example.com' WHERE guid = 'preview-boundary-44';
+            """)
+        expectedGroup = [44, 43]
+        expectedPreview = "preview-boundary-45"
+    }
+    let storage = fixture.makeStorage()
+    let large = try await collectPreviewSearch(storage, limit: 200)
+    let small = try await collectPreviewSearch(storage, limit: 1)
+    let expectedIDs = ([299] + expectedGroup + [0]).map { "preview-boundary-\($0)" }
+    #expect(large.map(\.id.rawValue) == expectedIDs)
+    #expect(small.map(\.id) == large.map(\.id))
+    #expect(small.map(\.urlPreview) == large.map(\.urlPreview))
+    #expect(small.compactMap { $0.urlPreview?.messageID.rawValue } == expectedPreview.map { [$0] } ?? [])
+    try await storage.shutdown()
+}
+
+@Test
+func boundedSearchResolvesPreviewRunsLongerThanItsCandidateBudget() async throws {
+    let fixture = try MessageDatabaseFixture()
+    try insertPreviewSearchHistory(into: fixture, count: 900)
+    try fixture.execute("""
+        UPDATE message SET text = 'Needle https://example.com'
+        WHERE guid IN ('preview-search-100', 'preview-search-600');
+        """)
+    let storage = fixture.makeStorage()
+    let large = try await collectPreviewSearch(storage, limit: 200, search: "needle")
+    let small = try await collectPreviewSearch(storage, limit: 32, search: "needle")
+    #expect(large.map(\.id.rawValue) == (0...100).reversed().map { "preview-search-\($0)" })
+    #expect(small.map(\.id) == large.map(\.id))
+    #expect(small.map(\.urlPreview) == large.map(\.urlPreview))
+    #expect(small.first?.urlPreview?.messageID.rawValue == "preview-search-899")
+    #expect(small.dropFirst().allSatisfy { $0.urlPreview == nil })
+    try await storage.shutdown()
+}
+
+private func collectPreviewSearch(
+    _ storage: MessagesStorage,
+    limit: Int,
+    search: String = "boundary"
+) async throws -> [Message] {
+    let conversationID = try ConversationID(validating: MessageDatabaseFixture.oneToOneID)
+    var cursor: Cursor?
+    var seen: Set<String> = []
+    var result: [Message] = []
+    for _ in 0..<100 {
+        let page = try await storage.messages.listMessages(
+            conversationID: conversationID,
+            options: MessageListOptions(limit: limit, cursor: cursor, search: search)
+        )
+        result.append(contentsOf: page.items)
+        if !page.hasMore { return result }
+        let next = try #require(page.nextCursor)
+        try #require(seen.insert(next.rawValue).inserted, "A continuation must make progress.")
+        cursor = next
+    }
+    Issue.record("Search did not finish within the bounded fixture's page allowance.")
+    return result
+}
+
 private func insertPreviewSearchHistory(
     into fixture: MessageDatabaseFixture,
     count: Int
