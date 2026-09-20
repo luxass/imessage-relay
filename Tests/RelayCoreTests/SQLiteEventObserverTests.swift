@@ -301,8 +301,9 @@ func sqliteObserverBoundsAndExpiresPendingMedia() async throws {
         Issue.record("Expected stream.ready as the first event.")
         return
     }
-    try await Task.sleep(for: .milliseconds(200))
-    #expect(capacityObserver.diagnostics.pendingMediaEvictions == 1)
+    try await waitForCondition {
+        capacityObserver.diagnostics.pendingMediaEvictions == 1
+    }
     try await capacityObserver.shutdown()
 
     let expirationObserver = SQLiteMessageChangeObserver(
@@ -318,8 +319,9 @@ func sqliteObserverBoundsAndExpiresPendingMedia() async throws {
         Issue.record("Expected stream.ready as the first event.")
         return
     }
-    try await Task.sleep(for: .milliseconds(200))
-    #expect(expirationObserver.diagnostics.pendingMediaExpirations == 2)
+    try await waitForCondition {
+        expirationObserver.diagnostics.pendingMediaExpirations == 2
+    }
     try await expirationObserver.shutdown()
 }
 
@@ -698,6 +700,17 @@ private final class FileChangeCounter: @unchecked Sendable {
 
     func increment() {
         lock.withLock { count += 1 }
+    }
+}
+
+private func waitForCondition(
+    _ condition: @escaping @Sendable () -> Bool
+) async throws {
+    let clock = ContinuousClock()
+    let deadline = clock.now.advanced(by: .seconds(3))
+    while !condition() {
+        guard clock.now < deadline else { throw EventTimeout() }
+        try await clock.sleep(for: .milliseconds(10))
     }
 }
 
