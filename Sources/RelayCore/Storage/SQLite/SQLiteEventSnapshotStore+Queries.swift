@@ -106,6 +106,57 @@ extension SQLiteEventSnapshotStore {
             }
     }
 
+    static func positions(database: SQLiteDatabase) throws -> IncrementalPositions {
+        IncrementalPositions(
+            messageRowID: try maximumRowID(database: database, table: "message"),
+            attachmentJoinRowID: try maximumRowID(
+                database: database,
+                table: "message_attachment_join"
+            ),
+            read: try compoundPosition(database: database, column: "date_read"),
+            delivery: try compoundPosition(database: database, column: "date_delivered"),
+            targetedRowID: 0
+        )
+    }
+
+    private static func maximumRowID(database: SQLiteDatabase, table: String) throws -> Int64 {
+        try database.withStatement("SELECT COALESCE(MAX(ROWID), 0) FROM \(table)") { statement in
+            guard try statement.step() == .row else {
+                throw SQLiteStorageError.queryFailed("Could not read the \(table) high watermark.")
+            }
+            return try statement.int64(0)
+        }
+    }
+
+    private static func compoundPosition(
+        database: SQLiteDatabase,
+        column: String
+    ) throws -> CompoundPosition {
+        guard database.schema.hasColumn(column, in: "message"),
+              database.schema.hasLeadingIndex(on: column, in: "message") else {
+            return CompoundPosition(value: .integer(0), rowID: 0)
+        }
+        let reactionFilter = database.schema.hasColumn("associated_message_type", in: "message")
+            ? "AND NOT (COALESCE(associated_message_type, 0) BETWEEN 2000 AND 2006)"
+                + " AND NOT (COALESCE(associated_message_type, 0) BETWEEN 3000 AND 3006)"
+            : ""
+        return try database.withStatement("""
+            SELECT \(column), ROWID
+            FROM message
+            WHERE \(column) IS NOT NULL \(reactionFilter)
+            ORDER BY \(column) DESC, ROWID DESC
+            LIMIT 1
+            """) { statement in
+                guard try statement.step() == .row else {
+                    return CompoundPosition(value: .integer(0), rowID: 0)
+                }
+                return CompoundPosition(
+                    value: try statement.number(0) ?? .integer(0),
+                    rowID: try statement.int64(1)
+                )
+            }
+    }
+
     static func media(database: SQLiteDatabase) throws -> [MediaKey: ObservedMedia] {
         try database.withStatement("""
             SELECT m.guid, a.guid, a.filename

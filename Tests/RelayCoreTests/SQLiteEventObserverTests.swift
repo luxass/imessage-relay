@@ -81,6 +81,319 @@ func sqliteObserverEmitsCreatedUpdatedReactionAndMediaEvents() async throws {
 }
 
 @Test
+func sqliteObserverFindsBooleanOnlyUpdatesThroughBoundedRechecks() async throws {
+    let fixture = try MessageDatabaseFixture()
+    let observer = SQLiteMessageChangeObserver(
+        path: fixture.path,
+        attachmentDirectory: fixture.attachmentDirectory.path,
+        pollInterval: .milliseconds(10),
+        reconciliationInterval: .seconds(30)
+    )
+    var iterator = observer.events().makeAsyncIterator()
+    guard case .streamReady = try await iterator.next() else {
+        Issue.record("Expected stream.ready as the first event.")
+        return
+    }
+
+    try fixture.execute("UPDATE message SET is_read = 1, date_read = 0 WHERE ROWID = 100")
+    let event = try #require(try await nextEvent(of: .messageUpdated, from: &iterator))
+    guard case .messageUpdated(let payload) = event else {
+        Issue.record("Expected message.updated.")
+        return
+    }
+    #expect(payload.messageID.rawValue == MessageDatabaseFixture.rootMessageID)
+    #expect(payload.changedFields == [.readState])
+    #expect(observer.diagnostics.incrementalBatches > 0)
+    #expect(observer.diagnostics.reconciliations == 0)
+    try await observer.shutdown()
+}
+
+@Test
+func sqliteObserverDoesNotSkipReadUpdatesWithEqualTimestamps() async throws {
+    let fixture = try MessageDatabaseFixture()
+    try fixture.execute("CREATE INDEX message_date_read_test ON message(date_read)")
+    try fixture.execute("""
+        INSERT INTO message
+            (ROWID, guid, text, handle_id, is_from_me, date, is_read, date_read,
+             associated_message_type)
+        VALUES
+            (410, 'equal-read-a', 'A', 10, 0, 700000610000000000, 0, 0, 0),
+            (411, 'equal-read-b', 'B', 10, 0, 700000611000000000, 0, 0, 0);
+        INSERT INTO chat_message_join (chat_id, message_id, message_date, filter_action)
+        VALUES
+            (1, 410, 700000610000000000, 0),
+            (1, 411, 700000611000000000, 0)
+        """)
+    let observer = SQLiteMessageChangeObserver(
+        path: fixture.path,
+        attachmentDirectory: fixture.attachmentDirectory.path,
+        pollInterval: .milliseconds(10),
+        reconciliationInterval: .seconds(30)
+    )
+    var iterator = observer.events().makeAsyncIterator()
+    guard case .streamReady = try await iterator.next() else {
+        Issue.record("Expected stream.ready as the first event.")
+        return
+    }
+
+    try fixture.execute("""
+        UPDATE message
+        SET is_read = 1, date_read = 800000000000000000
+        WHERE ROWID IN (410, 411)
+        """)
+    var updated: Set<String> = []
+    while updated.count < 2 {
+        let event = try #require(try await iterator.next())
+        if case .messageUpdated(let payload) = event,
+           payload.messageID.rawValue.hasPrefix("equal-read-") {
+            updated.insert(payload.messageID.rawValue)
+        }
+    }
+    #expect(updated == ["equal-read-a", "equal-read-b"])
+    #expect(observer.diagnostics.reconciliations == 0)
+    try await observer.shutdown()
+}
+
+@Test
+func sqliteObserverRetriesAMessageThatInitiallyHasNoChatJoin() async throws {
+    let fixture = try MessageDatabaseFixture()
+    let observer = SQLiteMessageChangeObserver(
+        path: fixture.path,
+        attachmentDirectory: fixture.attachmentDirectory.path,
+        pollInterval: .milliseconds(10),
+        reconciliationInterval: .seconds(30)
+    )
+    var iterator = observer.events().makeAsyncIterator()
+    guard case .streamReady = try await iterator.next() else {
+        Issue.record("Expected stream.ready as the first event.")
+        return
+    }
+
+    try fixture.execute("""
+        INSERT INTO message
+            (ROWID, guid, text, handle_id, is_from_me, date, is_read,
+             associated_message_type)
+        VALUES
+            (400, 'late-chat-join-message', 'Late join', 10, 0,
+             700000600000000000, 0, 0)
+        """)
+    try await Task.sleep(for: .milliseconds(50))
+    try fixture.execute("""
+        INSERT INTO chat_message_join (chat_id, message_id, message_date, filter_action)
+        VALUES (1, 400, 700000600000000000, 0)
+        """)
+
+    let event = try #require(try await nextEvent(of: .messageCreated, from: &iterator))
+    guard case .messageCreated(let payload) = event else {
+        Issue.record("Expected message.created.")
+        return
+    }
+    #expect(payload.messageID.rawValue == "late-chat-join-message")
+    #expect(observer.diagnostics.reconciliations == 0)
+    try await observer.shutdown()
+}
+
+@Test
+func sqliteObserverSeedsUnavailableStartupMediaWithoutAnotherDatabaseWrite() async throws {
+    let fixture = try MessageDatabaseFixture()
+    let attachment = fixture.attachmentDirectory.appendingPathComponent("startup-pending.jpg")
+    let escaped = attachment.path.replacingOccurrences(of: "'", with: "''")
+    try fixture.execute("""
+        INSERT INTO attachment
+            (ROWID, guid, original_guid, filename, transfer_name, mime_type, uti, total_bytes)
+        VALUES
+            (449, 'startup-pending-attachment', 'startup-pending-original', '\(escaped)',
+             'startup-pending.jpg', 'image/jpeg', 'public.jpeg', 7);
+        INSERT INTO message_attachment_join (message_id, attachment_id) VALUES (100, 449)
+        """)
+    let observer = SQLiteMessageChangeObserver(
+        path: fixture.path,
+        attachmentDirectory: fixture.attachmentDirectory.path,
+        pollInterval: .milliseconds(10),
+        reconciliationInterval: .seconds(30)
+    )
+    let ready = AsyncStream.makeStream(of: Void.self, bufferingPolicy: .bufferingNewest(1))
+    let eventTask = Task { () throws -> RelayEvent? in
+        var iterator = observer.events().makeAsyncIterator()
+        guard case .streamReady = try await iterator.next() else { return nil }
+        ready.continuation.yield()
+        ready.continuation.finish()
+        return try await nextEvent(of: .mediaAvailable, from: &iterator)
+    }
+    for await _ in ready.stream { break }
+
+    try Data("startup".utf8).write(to: attachment)
+    let watchdog = Task {
+        try await Task.sleep(for: .seconds(3))
+        try? await observer.shutdown()
+    }
+    let received = try await eventTask.value
+    watchdog.cancel()
+    let event = try #require(received)
+    guard case .mediaAvailable(let payload) = event else {
+        Issue.record("Expected media.available.")
+        return
+    }
+    #expect(payload.mediaID.rawValue == "startup-pending-attachment")
+    #expect(observer.diagnostics.pendingMediaChecks > 0)
+    #expect(observer.diagnostics.reconciliations == 0)
+    try await observer.shutdown()
+}
+
+@Test
+func sqliteObserverRefreshesAnAttachmentPathMissingAtStartup() async throws {
+    let fixture = try MessageDatabaseFixture()
+    let attachment = fixture.attachmentDirectory.appendingPathComponent("late-path.jpg")
+    try fixture.execute("""
+        INSERT INTO attachment
+            (ROWID, guid, original_guid, filename, transfer_name, mime_type, uti, total_bytes)
+        VALUES
+            (450, 'late-path-attachment', 'late-path-original', NULL,
+             'late-path.jpg', 'image/jpeg', 'public.jpeg', 4);
+        INSERT INTO message_attachment_join (message_id, attachment_id) VALUES (100, 450)
+        """)
+    let observer = SQLiteMessageChangeObserver(
+        path: fixture.path,
+        attachmentDirectory: fixture.attachmentDirectory.path,
+        pollInterval: .milliseconds(10),
+        reconciliationInterval: .seconds(30)
+    )
+    var iterator = observer.events().makeAsyncIterator()
+    guard case .streamReady = try await iterator.next() else {
+        Issue.record("Expected stream.ready as the first event.")
+        return
+    }
+
+    try Data("late".utf8).write(to: attachment)
+    let escaped = attachment.path.replacingOccurrences(of: "'", with: "''")
+    try fixture.execute("UPDATE attachment SET filename = '\(escaped)' WHERE ROWID = 450")
+
+    let event = try #require(try await nextEvent(of: .mediaAvailable, from: &iterator))
+    guard case .mediaAvailable(let payload) = event else {
+        Issue.record("Expected media.available.")
+        return
+    }
+    #expect(payload.mediaID.rawValue == "late-path-attachment")
+    #expect(observer.diagnostics.reconciliations == 0)
+    try await observer.shutdown()
+}
+
+@Test
+func sqliteObserverBoundsAndExpiresPendingMedia() async throws {
+    let fixture = try MessageDatabaseFixture()
+    try fixture.execute("""
+        INSERT INTO attachment (ROWID, guid, original_guid, filename)
+        VALUES
+            (460, 'pending-capacity-a', 'pending-capacity-original-a', NULL),
+            (461, 'pending-capacity-b', 'pending-capacity-original-b', NULL);
+        INSERT INTO message_attachment_join (message_id, attachment_id)
+        VALUES (100, 460), (100, 461)
+        """)
+    let capacityObserver = SQLiteMessageChangeObserver(
+        path: fixture.path,
+        attachmentDirectory: fixture.attachmentDirectory.path,
+        pollInterval: .milliseconds(10),
+        reconciliationInterval: .seconds(30),
+        pendingMediaCapacity: 1
+    )
+    var capacityIterator = capacityObserver.events().makeAsyncIterator()
+    guard case .streamReady = try await capacityIterator.next() else {
+        Issue.record("Expected stream.ready as the first event.")
+        return
+    }
+    try await Task.sleep(for: .milliseconds(200))
+    #expect(capacityObserver.diagnostics.pendingMediaEvictions == 1)
+    try await capacityObserver.shutdown()
+
+    let expirationObserver = SQLiteMessageChangeObserver(
+        path: fixture.path,
+        attachmentDirectory: fixture.attachmentDirectory.path,
+        pollInterval: .milliseconds(10),
+        reconciliationInterval: .seconds(30),
+        pendingMediaCapacity: 10,
+        pendingMediaRetention: 0
+    )
+    var expirationIterator = expirationObserver.events().makeAsyncIterator()
+    guard case .streamReady = try await expirationIterator.next() else {
+        Issue.record("Expected stream.ready as the first event.")
+        return
+    }
+    try await Task.sleep(for: .milliseconds(200))
+    #expect(expirationObserver.diagnostics.pendingMediaExpirations == 2)
+    try await expirationObserver.shutdown()
+}
+
+@Test
+func sqliteObserverRunsPeriodicReconciliationWithoutDatabaseWrites() async throws {
+    let fixture = try MessageDatabaseFixture()
+    let observer = SQLiteMessageChangeObserver(
+        path: fixture.path,
+        attachmentDirectory: fixture.attachmentDirectory.path,
+        pollInterval: .seconds(30),
+        reconciliationInterval: .milliseconds(30)
+    )
+    var iterator = observer.events().makeAsyncIterator()
+    guard case .streamReady = try await iterator.next() else {
+        Issue.record("Expected stream.ready as the first event.")
+        return
+    }
+
+    try await Task.sleep(for: .milliseconds(100))
+    #expect(observer.diagnostics.reconciliations >= 1)
+    #expect(observer.diagnostics.incrementalBatches == 0)
+    try await observer.shutdown()
+}
+
+@Test
+func sqliteObserverDrainsALargeBacklogInBoundedBatches() async throws {
+    let fixture = try MessageDatabaseFixture()
+    let observer = SQLiteMessageChangeObserver(
+        path: fixture.path,
+        attachmentDirectory: fixture.attachmentDirectory.path,
+        pollInterval: .milliseconds(10),
+        reconciliationInterval: .seconds(30)
+    )
+    var iterator = observer.events().makeAsyncIterator()
+    guard case .streamReady = try await iterator.next() else {
+        Issue.record("Expected stream.ready as the first event.")
+        return
+    }
+
+    let count = 600
+    let messages = (0..<count).map { index in
+        let rowID = 1_000 + index
+        return "(\(rowID), 'backlog-\(index)', 'Backlog', 10, 0, 700001000000000000 + \(index), 0, 0)"
+    }.joined(separator: ",")
+    let joins = (0..<count).map { index in
+        let rowID = 1_000 + index
+        return "(1, \(rowID), 700001000000000000 + \(index), 0)"
+    }.joined(separator: ",")
+    try fixture.execute("""
+        BEGIN;
+        INSERT INTO message
+            (ROWID, guid, text, handle_id, is_from_me, date, is_read,
+             associated_message_type)
+        VALUES \(messages);
+        INSERT INTO chat_message_join (chat_id, message_id, message_date, filter_action)
+        VALUES \(joins);
+        COMMIT;
+        """)
+
+    var received: Set<String> = []
+    while received.count < count {
+        let event = try #require(try await iterator.next())
+        if case .messageCreated(let payload) = event,
+           payload.messageID.rawValue.hasPrefix("backlog-") {
+            received.insert(payload.messageID.rawValue)
+        }
+    }
+    #expect(received.count == count)
+    #expect(observer.diagnostics.incrementalBatches >= 3)
+    #expect(observer.diagnostics.reconciliations == 0)
+    try await observer.shutdown()
+}
+
+@Test
 func sqliteObserverUsesFilesystemChangesBeforeTheFallbackPoll() async throws {
     let fixture = try MessageDatabaseFixture()
     let observer = SQLiteMessageChangeObserver(
@@ -145,6 +458,74 @@ func sqliteObserverReopensAfterDatabaseReplacement() async throws {
     }
     #expect(secondReady.databaseIdentity != firstReady.databaseIdentity)
     try await observer.shutdown()
+}
+
+@Test
+func sqliteIncrementalRowQueryUsesTheRowIDPlan() throws {
+    let fixture = try MessageDatabaseFixture()
+    let database = try SQLiteDatabase(path: fixture.path)
+    let plan = try database.withStatement("""
+        EXPLAIN QUERY PLAN
+        SELECT ROWID
+        FROM message
+        WHERE ROWID > ?
+        ORDER BY ROWID
+        LIMIT ?
+        """) { statement in
+            try statement.bind(Int64(0), at: 1)
+            try statement.bind(Int64(256), at: 2)
+            var details: [String] = []
+            while try statement.step() == .row {
+                details.append(try statement.text(3))
+            }
+            return details
+        }
+    #expect(plan.contains { $0.localizedCaseInsensitiveContains("rowid>?") })
+    print("SQLite incremental ROWID query plan: \(plan.joined(separator: "; "))")
+}
+
+@Test
+func sqliteSnapshotLargeHistoryEvidence() async throws {
+    let fixture = try MessageDatabaseFixture(seedData: false)
+    try fixture.execute("""
+        INSERT INTO chat (ROWID, guid, chat_identifier, service_name)
+        VALUES (1, '\(MessageDatabaseFixture.oneToOneID)', '+15005550006', 'iMessage');
+        BEGIN
+        """)
+    let rowCount = 10_000
+    for start in stride(from: 0, to: rowCount, by: 500) {
+        let end = min(start + 500, rowCount)
+        let messages = (start..<end).map { index in
+            "(\(index + 1), 'history-\(index)', 'History', NULL, 0, \(700000000000000000 + index), 0)"
+        }.joined(separator: ",")
+        let joins = (start..<end).map { index in
+            "(1, \(index + 1), \(700000000000000000 + index), 0)"
+        }.joined(separator: ",")
+        try fixture.execute("""
+            INSERT INTO message
+                (ROWID, guid, text, handle_id, is_from_me, date, associated_message_type)
+            VALUES \(messages);
+            INSERT INTO chat_message_join (chat_id, message_id, message_date, filter_action)
+            VALUES \(joins)
+            """)
+    }
+    try fixture.execute("COMMIT")
+    let store = SQLiteEventSnapshotStore(
+        path: fixture.path,
+        attachmentDirectory: fixture.attachmentDirectory.path
+    )
+    let clock = ContinuousClock()
+    let start = clock.now
+    let result = try await store.snapshot()
+    let duration = start.duration(to: clock.now)
+    guard case .snapshot(let snapshot) = result else {
+        Issue.record("Expected a stable large-history snapshot.")
+        return
+    }
+    #expect(snapshot.messages.count == rowCount)
+    #expect(duration < .seconds(10))
+    print("SQLite 10,000-row reconciliation fixture: \(duration)")
+    try await store.shutdown()
 }
 
 @Test

@@ -1,5 +1,6 @@
 struct SchemaInspector: Sendable {
     private let columnsByTable: [String: Set<String>]
+    private let leadingIndexColumnsByTable: [String: Set<String>]
 
     init(database: OpaquePointer) throws {
         let tableNames = [
@@ -32,6 +33,46 @@ struct SchemaInspector: Sendable {
             }
         }
         columnsByTable = result
+
+        var leadingColumns: [String: Set<String>] = [:]
+        for table in tableNames {
+            let indexes = try Self.textValues(
+                database: database,
+                sql: "PRAGMA index_list(\(table))",
+                column: 1
+            )
+            for index in indexes {
+                let escaped = index.replacingOccurrences(of: "'", with: "''")
+                let columns = try Self.textValues(
+                    database: database,
+                    sql: "PRAGMA index_info('\(escaped)')",
+                    column: 2
+                )
+                if let first = columns.first {
+                    leadingColumns[table, default: []].insert(first.lowercased())
+                }
+            }
+        }
+        leadingIndexColumnsByTable = leadingColumns
+    }
+
+    private static func textValues(
+        database: OpaquePointer,
+        sql: String,
+        column: Int32
+    ) throws -> [String] {
+        let statement = try SQLiteStatement(connection: database, sql: sql)
+        do {
+            var values: [String] = []
+            while try statement.step() == .row {
+                if let value = try statement.optionalText(column) { values.append(value) }
+            }
+            if let cleanupError = statement.finalize() { throw cleanupError }
+            return values
+        } catch {
+            _ = statement.finalize()
+            throw error
+        }
     }
 
     func hasTable(_ table: String) -> Bool {
@@ -40,6 +81,10 @@ struct SchemaInspector: Sendable {
 
     func hasColumn(_ column: String, in table: String) -> Bool {
         columnsByTable[table]?.contains(column.lowercased()) ?? false
+    }
+
+    func hasLeadingIndex(on column: String, in table: String) -> Bool {
+        leadingIndexColumnsByTable[table]?.contains(column.lowercased()) ?? false
     }
 
     func expression(_ column: String, table: String, alias: String, fallback: String) -> String {
