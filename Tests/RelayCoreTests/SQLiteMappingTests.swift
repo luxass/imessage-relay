@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import Testing
 
@@ -341,6 +342,47 @@ func providerMediaOpensOnlyLinkedRegularFilesWithinTheAttachmentRoot() async thr
 
     #expect(media.reference.filename == "photo.jpg")
     #expect(String(data: try media.readChunk(offset: 0), encoding: .utf8) == "fixture attachment")
+
+    let file = fixture.attachmentDirectory
+        .appendingPathComponent("fixture", isDirectory: true)
+        .appendingPathComponent("photo.jpg")
+    let hardLink = fixture.attachmentDirectory.appendingPathComponent("linked-photo.jpg")
+    try FileManager.default.linkItem(at: file, to: hardLink)
+    #expect(try await storage.media.media(
+        id: MediaID(validating: MessageDatabaseFixture.attachmentID)
+    ) == nil)
+    try FileManager.default.removeItem(at: hardLink)
+
+    let alias = fixture.attachmentDirectory.appendingPathComponent("alias")
+    try FileManager.default.createSymbolicLink(
+        at: alias,
+        withDestinationURL: file.deletingLastPathComponent()
+    )
+    try fixture.execute("""
+        UPDATE attachment SET filename = '\(alias.appendingPathComponent("photo.jpg").path)'
+        WHERE guid = '\(MessageDatabaseFixture.attachmentID)'
+        """)
+    #expect(try await storage.media.media(
+        id: MediaID(validating: MessageDatabaseFixture.attachmentID)
+    ) == nil)
+
+    let pipe = fixture.attachmentDirectory.appendingPathComponent("attachment.pipe")
+    #expect(mkfifo(pipe.path, 0o600) == 0)
+    try fixture.execute("""
+        UPDATE attachment SET filename = '\(pipe.path)'
+        WHERE guid = '\(MessageDatabaseFixture.attachmentID)'
+        """)
+    #expect(try await storage.media.media(
+        id: MediaID(validating: MessageDatabaseFixture.attachmentID)
+    ) == nil)
+
+    let handle = try FileHandle(forWritingTo: file)
+    try handle.seekToEnd()
+    try handle.write(contentsOf: Data("changed".utf8))
+    try handle.close()
+    #expect(throws: SQLiteStorageError.self) {
+        try media.readChunk(offset: 0)
+    }
 
     try fixture.execute("""
         UPDATE attachment SET filename = '/etc/passwd'

@@ -710,12 +710,30 @@ func mediaServiceRejectsUnsafeNamesMIMEsAndOversizedUploads() async throws {
     await #expect(throws: RelayServiceError.unsafeMedia("The media file is empty.")) {
         try await service.upload(filename: "photo.jpg", mimeType: "image/jpeg", data: Data())
     }
+    await #expect(throws: RelayServiceError.unsafeMedia("The image data is invalid.")) {
+        try await service.upload(filename: "photo.jpg", mimeType: "image/jpeg", data: Data([1]))
+    }
     await #expect(throws: RelayServiceError.unsafeMedia("The MIME type is not allowed.")) {
         try await service.upload(filename: "file.zip", mimeType: "application/zip", data: Data([1]))
     }
     await #expect(throws: RelayServiceError.mediaTooLarge(maximumBytes: 4)) {
         try await service.upload(filename: "photo.jpg", mimeType: "image/jpeg", data: Data(repeating: 1, count: 5))
     }
+}
+
+@Test
+func mediaServiceAcceptsAnImageWithinDecodedLimits() async throws {
+    let encoded = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+    let data = try #require(Data(base64Encoded: encoded))
+    let service = MediaService(
+        uploads: MemoryUploadStore(),
+        messagesMedia: NilMessageMediaStore(),
+        policy: MediaPolicy(maximumBytes: 1024)
+    )
+
+    let response = try await service.upload(filename: "pixel.png", mimeType: "image/png", data: data)
+
+    #expect(response.media.byteSize == Int64(data.count))
 }
 
 @Test
@@ -738,6 +756,12 @@ func mediaFileStoreRejectsMetadataForAnotherMediaID() async throws {
         """
     try Data(tampered.utf8).write(to: metadataURL, options: .atomic)
 
+    #expect(try await store.reference(id: saved.mediaID) == nil)
+
+    let outside = directory.appendingPathComponent("outside-metadata.json")
+    try Data(tampered.utf8).write(to: outside)
+    try FileManager.default.removeItem(at: metadataURL)
+    try FileManager.default.createSymbolicLink(at: metadataURL, withDestinationURL: outside)
     #expect(try await store.reference(id: saved.mediaID) == nil)
 }
 

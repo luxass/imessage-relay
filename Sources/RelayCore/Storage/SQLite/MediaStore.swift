@@ -1,4 +1,3 @@
-import Darwin
 import Foundation
 import SQLite3
 
@@ -67,54 +66,8 @@ public final class SQLiteMediaStore: MessageMediaStoring, Sendable {
         return ReadableMedia(
             reference: reference,
             descriptor: opened.descriptor,
-            byteCount: opened.byteCount
+            byteCount: opened.byteCount,
+            identity: opened.identity
         )
     }
-}
-
-func openRegularFile(
-    path: String,
-    within rootDirectory: URL
-) -> (descriptor: Int32, byteCount: Int64)? {
-    let rootComponents = rootDirectory.standardizedFileURL.pathComponents
-    let fileURL = URL(fileURLWithPath: path).standardizedFileURL
-    let fileComponents = fileURL.pathComponents
-    guard fileComponents.count > rootComponents.count,
-          fileComponents.prefix(rootComponents.count).elementsEqual(rootComponents) else {
-        return nil
-    }
-
-    var directoryDescriptor = open(
-        rootDirectory.path,
-        O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC
-    )
-    guard directoryDescriptor >= 0 else { return nil }
-    defer { close(directoryDescriptor) }
-
-    let relativeComponents = fileComponents.dropFirst(rootComponents.count)
-    for component in relativeComponents.dropLast() {
-        let next = openat(
-            directoryDescriptor,
-            component,
-            O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC
-        )
-        guard next >= 0 else { return nil }
-        close(directoryDescriptor)
-        directoryDescriptor = next
-    }
-    guard let filename = relativeComponents.last else { return nil }
-    let descriptor = openat(
-        directoryDescriptor,
-        filename,
-        O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC
-    )
-    guard descriptor >= 0 else { return nil }
-    var status = stat()
-    guard fstat(descriptor, &status) == 0,
-          status.st_mode & S_IFMT == S_IFREG,
-          status.st_size >= 0 else {
-        close(descriptor)
-        return nil
-    }
-    return (descriptor, status.st_size)
 }

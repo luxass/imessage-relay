@@ -45,6 +45,9 @@ public final class MediaFileStore: UploadedMediaStoring, @unchecked Sendable {
     }
 
     public func save(_ upload: MediaUpload) async throws -> MediaReference {
+        guard Self.isSinglePathComponent(upload.filename) else {
+            throw CocoaError(.fileWriteInvalidFileName)
+        }
         let directory = directory
         return try lock.withLock {
             try FileManager.default.createDirectory(
@@ -52,6 +55,10 @@ public final class MediaFileStore: UploadedMediaStoring, @unchecked Sendable {
                 withIntermediateDirectories: true,
                 attributes: [.posixPermissions: 0o700]
             )
+            guard let rootDescriptor = openDirectoryWithoutSymlinks(directory.path) else {
+                throw CocoaError(.fileWriteNoPermission)
+            }
+            close(rootDescriptor)
             let id = try MediaID(validating: "upload_\(UUID().uuidString.lowercased())")
             let metadata = Metadata(
                 id: id,
@@ -65,11 +72,15 @@ public final class MediaFileStore: UploadedMediaStoring, @unchecked Sendable {
                 withIntermediateDirectories: false,
                 attributes: [.posixPermissions: 0o700]
             )
-            try upload.data.write(
-                to: dataURL(id, filename: upload.filename),
-                options: [.atomic, .completeFileProtection]
-            )
+            guard let itemDescriptor = openDirectoryWithoutSymlinks(itemDirectory.path) else {
+                throw CocoaError(.fileWriteNoPermission)
+            }
+            close(itemDescriptor)
             do {
+                try upload.data.write(
+                    to: dataURL(id, filename: upload.filename),
+                    options: [.atomic, .completeFileProtection]
+                )
                 try RelayJSON.encoder.encode(metadata).write(to: metadataURL(id), options: .atomic)
             } catch {
                 try? FileManager.default.removeItem(at: itemDirectory)
@@ -94,7 +105,8 @@ public final class MediaFileStore: UploadedMediaStoring, @unchecked Sendable {
             return ReadableMedia(
                 reference: metadata.reference,
                 descriptor: opened.descriptor,
-                byteCount: opened.byteCount
+                byteCount: opened.byteCount,
+                identity: opened.identity
             )
         }
     }
@@ -113,8 +125,12 @@ public final class MediaFileStore: UploadedMediaStoring, @unchecked Sendable {
     private func load(_ id: MediaID) throws -> Metadata? {
         guard Self.isStoredUploadID(id) else { return nil }
         let url = metadataURL(id)
-        guard FileManager.default.fileExists(atPath: url.path) else { return nil }
-        let metadata = try RelayJSON.decoder.decode(Metadata.self, from: Data(contentsOf: url))
+        guard let data = readRegularFile(
+            path: url.path,
+            within: itemDirectoryURL(id),
+            maximumBytes: 64 * 1024
+        ) else { return nil }
+        let metadata = try RelayJSON.decoder.decode(Metadata.self, from: data)
         guard metadata.id == id else { return nil }
         return metadata
     }
@@ -132,14 +148,19 @@ public final class MediaFileStore: UploadedMediaStoring, @unchecked Sendable {
     }
 
     private func isRegularFile(url: URL, within parent: URL, byteSize: Int64) -> Bool {
-        guard url.deletingLastPathComponent().standardizedFileURL == parent.standardizedFileURL else {
-            return false
-        }
-        var statBuffer = stat()
-        guard lstat(url.path, &statBuffer) == 0,
-              (statBuffer.st_mode & S_IFMT) == S_IFREG,
-              statBuffer.st_size == byteSize else { return false }
-        return true
+        guard let opened = openRegularFile(path: url.path, within: parent) else { return false }
+        close(opened.descriptor)
+        return opened.byteCount == byteSize
+    }
+
+    private static func isSinglePathComponent(_ value: String) -> Bool {
+        !value.isEmpty
+            && value != "."
+            && value != ".."
+            && value != "metadata.json"
+            && !value.contains("/")
+            && !value.contains("\\")
+            && !value.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains)
     }
 
     private static func isStoredUploadID(_ id: MediaID) -> Bool {
