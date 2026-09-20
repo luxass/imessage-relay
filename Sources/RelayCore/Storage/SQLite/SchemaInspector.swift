@@ -1,5 +1,3 @@
-import SQLite3
-
 struct SchemaInspector: Sendable {
     private let columnsByTable: [String: Set<String>]
 
@@ -15,19 +13,23 @@ struct SchemaInspector: Sendable {
         ]
         var result: [String: Set<String>] = [:]
         for table in tableNames {
-            var statement: OpaquePointer?
-            guard sqlite3_prepare_v2(database, "PRAGMA table_xinfo(\(table))", -1, &statement, nil) == SQLITE_OK,
-                  let statement else {
-                throw SQLiteStorageError.queryFailed("Could not inspect table \(table).")
-            }
-            defer { sqlite3_finalize(statement) }
-            var columns: Set<String> = []
-            while sqlite3_step(statement) == SQLITE_ROW {
-                if let name = sqlite3_column_text(statement, 1) {
-                    columns.insert(String(cString: name).lowercased())
+            let statement = try SQLiteStatement(
+                connection: database,
+                sql: "PRAGMA table_xinfo(\(table))"
+            )
+            do {
+                var columns: Set<String> = []
+                while try statement.step() == .row {
+                    if let name = try statement.optionalText(1) {
+                        columns.insert(name.lowercased())
+                    }
                 }
+                if let cleanupError = statement.finalize() { throw cleanupError }
+                result[table] = columns
+            } catch {
+                _ = statement.finalize()
+                throw error
             }
-            result[table] = columns
         }
         columnsByTable = result
     }

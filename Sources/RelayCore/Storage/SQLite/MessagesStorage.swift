@@ -22,12 +22,14 @@ public final class MessagesStorage: DatabaseStatusProviding, Sendable {
     public func databaseStatus() async -> DatabaseStatus {
         do {
             return try await executor.run { database in
-                _ = try database.firstText("SELECT guid FROM chat LIMIT 1")
-                return DatabaseStatus(
-                    ready: true,
-                    identity: try database.identity(),
-                    error: nil
-                )
+                try database.withReadTransaction {
+                    _ = try database.firstText("SELECT guid FROM chat LIMIT 1")
+                    return DatabaseStatus(
+                        ready: true,
+                        identity: try database.identity(),
+                        error: nil
+                    )
+                }
             }
         } catch {
             return DatabaseStatus(ready: false, identity: nil, error: String(describing: error))

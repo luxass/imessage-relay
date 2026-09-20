@@ -1,5 +1,3 @@
-import SQLite3
-
 extension SQLiteEventSnapshotStore {
     static func messages(database: SQLiteDatabase) throws -> [MessageID: ObservedMessage] {
         let schema = database.schema
@@ -30,52 +28,46 @@ extension SQLiteEventSnapshotStore {
 
         return try database.withStatement(sql) { statement in
             var values: [MessageID: ObservedMessage] = [:]
-            while true {
-                switch sqlite3_step(statement) {
-                case SQLITE_ROW:
-                    let messageID = try MessageID(validating: SQLiteValue.text(statement, 1))
-                    guard values[messageID] == nil else { continue }
-                    let isFromMe = sqlite3_column_int64(statement, 3) != 0
-                    let row = MessageRow(
-                        rowID: sqlite3_column_int64(statement, 0),
-                        guid: messageID.rawValue,
-                        conversationGUID: try SQLiteValue.text(statement, 2),
-                        text: nil,
-                        attributedBody: nil,
-                        handle: nil,
-                        originalHandle: nil,
-                        isFromMe: isFromMe,
-                        date: nil,
-                        error: SQLiteValue.optionalInt64(statement, 4),
-                        isSent: SQLiteRows.bool(statement, 5),
-                        isDelivered: SQLiteRows.bool(statement, 6),
-                        isRead: SQLiteRows.bool(statement, 7),
-                        dateDelivered: SQLiteNumber.read(statement, 8),
-                        dateRead: SQLiteNumber.read(statement, 9),
-                        replyToGUID: nil,
-                        threadOriginatorGUID: nil,
-                        partCount: nil,
-                        balloonBundleID: nil,
-                        isAudioMessage: nil,
-                        scheduleType: nil,
-                        scheduleState: nil,
-                        associatedMessageGUID: nil,
-                        associatedMessageType: nil
-                    )
-                    values[messageID] = ObservedMessage(
-                        rowID: row.rowID,
-                        messageID: messageID,
-                        conversationID: try ConversationID(validating: row.conversationGUID),
-                        isFromMe: isFromMe,
-                        deliveryState: SQLiteRows.deliveryState(row),
-                        readState: SQLiteRows.readState(row)
-                    )
-                case SQLITE_DONE:
-                    return values
-                default:
-                    throw SQLiteStorageError.queryFailed(database.lastError())
-                }
+            while try statement.step() == .row {
+                let messageID = try MessageID(validating: SQLiteValue.text(statement, 1))
+                guard values[messageID] == nil else { continue }
+                let isFromMe = try statement.int64(3) != 0
+                let row = MessageRow(
+                    rowID: try statement.int64(0),
+                    guid: messageID.rawValue,
+                    conversationGUID: try SQLiteValue.text(statement, 2),
+                    text: nil,
+                    attributedBody: nil,
+                    handle: nil,
+                    originalHandle: nil,
+                    isFromMe: isFromMe,
+                    date: nil,
+                    error: try SQLiteValue.optionalInt64(statement, 4),
+                    isSent: try SQLiteRows.bool(statement, 5),
+                    isDelivered: try SQLiteRows.bool(statement, 6),
+                    isRead: try SQLiteRows.bool(statement, 7),
+                    dateDelivered: try SQLiteNumber.read(statement, 8),
+                    dateRead: try SQLiteNumber.read(statement, 9),
+                    replyToGUID: nil,
+                    threadOriginatorGUID: nil,
+                    partCount: nil,
+                    balloonBundleID: nil,
+                    isAudioMessage: nil,
+                    scheduleType: nil,
+                    scheduleState: nil,
+                    associatedMessageGUID: nil,
+                    associatedMessageType: nil
+                )
+                values[messageID] = ObservedMessage(
+                    rowID: row.rowID,
+                    messageID: messageID,
+                    conversationID: try ConversationID(validating: row.conversationGUID),
+                    isFromMe: isFromMe,
+                    deliveryState: SQLiteRows.deliveryState(row),
+                    readState: SQLiteRows.readState(row)
+                )
             }
+            return values
         }
     }
 
@@ -101,22 +93,16 @@ extension SQLiteEventSnapshotStore {
             ORDER BY r.ROWID
             """) { statement in
                 var values: [MessageID: ObservedReaction] = [:]
-                while true {
-                    switch sqlite3_step(statement) {
-                    case SQLITE_ROW:
-                        let reactionID = try MessageID(validating: SQLiteValue.text(statement, 1))
-                        values[reactionID] = ObservedReaction(
-                            rowID: sqlite3_column_int64(statement, 0),
-                            messageID: try MessageID(validating: SQLiteValue.text(statement, 2)),
-                            reactionID: reactionID,
-                            action: sqlite3_column_int64(statement, 3) >= 3000 ? .removed : .added
-                        )
-                    case SQLITE_DONE:
-                        return values
-                    default:
-                        throw SQLiteStorageError.queryFailed(database.lastError())
-                    }
+                while try statement.step() == .row {
+                    let reactionID = try MessageID(validating: SQLiteValue.text(statement, 1))
+                    values[reactionID] = ObservedReaction(
+                        rowID: try statement.int64(0),
+                        messageID: try MessageID(validating: SQLiteValue.text(statement, 2)),
+                        reactionID: reactionID,
+                        action: try statement.int64(3) >= 3000 ? .removed : .added
+                    )
                 }
+                return values
             }
     }
 
@@ -129,23 +115,17 @@ extension SQLiteEventSnapshotStore {
             ORDER BY maj.message_id, maj.attachment_id
             """) { statement in
                 var values: [MediaKey: ObservedMedia] = [:]
-                while true {
-                    switch sqlite3_step(statement) {
-                    case SQLITE_ROW:
-                        let key = MediaKey(
-                            messageID: try MessageID(validating: SQLiteValue.text(statement, 0)),
-                            mediaID: try MediaID(validating: SQLiteValue.text(statement, 1))
-                        )
-                        values[key] = ObservedMedia(
-                            key: key,
-                            path: SQLiteValue.optionalText(statement, 2)
-                        )
-                    case SQLITE_DONE:
-                        return values
-                    default:
-                        throw SQLiteStorageError.queryFailed(database.lastError())
-                    }
+                while try statement.step() == .row {
+                    let key = MediaKey(
+                        messageID: try MessageID(validating: SQLiteValue.text(statement, 0)),
+                        mediaID: try MediaID(validating: SQLiteValue.text(statement, 1))
+                    )
+                    values[key] = ObservedMedia(
+                        key: key,
+                        path: try SQLiteValue.optionalText(statement, 2)
+                    )
                 }
+                return values
             }
     }
 }

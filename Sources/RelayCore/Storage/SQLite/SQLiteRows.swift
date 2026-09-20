@@ -1,5 +1,4 @@
 import Foundation
-import SQLite3
 
 struct ConversationRow: Sendable {
     let rowID: Int64
@@ -54,8 +53,8 @@ enum SQLiteRows {
         return Timestamp(Date(timeIntervalSinceReferenceDate: seconds))
     }
 
-    static func bool(_ statement: OpaquePointer, _ index: Int32) -> Bool? {
-        SQLiteValue.optionalInt64(statement, index).map { $0 != 0 }
+    static func bool(_ statement: SQLiteStatement, _ index: Int32) throws -> Bool? {
+        try SQLiteValue.optionalInt64(statement, index).map { $0 != 0 }
     }
 
     static func attributedText(_ data: Data?) -> String? {
