@@ -353,45 +353,6 @@ public final class SQLiteMessageStore: MessageStoring, SendCorrelating, Sendable
         }
     }
 
-    static func isURLPreview(_ record: Record) -> Bool {
-        record.row.balloonBundleID == "com.apple.messages.URLBalloonProvider"
-    }
-
-    static func canCoalesceURLPreview(_ preview: Record, with message: Record) -> Bool {
-        isURLPreview(preview)
-            && message.row.isFromMe == preview.row.isFromMe
-            && message.row.handle == preview.row.handle
-            && containsURL(message.message.text)
-    }
-
-    static func attachURLPreview(_ preview: Record, to message: inout Record) {
-        message.message.urlPreview = URLPreview(
-            messageID: preview.message.id,
-            providerGUID: preview.row.guid,
-            balloonBundleID: "com.apple.messages.URLBalloonProvider",
-            createdAt: preview.message.createdAt
-        )
-    }
-
-    static func coalesceURLPreviews(_ records: [Record]) -> [Record] {
-        var logical: [Record] = []
-        for record in records.reversed() {
-            guard let index = logical.indices.last,
-                  canCoalesceURLPreview(record, with: logical[index]) else {
-                logical.append(record)
-                continue
-            }
-            attachURLPreview(record, to: &logical[index])
-        }
-        return Array(logical.reversed())
-    }
-
-    private static func containsURL(_ text: String?) -> Bool {
-        guard let text else { return false }
-        return text.localizedCaseInsensitiveContains("https://")
-            || text.localizedCaseInsensitiveContains("http://")
-    }
-
     private static func normalizedSearch(_ search: String?) -> String? {
         let trimmed = search?.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed?.isEmpty == false ? trimmed : nil

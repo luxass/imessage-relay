@@ -54,17 +54,25 @@ struct SearchPreviewCursor: Codable, Sendable {
         case replaying
     }
 
+    struct Position: Codable, Equatable, Sendable {
+        let date: SQLiteNumber?
+        let rowID: Int64
+    }
+
     let phase: Phase
-    let groupStartDate: SQLiteNumber?
-    let groupStartRowID: Int64
-    let contextDate: SQLiteNumber?
-    let contextRowID: Int64?
-    let selectedPreviewRowID: Int64?
+    let newest: Position
+    let root: Position?
+    let end: Position?
 
     var isValid: Bool {
-        groupStartRowID > 0
-            && contextRowID.map { $0 > 0 } != false
-            && selectedPreviewRowID.map { $0 > 0 } != false
+        guard newest.rowID > 0,
+              root.map({ $0.rowID > 0 }) != false,
+              end.map({ $0.rowID > 0 }) != false else { return false }
+        switch phase {
+        case .resolving: return end == nil
+        case .replayingStart: return root == nil && end != nil
+        case .replaying: return end != nil
+        }
     }
 }
 
