@@ -92,6 +92,10 @@ final class SQLiteStatement {
         }
     }
 
+    func status(_ operation: Int32, reset: Bool = false) throws -> Int32 {
+        sqlite3_stmt_status(try openStatement(), operation, reset ? 1 : 0)
+    }
+
     func text(_ index: Int32) throws -> String {
         guard let value = try optionalText(index) else {
             throw SQLiteStorageError.corruptValue(

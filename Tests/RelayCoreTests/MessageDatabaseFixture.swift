@@ -54,6 +54,9 @@ final class MessageDatabaseFixture: @unchecked Sendable {
         }
         database = opened
         do {
+            guard sqlite3_busy_timeout(opened, 5_000) == SQLITE_OK else {
+                throw FixtureError.cannotExecute("Could not configure the fixture busy timeout.")
+            }
             try createSchema(options: options)
             if seedData { try seed(options: options) }
         } catch {

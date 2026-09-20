@@ -12,10 +12,75 @@ final class SQLiteEventSnapshotStore: Sendable {
         self.attachmentDirectory = URL(fileURLWithPath: attachmentDirectory).standardizedFileURL
     }
 
-    func snapshot() async throws -> SnapshotResult {
+    func snapshot(expectedFileIdentity: String? = nil) async throws -> SnapshotResult {
         try Task.checkCancellation()
         return try await executor.run { database in
-            try Self.readSnapshot(database: database)
+            try Self.readSnapshot(
+                database: database,
+                expectedFileIdentity: expectedFileIdentity
+            )
+        }
+    }
+
+    func incrementalBatch(
+        positions: IncrementalPositions,
+        limit: Int,
+        expectedFileIdentity: String
+    ) async throws -> GenerationRead<IncrementalBatch> {
+        try Task.checkCancellation()
+        return try await executor.run { database in
+            guard Self.isExpectedGeneration(database, expectedFileIdentity) else {
+                return .databaseChanged
+            }
+            return .value(try Self.incrementalBatch(
+                database: database,
+                positions: positions,
+                limit: limit
+            ))
+        }
+    }
+
+    func targetedBatch(
+        after rowID: Int64,
+        limit: Int,
+        expectedFileIdentity: String
+    ) async throws -> GenerationRead<TargetedBatch> {
+        try Task.checkCancellation()
+        return try await executor.run { database in
+            guard Self.isExpectedGeneration(database, expectedFileIdentity) else {
+                return .databaseChanged
+            }
+            return .value(try Self.targetedStateChanges(
+                database: database,
+                after: rowID,
+                limit: limit
+            ))
+        }
+    }
+
+    func refreshMessageCandidates(
+        rowIDs: [Int64],
+        expectedFileIdentity: String
+    ) async throws -> GenerationRead<[MessageCandidate]> {
+        guard !rowIDs.isEmpty else { return .value([]) }
+        return try await executor.run { database in
+            guard Self.isExpectedGeneration(database, expectedFileIdentity) else {
+                return .databaseChanged
+            }
+            return .value(try Self.refreshMessageCandidates(database: database, rowIDs: rowIDs))
+        }
+    }
+
+    func refreshMedia(
+        _ keys: [MediaKey],
+        expectedFileIdentity: String
+    ) async throws -> GenerationRead<[ObservedMedia]> {
+        guard !keys.isEmpty else { return .value([]) }
+        return try await executor.run { database in
+            guard Self.isExpectedGeneration(database, expectedFileIdentity) else {
+                return .databaseChanged
+            }
+            return .value(try Self.refreshMedia(database: database, keys: keys))
         }
     }
 
@@ -51,8 +116,13 @@ final class SQLiteEventSnapshotStore: Sendable {
         try await executor.shutdown()
     }
 
-    private static func readSnapshot(database: SQLiteDatabase) throws -> SnapshotResult {
-        guard (try? database.fileIdentity()) == database.connectionFileIdentity else {
+    private static func readSnapshot(
+        database: SQLiteDatabase,
+        expectedFileIdentity: String?
+    ) throws -> SnapshotResult {
+        guard (try? database.fileIdentity()) == database.connectionFileIdentity,
+              expectedFileIdentity == nil
+                || database.connectionFileIdentity == expectedFileIdentity else {
             return .databaseChanged
         }
         let dataVersion = try database.dataVersion()
@@ -63,12 +133,21 @@ final class SQLiteEventSnapshotStore: Sendable {
                 dataVersion: dataVersion,
                 messages: messages(database: database),
                 reactions: reactions(database: database),
-                media: media(database: database)
+                media: media(database: database),
+                positions: positions(database: database)
             )
         }
         guard (try? database.fileIdentity()) == database.connectionFileIdentity else {
             return .databaseChanged
         }
         return .snapshot(snapshot)
+    }
+
+    private static func isExpectedGeneration(
+        _ database: SQLiteDatabase,
+        _ expectedFileIdentity: String
+    ) -> Bool {
+        database.connectionFileIdentity == expectedFileIdentity
+            && (try? database.fileIdentity()) == expectedFileIdentity
     }
 }

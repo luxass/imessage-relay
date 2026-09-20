@@ -27,13 +27,60 @@ extension SQLiteEventSnapshotStore {
         let path: String?
     }
 
+    struct CompoundPosition: Sendable {
+        var value: SQLiteNumber
+        var rowID: Int64
+    }
+
+    struct IncrementalPositions: Sendable {
+        var messageRowID: Int64
+        var attachmentJoinRowID: Int64
+        var read: CompoundPosition
+        var delivery: CompoundPosition
+        var targetedRowID: Int64
+    }
+
     struct Snapshot: Sendable {
         let databaseIdentity: String
         let fileIdentity: String
+        var dataVersion: Int64
+        var messages: [MessageID: ObservedMessage]
+        var reactions: [MessageID: ObservedReaction]
+        var media: [MediaKey: ObservedMedia]
+        var positions: IncrementalPositions
+    }
+
+    struct MessageCandidate: Sendable {
+        let rowID: Int64
+        let message: ObservedMessage?
+        let reaction: ObservedReaction?
+    }
+
+    struct QueryMetrics: Sendable {
+        let fullScanSteps: Int32
+        let virtualMachineSteps: Int32
+    }
+
+    struct IncrementalBatch: Sendable {
         let dataVersion: Int64
-        let messages: [MessageID: ObservedMessage]
-        let reactions: [MessageID: ObservedReaction]
-        let media: [MediaKey: ObservedMedia]
+        let candidates: [MessageCandidate]
+        let readUpdates: [ObservedMessage]
+        let deliveryUpdates: [ObservedMessage]
+        let media: [ObservedMedia]
+        let positions: IncrementalPositions
+        let hasMore: Bool
+        let readMetrics: QueryMetrics
+        let deliveryMetrics: QueryMetrics
+    }
+
+    struct TargetedBatch: Sendable {
+        let candidates: [MessageCandidate]
+        let nextRowID: Int64
+    }
+
+    enum GenerationRead<Value: Sendable>: Sendable {
+        case value(Value)
+        case databaseChanged
     }
 
     struct DatabaseState: Sendable {
