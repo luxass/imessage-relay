@@ -24,6 +24,28 @@ public struct ServerConfig: Sendable {
     let allowedRecipients: [String]
     let maximumMediaBytes: Int64
 
+    public init(
+        token: String,
+        databasePath: String,
+        attachmentDirectory: String,
+        mediaDirectory: String,
+        stateDatabasePath: String,
+        senderAccountID: String?,
+        phoneRegion: String = Locale.current.region?.identifier ?? "US",
+        allowedRecipients: [String],
+        maximumMediaBytes: Int64
+    ) {
+        self.token = token
+        self.databasePath = databasePath
+        self.attachmentDirectory = attachmentDirectory
+        self.mediaDirectory = mediaDirectory
+        self.stateDatabasePath = stateDatabasePath
+        self.senderAccountID = senderAccountID
+        self.phoneRegion = phoneRegion
+        self.allowedRecipients = allowedRecipients
+        self.maximumMediaBytes = maximumMediaBytes
+    }
+
     public static func fromEnvironment(
         _ environment: [String: String] = ProcessInfo.processInfo.environment
     ) throws -> Self {

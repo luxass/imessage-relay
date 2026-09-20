@@ -1,5 +1,7 @@
 name: Release
 
+# Release Please creates the draft release and this tag. The tag starts the
+# signing pipeline; the publish job turns that draft into the final release.
 on:
   push:
     tags:
@@ -38,6 +40,8 @@ jobs:
   package:
     needs: release-guard
     runs-on: macos-26
+    environment:
+      name: release-signing
     timeout-minutes: 30
     permissions:
       contents: read
@@ -58,21 +62,43 @@ jobs:
             swiftpm-${{ runner.os }}-${{ runner.arch }}-macos-26-
           lookup-only: true
 
-      - name: Package release
+      - name: Import Developer ID certificate
+        uses: apple-actions/import-codesign-certs@5142e029c445c10ffc7149d172e540235a065466 # v7.0.0
+        with:
+          p12-file-base64: ${{ secrets.APPLE_DEVELOPER_ID_CERTIFICATE_BASE64 }}
+          p12-password: ${{ secrets.APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD }}
+
+      - name: Package, sign, and notarize release
         env:
           INPUT_VERSION: ${{ inputs.version }}
+          CODESIGN_IDENTITY: ${{ secrets.APPLE_CODESIGN_IDENTITY }}
+          NOTARY_KEY_BASE64: ${{ secrets.APPLE_NOTARY_PRIVATE_KEY_BASE64 }}
+          NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
+          NOTARY_ISSUER_ID: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
+          NOTARIZE_RELEASE: "1"
         run: |
+          : "${CODESIGN_IDENTITY:?Missing APPLE_CODESIGN_IDENTITY}"
+          : "${NOTARY_KEY_BASE64:?Missing APPLE_NOTARY_PRIVATE_KEY_BASE64}"
+          : "${NOTARY_KEY_ID:?Missing APPLE_NOTARY_KEY_ID}"
+          : "${NOTARY_ISSUER_ID:?Missing APPLE_NOTARY_ISSUER_ID}"
+
+          version="${INPUT_VERSION}"
           if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
             version="${GITHUB_REF_NAME#v}"
-          else
-            version="${INPUT_VERSION}"
           fi
-          ./scripts/package-release.sh "${version}" dist
+
+          notary_key="${RUNNER_TEMP}/notary-api-key.p8"
+          trap 'rm -f "${notary_key}"' EXIT
+          printf '%s' "${NOTARY_KEY_BASE64}" | base64 --decode > "${notary_key}"
+          chmod 600 "${notary_key}"
+
+          NOTARY_KEY_PATH="${notary_key}" \
+            ./scripts/package-release.sh "${version}" dist
 
       - name: Upload release assets
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: imessage-relay-server-release-assets
+          name: imessage-relay-release-assets
           path: dist/*
           if-no-files-found: error
           retention-days: 7
@@ -94,7 +120,7 @@ jobs:
       - name: Download release assets
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          name: imessage-relay-server-release-assets
+          name: imessage-relay-release-assets
           path: dist
 
       - name: Generate release app token

@@ -14,7 +14,22 @@ injection.
 
 ## Install
 
-Download the universal binary for Apple silicon and Intel Macs:
+Download the signed and notarized universal app for Apple silicon and Intel Macs:
+
+```sh
+curl -fsSL -o imessage-relay.zip \
+  https://github.com/luxass/imessage-relay/releases/latest/download/imessage-relay-macos-universal.zip
+unzip imessage-relay.zip
+mv "iMessage Relay.app" /Applications/
+open "/Applications/iMessage Relay.app"
+```
+
+The app requires macOS 14 or newer. It runs in the menu bar and registers itself
+as a login item when launched from `/Applications`. The relay binds to
+`127.0.0.1:8080` by default.
+
+<details>
+<summary>Install the command-line server</summary><br/>
 
 ```sh
 curl -fsSL -o relay-server.tgz \
@@ -23,7 +38,7 @@ tar xzf relay-server.tgz
 ./relay-server
 ```
 
-The binary requires macOS 14 or newer. It is ad hoc signed and not notarized.
+<br/></details>
 
 <details>
 <summary>Build from source</summary><br/>
@@ -41,11 +56,32 @@ swift build
 
 ## Usage
 
-Grant the terminal or service that runs `relay-server` **Full Disk Access** in
-**System Settings > Privacy & Security**, then restart that process.
+Grant **iMessage Relay** Full Disk Access in **System Settings > Privacy &
+Security**, then choose **Reload Configuration** from its menu. Use **Copy API
+Token** to copy the bearer token generated and stored in your login Keychain.
+Add `-H "Authorization: Bearer $RELAY_TOKEN"` to every request.
 
-Set a bearer token before you start the relay. To send directly, also set one
-local iMessage account ID and an allowlist:
+The app creates `~/Library/Application Support/imessage-relay/config.json` with
+owner-only permissions. To send directly, set `senderAccountID` and add every
+permitted address to `allowedRecipients`, then reload:
+
+```json
+{
+  "allowRemoteConnections": false,
+  "allowedRecipients": ["person@example.com", "+1 202 555 0123"],
+  "hostname": "127.0.0.1",
+  "maximumMediaBytes": 26214400,
+  "port": 8080,
+  "senderAccountID": "your-local-imessage-account-id"
+}
+```
+
+The app refuses to bind outside loopback unless `allowRemoteConnections` is
+explicitly set to `true`. It does not provide TLS, so terminate TLS in front of
+it whenever traffic leaves the Mac.
+
+When using the command-line server instead, grant Full Disk Access to the
+terminal or service and configure it with environment variables:
 
 ```sh
 export RELAY_TOKEN='replace-with-a-long-random-token'
@@ -53,9 +89,6 @@ export RELAY_SENDER_ACCOUNT_ID='your-local-imessage-account-id'
 export RELAY_ALLOWED_RECIPIENTS='person@example.com,+1 202 555 0123'
 ./relay-server
 ```
-
-`RELAY_TOKEN` is required. Add `-H "Authorization: Bearer $RELAY_TOKEN"` to
-every request.
 
 From another terminal, check that the relay can read the Messages database:
 
@@ -196,12 +229,15 @@ just package-release
 
 The command writes these files to `dist/`:
 
+- `imessage-relay-<version>-macos-universal.zip` and its `.sha256` checksum
+- `imessage-relay-macos-universal.zip` and its `.sha256` checksum
 - `imessage-relay-server-<version>-macos-universal.tar.gz` and its `.sha256` checksum
-- `relay-server-macos-universal.tar.gz` and its `.sha256` checksum (stable download names)
+- `relay-server-macos-universal.tar.gz` and its `.sha256` checksum
 
-The packaging script checks the binary version, architectures, ad hoc
-signature, archive contents, and checksum. Pass a version to require it to
-match `packageVersion`:
+Local packages use ad hoc signing. Release CI applies a Developer ID signature,
+submits the app to Apple for notarization, staples the ticket, and verifies the
+result before publication. Pass a version to require it to match
+`packageVersion`:
 
 ```sh
 just package-release 0.1.0

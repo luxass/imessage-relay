@@ -25,12 +25,16 @@ just package-release
 
 The command writes these files to `dist/`:
 
+- `imessage-relay-<version>-macos-universal.zip` and its `.sha256` checksum
+- `imessage-relay-macos-universal.zip` and its `.sha256` checksum
 - `imessage-relay-server-<version>-macos-universal.tar.gz` and its `.sha256` checksum
-- `relay-server-macos-universal.tar.gz` and its `.sha256` checksum (stable download names)
+- `relay-server-macos-universal.tar.gz` and its `.sha256` checksum
 
-The packaging script checks the binary version, architectures, ad hoc
-signature, archive contents, and checksum. Pass a version to require it to
-match `packageVersion`:
+Local builds are ad hoc signed and are not submitted to Apple. Release CI uses
+Developer ID, hardened runtime, and the Apple Events entitlement. It notarizes
+both executables, staples the app, then verifies the signatures, ticket,
+architectures, versions, archive contents, and checksums. Pass a version to require it to match
+`packageVersion`:
 
 ```sh
 just package-release 0.1.0
@@ -39,10 +43,11 @@ just package-release 0.1.0
 ## Release phases
 
 1. Merge normal changes to `main`. Release Please opens a release PR that updates
-   the version and manifest. Merge that PR to create a matching tag such as
-   `v0.1.0`.
-2. **Package:** build and verify the universal binary, archives, and checksums.
-   Upload them as workflow artifacts.
+   the version and manifest. Merging that PR creates a matching tag such as
+   `v0.1.0` and a draft GitHub release.
+2. **Package:** import the protected Developer ID identity, build universal CLI
+   and app executables, sign and notarize both, staple the app, then verify and
+   upload every archive and checksum as workflow artifacts.
 3. **Publish:** verify the downloaded checksums, upload all assets to a draft
    GitHub release, then publish it with generated release notes.
 4. **Homebrew:** a stable published release calls
@@ -51,13 +56,16 @@ just package-release 0.1.0
 
 Tags such as `v0.2.0-rc.1` produce GitHub prereleases. They do not become the
 latest release or update Homebrew. The tag version must match `packageVersion`.
-Run the Release workflow manually to validate and package the selected ref
-without creating a release or updating Homebrew.
+Run the Release workflow manually on an existing `v*` tag to package that tag
+without publishing a release or updating Homebrew. The `release-signing`
+environment does not permit branch refs.
 
-Release Please uses the release GitHub App to open release PRs and create tags.
-The App token must have Contents and Pull requests write permissions on
-`luxass/imessage-relay`. Using an App token instead of the default
-`GITHUB_TOKEN` ensures the generated tag triggers the tag-based package workflow.
+Release Please uses the release GitHub App to open release PRs, create tags,
+and create draft releases. The App token must have Contents and Pull requests
+write permissions on `luxass/imessage-relay`. The App token matters here because
+a tag created with the default `GITHUB_TOKEN` would not trigger the Release
+workflow. That workflow signs the artifacts and publishes the draft only after
+all artifacts pass verification.
 
 ## Release setup
 
@@ -65,18 +73,45 @@ Create these GitHub Actions environments before merging a release PR:
 
 | Environment | Used by | Purpose |
 | --- | --- | --- |
-| `release-guard` | `release-guard` job | Approval gate before release packaging |
-| `release` | `release-please` and `publish` jobs | Protects release automation and stores the release App credentials |
+| `release-plz` | `release-please` job | Protects release PR, tag, and draft release creation |
+| `release-guard` | `release-guard` job | Requires approval before release packaging starts |
+| `release-signing` | `package` job | Stores the Developer ID certificate and notarization key |
+| `release` | `publish` job | Protects publication of the signed draft release |
 | `homebrew-tap` | shared Homebrew workflow | Protects formula update PRs |
 
 Add these Actions secrets before merging a release PR:
 
 | Secret | Purpose |
 | --- | --- |
-| `RELEASE_APP_ID` in `release` | Client ID of the GitHub App used by Release Please and publication |
-| `RELEASE_APP_PRIVATE_KEY` in `release` | Private key for that GitHub App |
-| `HOMEBREW_TAP_APP_ID` | Client ID of the GitHub App installed on `luxass/homebrew-tap` |
-| `HOMEBREW_TAP_APP_PRIVATE_KEY` | Private key for that GitHub App |
+| `RELEASE_APP_ID` in `release-plz` and `release` | Client ID of the GitHub App used by Release Please and publication |
+| `RELEASE_APP_PRIVATE_KEY` in `release-plz` and `release` | Private key for that GitHub App |
+| `HOMEBREW_TAP_APP_ID` as a repository secret | Client ID of the GitHub App installed on `luxass/homebrew-tap` |
+| `HOMEBREW_TAP_APP_PRIVATE_KEY` as a repository secret | Private key for that GitHub App |
+
+Store the release App credentials in both environments because the
+`release-plz` and `release` jobs each generate a token. The Homebrew workflow
+passes repository secrets to a reusable workflow. Add these secrets to the
+`release-signing` environment:
+
+| Secret | Purpose |
+| --- | --- |
+| `APPLE_DEVELOPER_ID_CERTIFICATE_BASE64` | Base64-encoded Developer ID Application `.p12` |
+| `APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD` | Password protecting the `.p12` |
+| `APPLE_CODESIGN_IDENTITY` | Full identity, such as `Developer ID Application: Name (TEAMID)` |
+| `APPLE_NOTARY_PRIVATE_KEY_BASE64` | Base64-encoded App Store Connect API `.p8` key |
+| `APPLE_NOTARY_KEY_ID` | App Store Connect API key ID |
+| `APPLE_NOTARY_ISSUER_ID` | App Store Connect issuer ID |
+
+Use an App Store Connect key that can submit software for notarization. Keep the
+certificate and key in the protected environment, restrict it to release tags,
+and do not make it available to pull-request workflows. The `release-guard`
+environment provides the human approval before the signing job starts.
+
+Keep the bundle identifier `dev.luxass.imessage-relay` and Developer ID team
+stable across releases. macOS uses that signed identity for Keychain access,
+Automation, Accessibility, and Full Disk Access. Changing it can make existing
+permissions and the stored token unavailable, so any identity change needs an
+explicit migration and release note.
 
 The Homebrew App needs Contents and Pull requests read/write permissions on
 the tap. The reusable workflow runs in the `homebrew-tap` environment; add at
