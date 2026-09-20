@@ -171,6 +171,37 @@ func sendServiceNormalizesDirectRecipientsForAllowlistChecks() async throws {
 }
 
 @Test
+func sendServiceResolvesAContactNameBeforeAllowlistAndDispatch() async throws {
+    let stores = StubStores(conversation: nil, context: nil, messages: [])
+    let sender = FakeMessageSender.available()
+    let resolved = try RecipientHandle(
+        type: .phone,
+        value: "+14155550100",
+        displayValue: "Alice"
+    )
+    let service = MessageService(
+        conversations: stores,
+        messages: stores,
+        sender: sender,
+        media: MediaService(uploads: MemoryUploadStore(), messagesMedia: NilMessageMediaStore()),
+        recipientResolver: StubRecipientResolver(values: ["Alice": resolved]),
+        allowlist: RecipientAllowlist(values: [resolved.value])
+    )
+    let request = try RelayJSON.decoder.decode(
+        SendMessageRequest.self,
+        from: Data(#"{"to":"Alice","text":"Hello"}"#.utf8)
+    )
+
+    _ = try await service.send(
+        request,
+        requestID: RequestID(validating: "request-contact"),
+        idempotencyKey: nil
+    )
+
+    #expect(sender.requests.first?.destination == .recipient(resolved))
+}
+
+@Test
 func sendServiceRejectsUnsupportedFeaturesBeforeCallingTheSender() async throws {
     let conversationID = try ConversationID(validating: "chat-guid")
     let phone = try RecipientHandle(type: .phone, value: "+15005550006")
@@ -730,6 +761,18 @@ private final class StubStores: ConversationStoring, MessageStoring, @unchecked 
 
     func message(id: MessageID) async throws -> Message? {
         messageValues.first { $0.id == id }
+    }
+}
+
+private struct StubRecipientResolver: RecipientResolving {
+    let values: [String: RecipientHandle]
+
+    func resolve(_ candidate: RecipientHandle) async throws -> RecipientHandle {
+        if let resolved = values[candidate.value] { return resolved }
+        guard candidate.type != .other else {
+            throw RecipientResolutionError.notFound(candidate.value)
+        }
+        return candidate
     }
 }
 

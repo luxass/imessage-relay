@@ -149,6 +149,7 @@ The server accepts these command-line options:
 | `RELAY_MEDIA_DIRECTORY` | `~/Library/Application Support/imessage-relay/media` | Uploaded media storage |
 | `RELAY_STATE_DB_PATH` | `~/Library/Application Support/imessage-relay/relay.db` | Durable send request state |
 | `RELAY_SENDER_ACCOUNT_ID` | Unset | Local iMessage account ID for direct sends |
+| `RELAY_PHONE_REGION` | System region | Region for parsing national phone numbers |
 | `RELAY_ALLOWED_RECIPIENTS` | Unset | Comma-separated send allowlist |
 | `RELAY_MAX_MEDIA_BYTES` | 25 MiB | Maximum upload size, capped at 25 MiB |
 | `RELAY_TOKEN` | Required | Bearer token for every request |
@@ -158,9 +159,10 @@ terminate TLS in front of the relay. Plain HTTP exposes bearer tokens and messag
 data in transit.
 
 An empty send allowlist denies every send. A conversation send requires every
-participant to be allowlisted. A direct send also requires
-`RELAY_SENDER_ACCOUNT_ID`; a conversation send uses that conversation's account
-context from `chat.db`.
+participant to be allowlisted. Direct and group recipients may use unique names
+from Contacts; the resolved phone number or email must be allowlisted. A direct
+send also requires `RELAY_SENDER_ACCOUNT_ID`; a conversation send uses that
+conversation's account context from `chat.db`.
 
 ## Development
 

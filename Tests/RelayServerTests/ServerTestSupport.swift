@@ -45,6 +45,7 @@ final class ServerTestHarness: @unchecked Sendable {
             mediaDirectory: directory.path,
             stateDatabasePath: directory.appendingPathComponent("relay.db").path,
             senderAccountID: "account-guid",
+            phoneRegion: "US",
             allowedRecipients: allowedRecipients,
             maximumMediaBytes: maximumMediaBytes
         )

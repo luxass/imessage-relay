@@ -102,6 +102,7 @@ func buildApplication(
             messages: runtime.storage.messages,
             sender: runtime.sender,
             media: media,
+            recipientResolver: ContactRecipientResolver(region: serverConfig.phoneRegion),
             allowlist: RecipientAllowlist(values: serverConfig.allowedRecipients),
             sendRequests: runtime.sendRequests,
             correlator: runtime.storage.messages,

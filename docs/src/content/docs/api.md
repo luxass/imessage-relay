@@ -324,8 +324,8 @@ message before retrying.
 
 ## Send a message
 
-Send to one phone number or email address. The relay detects the handle type and
-normalizes it for matching:
+Send to one phone number, email address, or unique Contacts name. Phone numbers
+are normalized with `RELAY_PHONE_REGION` before matching:
 
 ```http
 POST /v1/messages
@@ -361,8 +361,9 @@ Start or reuse a group by supplying at least two other participants:
 
 Provide exactly one of `to`, `participants`, and `conversation_id`. A direct or
 new-group send requires `RELAY_SENDER_ACCOUNT_ID`. A conversation send uses the
-account ID stored on the conversation. Every destination participant must match
-`RELAY_ALLOWED_RECIPIENTS`.
+account ID stored on the conversation. Every resolved destination participant must match
+`RELAY_ALLOWED_RECIPIENTS`. Contact lookup never bypasses the allowlist. An
+ambiguous or missing contact name returns `400 invalid_destination`.
 
 The relay normalizes every group participant and rejects duplicates. It reuses
 one conversation whose normalized participant set matches exactly. If several

@@ -20,6 +20,7 @@ public struct ServerConfig: Sendable {
     let mediaDirectory: String
     let stateDatabasePath: String
     let senderAccountID: String?
+    let phoneRegion: String
     let allowedRecipients: [String]
     let maximumMediaBytes: Int64
 
@@ -63,6 +64,9 @@ public struct ServerConfig: Sendable {
             mediaDirectory: mediaDirectory,
             stateDatabasePath: stateDatabasePath,
             senderAccountID: nonempty(environment["RELAY_SENDER_ACCOUNT_ID"]),
+            phoneRegion: nonempty(environment["RELAY_PHONE_REGION"])
+                ?? Locale.current.region?.identifier
+                ?? "US",
             allowedRecipients: recipients,
             maximumMediaBytes: maximumMediaBytes
         )

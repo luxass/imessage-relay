@@ -314,9 +314,9 @@ public struct SendMessageRequest: Codable, Equatable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let conversationID = try container.decodeIfPresent(ConversationID.self, forKey: .conversationID)
         let recipient = try container.decodeIfPresent(String.self, forKey: .to)
-            .map(RecipientHandle.direct(value:))
+            .map(RecipientHandle.resolvable(value:))
         let rawParticipants = try container.decodeIfPresent([String].self, forKey: .participants)
-        let participants = try rawParticipants?.map(RecipientHandle.direct(value:))
+        let participants = try rawParticipants?.map(RecipientHandle.resolvable(value:))
         let destinationCount = [conversationID != nil, recipient != nil, participants != nil]
             .filter { $0 }.count
         guard destinationCount > 0 else { throw ValidationError.missingDestination }
