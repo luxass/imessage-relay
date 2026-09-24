@@ -119,12 +119,12 @@ enum PermissionChecker: Sendable {
     /// Full Disk Access has no prompt API. A real open attempt honors TCC,
     /// so success means the app can read the Messages database.
     static func checkFullDiskAccess(
-        databasePath: String = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Messages/chat.db").path
+        databasePath: String = ManagedConfiguration.messagesDatabasePath
     ) -> PermissionState {
-        guard FileManager.default.fileExists(atPath: databasePath) else { return .unknown }
         let descriptor = open(databasePath, O_RDONLY | O_CLOEXEC)
-        guard descriptor >= 0 else { return .notGranted }
+        guard descriptor >= 0 else {
+            return errno == ENOENT || errno == ENOTDIR ? .unknown : .notGranted
+        }
         close(descriptor)
         return .granted
     }

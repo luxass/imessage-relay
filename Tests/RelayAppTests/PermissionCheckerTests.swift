@@ -22,10 +22,26 @@ func fullDiskAccessCheckReportsGrantedForAReadableFile() throws {
 }
 
 @Test
+func fullDiskAccessCheckReportsNotGrantedWhenTheDirectoryCannotBeSearched() throws {
+    let directory = FileManager.default.temporaryDirectory
+        .appendingPathComponent("imessage-relay-fda-probe-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false)
+    defer {
+        try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: directory.path)
+        try? FileManager.default.removeItem(at: directory)
+    }
+    let database = directory.appendingPathComponent("chat.db")
+    try Data().write(to: database)
+    try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: directory.path)
+
+    #expect(PermissionChecker.checkFullDiskAccess(databasePath: database.path) == .notGranted)
+}
+
+@Test
 func automationCheckWithoutPromptNeverPrompts() async {
     // A non-prompting probe must resolve to a plain state without showing UI.
     let state = await PermissionChecker.checkAutomation(prompt: false)
-    #expect(state == .granted || state == .notGranted || state == .unknown)
+    #expect(state == .granted || state == .denied || state == .unknown)
 }
 
 @Test

@@ -54,7 +54,8 @@ struct PermissionRowView: View {
                         Button(actionTitle(for: kind, state: state)) {
                             if state == .denied {
                                 store.openSettings(for: kind)
-                            } else if kind == .automation && state == .unknown && !store.isMessagesAppRunning {
+                            } else if kind == .automation && (state == .unknown || state == .notChecked)
+                                && !store.isMessagesAppRunning {
                                 store.openMessagesApp()
                             } else {
                                 Task { await store.requestAccess(for: kind) }
