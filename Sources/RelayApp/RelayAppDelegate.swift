@@ -1,265 +1,231 @@
 import AppKit
 import RelayServer
-import ServiceManagement
+import SwiftUI
 
-@main
 @MainActor
-final class RelayAppDelegate: NSObject, NSApplicationDelegate {
-    private let keychain = KeychainTokenStore()
-    private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-    private let statusMenuItem = NSMenuItem(title: "Starting...", action: nil, keyEquivalent: "")
-    private let runMenuItem = NSMenuItem(title: "Stop Relay", action: nil, keyEquivalent: "")
-    private let loginItemMenuItem = NSMenuItem(
-        title: "Start at Login",
-        action: nil,
-        keyEquivalent: ""
-    )
-    private var serverTask: Task<Void, Never>?
-    private var relayEnabled = true
-
-    static func main() {
-        let application = NSApplication.shared
-        let delegate = RelayAppDelegate()
-        application.delegate = delegate
-        application.run()
-    }
+final class RelayAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
+    private(set) var setupComplete = AppSetup.isComplete
+    let relay = RelayController()
+    let loginItem = LoginItemSettings()
+    let permissions = PermissionStore()
+    private var setupWindow: NSWindow?
+    private var settingsWindow: NSWindow?
+    private var statusItem: NSStatusItem?
+    private var menuError: String?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        configureStatusItem()
-        registerLoginItemOnFirstLaunch()
-        startRelay()
+        let needsSetup = !setupComplete
+        NSApp.setActivationPolicy(needsSetup ? .regular : .accessory)
+        configureMainMenu()
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(windowDidBecomeKey),
+            name: NSWindow.didBecomeKeyNotification,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(windowWillClose),
+            name: NSWindow.willCloseNotification,
+            object: nil
+        )
+        if needsSetup {
+            showSetup()
+        } else {
+            showStatusItem()
+            loginItem.refresh()
+            relay.startOnLaunch()
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        serverTask?.cancel()
+        relay.cancelForTermination()
     }
 
-    private func configureStatusItem() {
-        if let button = statusItem.button {
-            button.image = NSImage(
-                systemSymbolName: "bubble.left.and.bubble.right.fill",
-                accessibilityDescription: "iMessage Relay"
-            )
-            button.toolTip = "iMessage Relay"
-        }
-
-        statusMenuItem.isEnabled = false
-        runMenuItem.target = self
-        runMenuItem.action = #selector(toggleRelay)
-        loginItemMenuItem.target = self
-        loginItemMenuItem.action = #selector(toggleLoginItem)
-
-        let menu = NSMenu()
-        menu.addItem(withTitle: "iMessage Relay \(packageVersion)", action: nil, keyEquivalent: "")
-        menu.items.last?.isEnabled = false
-        menu.addItem(statusMenuItem)
-        menu.addItem(.separator())
-        menu.addItem(runMenuItem)
-        menu.addItem(loginItemMenuItem)
-        menu.addItem(.separator())
-        menu.addItem(
-            withTitle: "Reload Configuration",
-            action: #selector(reloadConfiguration),
-            keyEquivalent: "r"
-        ).target = self
-        menu.addItem(
-            withTitle: "Open Configuration File",
-            action: #selector(openConfiguration),
-            keyEquivalent: ","
-        ).target = self
-        menu.addItem(
-            withTitle: "Copy API Token",
-            action: #selector(copyAPIToken),
-            keyEquivalent: ""
-        ).target = self
-        menu.addItem(
-            withTitle: "Open Full Disk Access Settings",
-            action: #selector(openFullDiskAccessSettings),
-            keyEquivalent: ""
-        ).target = self
-        menu.addItem(.separator())
-        menu.addItem(
-            withTitle: "Quit iMessage Relay",
-            action: #selector(quit),
-            keyEquivalent: "q"
-        ).target = self
-        statusItem.menu = menu
-        refreshLoginItemState()
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        false
     }
 
-    private func startRelay() {
-        guard serverTask == nil else { return }
-        relayEnabled = true
-        runMenuItem.title = "Stop Relay"
-        runMenuItem.isEnabled = true
-        serverTask = Task { [weak self] in
-            guard let self else { return }
-            while !Task.isCancelled {
-                do {
-                    let managedConfiguration = try ManagedConfigurationStore.loadOrCreate()
-                    let token = try keychain.loadOrCreate()
-                    let configuration = try managedConfiguration.serverConfiguration(token: token)
-                    setStatus("Running on \(managedConfiguration.hostname):\(managedConfiguration.port)")
-                    try await runRelayServer(
-                        hostname: managedConfiguration.hostname,
-                        port: managedConfiguration.port,
-                        config: configuration
-                    )
-                    if !Task.isCancelled {
-                        setStatus("Server stopped; retrying...")
-                    }
-                } catch is CancellationError {
-                    break
-                } catch {
-                    setStatus("Error: \(error.localizedDescription). Retrying...")
-                }
+    @objc private func windowDidBecomeKey(_ notification: Notification) {
+        guard (notification.object as? NSWindow) === settingsWindow else { return }
+        NSApp.setActivationPolicy(.regular)
+    }
 
-                do {
-                    try await Task.sleep(for: .seconds(5))
-                } catch {
-                    break
-                }
+    @objc private func windowWillClose(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow else { return }
+        if window === setupWindow {
+            if !setupComplete {
+                NSApp.terminate(nil)
+            } else {
+                NSApp.setActivationPolicy(.accessory)
             }
-            setStatus(relayEnabled ? "Server stopped" : "Stopped")
-            serverTask = nil
-            runMenuItem.isEnabled = true
+        } else if window === settingsWindow {
+            NSApp.setActivationPolicy(.accessory)
+            DispatchQueue.main.async { [weak self] in
+                self?.settingsWindow = nil
+            }
         }
     }
 
-    private func stopRelay() {
-        relayEnabled = false
-        serverTask?.cancel()
-        runMenuItem.title = "Start Relay"
-        runMenuItem.isEnabled = false
-        setStatus("Stopping...")
+    private func showSetup() {
+        let window = NSWindow(
+            contentRect: NSRect(
+                x: 0, y: 0, width: 640,
+                height: AppSetup.tokenReady() ? 540 : 390
+            ),
+            styleMask: [.titled, .closable, .miniaturizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.isReleasedWhenClosed = false
+        window.title = RelayWindows.setupTitle
+        window.center()
+        window.contentView = NSHostingView(rootView: OnboardingView(
+            tokenStore: KeychainTokenStore(),
+            permissions: PermissionStore(),
+            onFinish: { [weak self] in
+                guard let self else { return }
+                AppSetup.complete()
+                self.setupComplete = true
+                self.showStatusItem()
+                self.loginItem.refresh()
+                self.relay.startOnLaunch()
+                DispatchQueue.main.async { [weak self] in
+                    guard let self else { return }
+                    self.setupWindow?.close()
+                    self.setupWindow = nil
+                }
+            },
+            onHeightChange: { [weak window] contentHeight in
+                guard let window else { return }
+                let contentRect = NSRect(
+                    x: 0, y: 0, width: 640,
+                    height: contentHeight
+                )
+                let height = window.frameRect(forContentRect: contentRect).height
+                var frame = window.frame
+                frame.origin.y = frame.maxY - height
+                frame.size.height = height
+                window.setFrame(frame, display: true, animate: true)
+            }
+        ))
+        setupWindow = window
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
     }
 
-    private func setStatus(_ title: String) {
-        statusMenuItem.title = title
-        statusItem.button?.toolTip = "iMessage Relay: \(title)"
+    private func showStatusItem() {
+        guard statusItem == nil else { return }
+        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        item.autosaveName = "dev.luxass.imessage-relay.menu"
+        let image = NSImage(
+            systemSymbolName: "bubble.left.and.bubble.right.fill",
+            accessibilityDescription: "iMessage Relay"
+        )
+        image?.isTemplate = true
+        item.button?.image = image
+        let menu = NSMenu()
+        menu.delegate = self
+        item.menu = menu
+        item.isVisible = true
+        statusItem = item
     }
 
-    private func registerLoginItemOnFirstLaunch() {
-        let preferenceKey = "loginItemPreferenceSet"
-        guard !UserDefaults.standard.bool(forKey: preferenceKey), isInstalledInApplications else {
-            refreshLoginItemState()
-            return
+    private func configureMainMenu() {
+        let mainMenu = NSMenu()
+
+        let appItem = NSMenuItem(title: "iMessage Relay", action: nil, keyEquivalent: "")
+        let appMenu = NSMenu(title: "iMessage Relay")
+        let quitItem = NSMenuItem(title: "Quit iMessage Relay", action: #selector(quit), keyEquivalent: "q")
+        quitItem.target = self
+        appMenu.addItem(quitItem)
+        appItem.submenu = appMenu
+        mainMenu.addItem(appItem)
+
+        let fileItem = NSMenuItem(title: "File", action: nil, keyEquivalent: "")
+        let fileMenu = NSMenu(title: "File")
+        fileMenu.addItem(NSMenuItem(
+            title: "Close Window",
+            action: #selector(NSWindow.performClose(_:)),
+            keyEquivalent: "w"
+        ))
+        fileItem.submenu = fileMenu
+        mainMenu.addItem(fileItem)
+
+        NSApp.mainMenu = mainMenu
+    }
+
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        loginItem.refresh()
+        menu.removeAllItems()
+        menu.addItem(disabledItem("iMessage Relay \(packageVersion)"))
+        menu.addItem(disabledItem(relay.state.description))
+        if let menuError {
+            menu.addItem(disabledItem(menuError))
         }
-        do {
-            try SMAppService.mainApp.register()
-            UserDefaults.standard.set(true, forKey: preferenceKey)
-        } catch {
-            setStatus("Could not enable Start at Login: \(error.localizedDescription)")
-        }
-        refreshLoginItemState()
+        menu.addItem(.separator())
+        let toggle = menuItem(
+            relay.state.isEnabled ? "Stop Relay" : "Start Relay",
+            action: #selector(toggleRelay)
+        )
+        toggle.isEnabled = relay.state.canChange
+        menu.addItem(toggle)
+        menu.addItem(menuItem(loginItem.title, action: #selector(toggleLoginItem)))
+        menu.addItem(.separator())
+        menu.addItem(menuItem("Settings...", action: #selector(openSettings)))
+        menu.addItem(.separator())
+        menu.addItem(menuItem("Quit iMessage Relay", action: #selector(quit), key: "q"))
     }
 
-    private var isInstalledInApplications: Bool {
-        let path = Bundle.main.bundleURL.standardizedFileURL.path
-        return path.hasPrefix("/Applications/")
-            || path.hasPrefix(FileManager.default.homeDirectoryForCurrentUser
-                .appendingPathComponent("Applications", isDirectory: true).path + "/")
+    private func menuItem(_ title: String, action: Selector, key: String = "") -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: key)
+        item.target = self
+        return item
     }
 
-    private func refreshLoginItemState() {
-        let service = SMAppService.mainApp
-        loginItemMenuItem.state = service.status == .enabled ? .on : .off
-        if service.status == .requiresApproval {
-            loginItemMenuItem.title = "Approve Start at Login..."
-        } else {
-            loginItemMenuItem.title = "Start at Login"
-        }
+    private func disabledItem(_ title: String) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+        item.isEnabled = false
+        return item
     }
 
     @objc private func toggleRelay() {
-        if relayEnabled {
-            stopRelay()
-        } else {
-            startRelay()
-        }
-    }
-
-    @objc private func reloadConfiguration() {
-        let previousTask = serverTask
-        previousTask?.cancel()
-        relayEnabled = true
-        runMenuItem.title = "Stop Relay"
-        setStatus("Reloading...")
-        Task { [weak self] in
-            await previousTask?.value
-            self?.startRelay()
-        }
+        if relay.state.isEnabled { relay.stop() } else { relay.start() }
     }
 
     @objc private func toggleLoginItem() {
-        let service = SMAppService.mainApp
         do {
-            switch service.status {
-            case .enabled:
-                try service.unregister()
-                UserDefaults.standard.set(true, forKey: "loginItemPreferenceSet")
-            case .requiresApproval:
-                SMAppService.openSystemSettingsLoginItems()
-            case .notFound, .notRegistered:
-                guard isInstalledInApplications else {
-                    setStatus("Move iMessage Relay to Applications before enabling Start at Login")
-                    return
-                }
-                try service.register()
-                UserDefaults.standard.set(true, forKey: "loginItemPreferenceSet")
-            @unknown default:
-                setStatus("Unknown Start at Login state")
-            }
+            try loginItem.toggle()
+            menuError = nil
         } catch {
-            setStatus("Start at Login failed: \(error.localizedDescription)")
-        }
-        refreshLoginItemState()
-    }
-
-    @objc private func openConfiguration() {
-        do {
-            _ = try ManagedConfigurationStore.loadOrCreate()
-            NSWorkspace.shared.open(ManagedConfigurationStore.configurationURL)
-        } catch {
-            setStatus("Could not open configuration: \(error.localizedDescription)")
+            menuError = error.localizedDescription
         }
     }
 
-    @objc private func copyAPIToken() {
-        do {
-            let token = try keychain.loadOrCreate()
-            let pasteboard = NSPasteboard.general
-            pasteboard.clearContents()
-            pasteboard.setString(token, forType: .string)
-            pasteboard.setData(
-                Data(),
-                forType: NSPasteboard.PasteboardType("org.nspasteboard.TransientType")
+    @objc private func openSettings() {
+        if settingsWindow == nil {
+            let window = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 720, height: 560),
+                styleMask: [.titled, .closable, .miniaturizable, .resizable],
+                backing: .buffered,
+                defer: false
             )
-            pasteboard.setData(
-                Data(),
-                forType: NSPasteboard.PasteboardType("org.nspasteboard.ConcealedType")
-            )
-            let changeCount = pasteboard.changeCount
-            setStatus("API token copied; clipboard clears in 60 seconds")
-            Task {
-                try? await Task.sleep(for: .seconds(60))
-                if pasteboard.changeCount == changeCount {
-                    pasteboard.clearContents()
-                }
-            }
-        } catch {
-            setStatus("Could not read API token: \(error.localizedDescription)")
+            window.isReleasedWhenClosed = false
+            window.title = RelayWindows.settingsTitle
+            window.contentView = NSHostingView(rootView: SettingsView(
+                relay: relay,
+                loginItem: loginItem,
+                permissions: permissions
+            ))
+            window.center()
+            settingsWindow = window
         }
-    }
-
-    @objc private func openFullDiskAccessSettings() {
-        guard let url = URL(
-            string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles"
-        ) else { return }
-        NSWorkspace.shared.open(url)
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate(ignoringOtherApps: true)
+        settingsWindow?.makeKeyAndOrderFront(nil)
     }
 
     @objc private func quit() {
-        NSApplication.shared.terminate(nil)
+        NSApp.terminate(nil)
     }
 }

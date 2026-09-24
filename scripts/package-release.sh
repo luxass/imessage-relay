@@ -63,28 +63,6 @@ copy_resource_bundles() {
     done
 }
 
-create_icon() {
-    local iconset="${release_tmp}/AppIcon.iconset"
-    mkdir -p "${iconset}"
-    while read -r filename size; do
-        sips -s format png -z "${size}" "${size}" \
-            "${repo_root}/Distribution/AppIcon.svg" \
-            --out "${iconset}/${filename}" >/dev/null
-    done <<'SIZES'
-icon_16x16.png 16
-icon_16x16@2x.png 32
-icon_32x32.png 32
-icon_32x32@2x.png 64
-icon_128x128.png 128
-icon_128x128@2x.png 256
-icon_256x256.png 256
-icon_256x256@2x.png 512
-icon_512x512.png 512
-icon_512x512@2x.png 1024
-SIZES
-    iconutil --convert icns --output "$1" "${iconset}"
-}
-
 sign_path() {
     local path="$1"
     local identifier="$2"
@@ -190,7 +168,9 @@ mkdir -p "${app_path}/Contents/MacOS" "${app_path}/Contents/Resources"
 install -m 0755 "${app_binary}" "${app_path}/Contents/MacOS/iMessage Relay"
 install -m 0644 "${repo_root}/LICENSE" "${app_path}/Contents/Resources/LICENSE"
 copy_resource_bundles "${app_path}/Contents/Resources"
-create_icon "${app_path}/Contents/Resources/AppIcon.icns"
+bash "${repo_root}/scripts/create-app-icon.sh" \
+    "${repo_root}/Distribution/AppIcon.svg" \
+    "${app_path}/Contents/Resources/AppIcon.icns"
 build_version="${requested_version%%[-+]*}"
 sed \
     -e "s/__VERSION__/${requested_version}/g" \

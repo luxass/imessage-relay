@@ -6,8 +6,9 @@ description: Configure the local database, sender, media, authentication, and al
 ## Menu-bar app
 
 The app stores its API token in the login Keychain under the service
-`dev.luxass.imessage-relay.api-token`. Use **Copy API Token** in the menu rather
-than placing the token in a settings file.
+`dev.luxass.imessage-relay.api-token`. To copy it, open **Settings > Status**
+from the menu bar and choose **Reveal**, then **Copy** under **API Token**.
+Do not put the token in a settings file.
 
 Non-secret settings live in
 `~/Library/Application Support/imessage-relay/config.json`:
@@ -28,9 +29,11 @@ The app creates its directory with mode `0700` and the settings file with mode
 `true`. This opt-in does not add TLS. Terminate TLS in front of the relay before
 sending traffic over a network.
 
-Choose **Reload Configuration** after editing the file. The app retries server
-startup after failures and can register itself as a macOS login item when it is
-installed in `/Applications`.
+After editing the file, choose **Reload** under **Settings > Status >
+Configuration**. Reload restarts a running relay. If the relay is stopped,
+start it to apply the changes. The app retries server startup after failures.
+You can enable **Launch at login** in Settings when the app is installed in
+`/Applications`.
 
 ## Command-line server
 

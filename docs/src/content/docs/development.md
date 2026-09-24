@@ -15,6 +15,25 @@ just test
 just build
 ```
 
+## Run the app locally
+
+`swift run` launches the binary without an app bundle, so activation,
+menu-bar behavior, and permission dialogs differ from the shipped app. Build a
+dev bundle instead and open it:
+
+```sh
+just build
+open "dist/dev/iMessage Relay.app"
+```
+
+The bundle is ad hoc signed with the Apple Events entitlement. Quit it from its
+menu bar item; Ctrl+C in the terminal will not stop an already-open bundle.
+
+Ad hoc re-signing changes the app's identity and voids its macOS permissions.
+To keep those permissions across rebuilds, set `CODESIGN_IDENTITY` to an Apple
+Development identity when you run `just build`. Otherwise, grant permissions
+again after each rebuild.
+
 ## Create a release archive
 
 Build and verify the universal archive locally:
