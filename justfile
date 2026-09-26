@@ -2,9 +2,12 @@
 
 default: build
 
-# Build for the host architecture (debug).
-@build:
-    swift build
+# Build the dev .app bundle in dist/dev and ad hoc sign it.
+# Run it with: open "dist/dev/iMessage Relay.app"
+# (swift run launches the binary without a bundle, so activation and
+# menu-bar behavior differ from the shipped app.)
+@build output_dir="dist/dev":
+    ./scripts/build-dev-app.sh "{{output_dir}}"
 
 # Build a universal release binary (arm64 + x86_64) in .build/release.
 @build-release:

@@ -27,8 +27,8 @@ Choose one installation method.
 	```
 
 	The universal app requires macOS 14 or newer. Releases are signed with
-	Developer ID and notarized by Apple. The menu-bar app starts at login after
-	you run it from `/Applications`.
+	Developer ID and notarized by Apple. To start the app at login, enable
+	**Launch at login** in **Settings** after installing it in `/Applications`.
 	</TabItem>
 	<TabItem label="CLI release">
 
@@ -60,20 +60,22 @@ Choose one installation method.
 
 ## Grant access and start the relay
 
-For the app, grant **iMessage Relay** Full Disk Access in **System Settings >
-Privacy & Security**, then choose **Reload Configuration** from its menu. Choose
-**Copy API Token** and export the copied value in the terminal where you run the
-examples:
+For the app, choose an API token during setup and review the macOS permissions.
+Grant **iMessage Relay** Full Disk Access in **System Settings > Privacy & Security**.
+If macOS closes the app, reopen it to return to the Permissions step. Finish
+setup, then open **Settings > Status** from the menu bar. Under **API Token**,
+choose **Reveal**, then **Copy**. Export the copied value in the terminal where
+you run the examples:
 
 ```sh
 export RELAY_TOKEN='paste-the-copied-token-here'
 ```
 
-The app generates the token with 256 bits of randomness and stores it in your
-login Keychain. It creates its non-secret settings at
+If you generate a token, the app uses 256 bits of randomness and stores it in
+your login Keychain. It creates its non-secret settings at
 `~/Library/Application Support/imessage-relay/config.json`. Add your local
-account ID and send allowlist there, then reload the configuration. An empty
-allowlist denies every send.
+account ID and send allowlist there, then choose **Reload** under
+**Settings > Status > Configuration**. An empty allowlist denies every send.
 
 ```json
 {

@@ -2,6 +2,9 @@ import Foundation
 import RelayServer
 
 struct ManagedConfiguration: Codable, Sendable {
+    static let messagesDatabasePath = FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent("Library/Messages/chat.db").path
+
     var hostname: String
     var port: Int
     var allowRemoteConnections: Bool
@@ -63,7 +66,7 @@ struct ManagedConfiguration: Codable, Sendable {
         )
         return ServerConfig(
             token: token,
-            databasePath: home.appendingPathComponent("Library/Messages/chat.db").path,
+            databasePath: Self.messagesDatabasePath,
             attachmentDirectory: home.appendingPathComponent("Library/Messages/Attachments").path,
             mediaDirectory: applicationSupport.appendingPathComponent("media", isDirectory: true).path,
             stateDatabasePath: applicationSupport.appendingPathComponent("relay.db").path,

@@ -67,6 +67,30 @@ func conversationsMapStableGUIDsParticipantsUnreadStateAndAccountContext() async
 }
 
 @Test
+func conversationSendContextRejectsAnUnparseableParticipant() async throws {
+    let fixture = try MessageDatabaseFixture()
+    try fixture.execute("""
+        INSERT INTO handle (ROWID, id, service) VALUES (12, '', 'iMessage');
+        INSERT INTO chat_handle_join (chat_id, handle_id) VALUES (2, 12);
+        """)
+    let storage = fixture.makeStorage()
+    let groupID = try ConversationID(validating: MessageDatabaseFixture.groupID)
+
+    let readable = try #require(try await storage.conversations.conversation(id: groupID))
+    #expect(readable.participants.count == 2)
+    await #expect(throws: SQLiteStorageError.self) {
+        try await storage.conversations.sendContext(id: groupID)
+    }
+    await #expect(throws: SQLiteStorageError.self) {
+        try await storage.conversations.sendContexts(matchingExactParticipants: [
+            RecipientHandle.direct(value: "+15005550006"),
+            RecipientHandle.direct(value: "friend@example.com"),
+        ])
+    }
+    try await storage.shutdown()
+}
+
+@Test
 func conversationsFilterByNormalizedParticipant() async throws {
     let fixture = try MessageDatabaseFixture()
     let storage = fixture.makeStorage()

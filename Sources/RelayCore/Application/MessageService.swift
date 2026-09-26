@@ -110,10 +110,25 @@ public struct MessageService: Sendable {
         requestID: RequestID,
         idempotencyKey: String?
     ) async throws -> SendMessageResponse {
-        let prepared = try await prepare(request)
         let key = try Self.normalizedIdempotencyKey(idempotencyKey)
+        let fingerprint = Self.fingerprint(
+            destination: request.destination,
+            text: request.content.text?.trimmingCharacters(in: .whitespacesAndNewlines),
+            media: request.content.media,
+            replyTo: request.replyTo
+        )
+        if let key {
+            do {
+                if let replay = try await sendRequests.existing(idempotencyKey: key, fingerprint: fingerprint) {
+                    return replay
+                }
+            } catch let error as SendRequestStorageError {
+                throw Self.mapStorageError(error)
+            }
+        }
+        let prepared = try await prepare(request)
         try await typing?.stopActiveTyping()
-        if let replay = try await reserve(request, prepared: prepared, requestID: requestID, key: key) {
+        if let replay = try await reserve(requestID: requestID, key: key, fingerprint: fingerprint) {
             return replay
         }
         let operation = SenderDispatchRequest(
@@ -126,9 +141,28 @@ public struct MessageService: Sendable {
             replyTarget: request.replyTo,
             replyContext: prepared.replyContext
         )
-        guard correlator != nil else { return try await dispatch(operation) }
-        return try await identificationGate.run {
-            try await dispatchAndIdentify(operation, prepared: prepared)
+        do {
+            guard correlator != nil else { return try await dispatch(operation) }
+            return try await identificationGate.run {
+                try await dispatchAndIdentify(operation, prepared: prepared)
+            }
+        } catch {
+            // A cancelled or unexpected send error must not leave a durable reservation
+            // claiming that an operation is still in progress.
+            do {
+                if let current = try await sendRequests.response(requestID: requestID),
+                   current.status == .sending {
+                    let hasCorrelation = try await sendRequests.correlation(requestID: requestID) != nil
+                    try await sendRequests.record(.tracking(
+                        requestID: requestID,
+                        status: .resultUnknown,
+                        correlationStatus: hasCorrelation ? .pending : .ambiguous
+                    ))
+                }
+            } catch {
+                throw RelayServiceError.uncertainSend("The interrupted send could not be recorded durably.")
+            }
+            throw error
         }
     }
 
@@ -615,21 +649,15 @@ public struct MessageService: Sendable {
     }
 
     private func reserve(
-        _ request: SendMessageRequest,
-        prepared: PreparedSend,
         requestID: RequestID,
-        key: String?
+        key: String?,
+        fingerprint: String
     ) async throws -> SendMessageResponse? {
         do {
             let reservation = try await sendRequests.reserve(
                 requestID: requestID,
                 idempotencyKey: key,
-                fingerprint: Self.fingerprint(
-                    destination: request.destination,
-                    text: prepared.text,
-                    media: request.content.media,
-                    replyTo: request.replyTo
-                )
+                fingerprint: fingerprint
             )
             if case .replay(let response) = reservation { return response }
             return nil

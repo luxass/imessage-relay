@@ -50,7 +50,7 @@ let package = Package(
         ),
         .executableTarget(
             name: "RelayApp",
-            dependencies: ["RelayServer"],
+            dependencies: ["RelayServer", "RelayCore"],
             linkerSettings: [
                 .linkedFramework("AppKit"),
                 .linkedFramework("Security"),

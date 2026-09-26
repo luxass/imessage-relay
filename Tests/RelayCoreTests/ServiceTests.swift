@@ -363,7 +363,41 @@ func sqliteSendRequestsPersistAcrossStoreInstancesAndRejectChangedPayloads() asy
         )
     }
     #expect(try await reopened.response(requestID: firstID) == accepted)
+    #expect(try await reopened.existing(idempotencyKey: "client-key", fingerprint: "payload-a") == accepted)
+    await #expect(throws: SendRequestStorageError.conflict(firstID)) {
+        try await reopened.existing(idempotencyKey: "client-key", fingerprint: "payload-b")
+    }
     #expect(try await reopened.correlation(requestID: firstID) == correlation)
+}
+
+@Test
+func interruptedSendIsRecordedAsUnknownInsteadOfSending() async throws {
+    let recipient = try RecipientHandle(type: .email, value: "friend@example.com")
+    let stores = StubStores(conversation: nil, context: nil, messages: [])
+    let requests = InMemorySendRequestStore()
+    let service = MessageService(
+        conversations: stores,
+        messages: stores,
+        sender: InterruptedSender(),
+        media: MediaService(uploads: MemoryUploadStore(), messagesMedia: NilMessageMediaStore()),
+        allowlist: RecipientAllowlist(values: [recipient.value]),
+        sendRequests: requests
+    )
+    let requestID = try RequestID(validating: "interrupted-request")
+    await #expect(throws: CancellationError.self) {
+        try await service.send(
+            SendMessageRequest(
+                destination: .recipient(recipient),
+                content: MessageContent(text: "Hello", media: []),
+                replyTo: nil
+            ),
+            requestID: requestID,
+            idempotencyKey: "interrupted-key"
+        )
+    }
+    let result = try #require(await requests.response(requestID: requestID))
+    #expect(result.status == .resultUnknown)
+    #expect(result.correlationStatus == .ambiguous)
 }
 
 @Test
@@ -765,7 +799,7 @@ func mediaFileStoreRejectsMetadataForAnotherMediaID() async throws {
     #expect(try await store.reference(id: saved.mediaID) == nil)
 }
 
-private final class StubStores: ConversationStoring, MessageStoring, @unchecked Sendable {
+final class StubStores: ConversationStoring, MessageStoring, @unchecked Sendable {
     let conversationValue: Conversation?
     let contextValue: ConversationSendContext?
     let messageValues: [Message]
@@ -830,7 +864,7 @@ private struct StubRecipientResolver: RecipientResolving {
     }
 }
 
-private actor StubSendCorrelator: SendCorrelating {
+actor StubSendCorrelator: SendCorrelating {
     let checkpointValue: OutgoingMessageCheckpoint
     var outcomes: [SendCorrelationOutcome]
     var criteria: [SendCorrelationCriteria] = []
@@ -862,7 +896,14 @@ private actor IdentificationGateProbe {
     }
 }
 
-private actor MemoryUploadStore: UploadedMediaStoring {
+private struct InterruptedSender: MessageSender {
+    func status() async -> Sender { await FakeMessageSender.available().status() }
+    func send(_ request: SenderDispatchRequest) async throws -> SenderDispatchResult {
+        throw CancellationError()
+    }
+}
+
+actor MemoryUploadStore: UploadedMediaStoring {
     private var references: [MediaID: MediaReference]
 
     init(references: [MediaID: MediaReference] = [:]) {
@@ -882,6 +923,7 @@ private actor MemoryUploadStore: UploadedMediaStoring {
         return reference
     }
 
+    func remove(id: MediaID) { references[id] = nil }
     func reference(id: MediaID) async throws -> MediaReference? { references[id] }
     func readable(id: MediaID) async throws -> ReadableMedia? { nil }
     func outbound(id: MediaID) async throws -> OutboundMedia? {
@@ -894,7 +936,7 @@ private actor MemoryUploadStore: UploadedMediaStoring {
     }
 }
 
-private struct NilMessageMediaStore: MessageMediaStoring {
+struct NilMessageMediaStore: MessageMediaStoring {
     func media(id: MediaID) async throws -> ReadableMedia? { nil }
 }
 
@@ -906,7 +948,7 @@ private actor RecordingTypingLeaseStopper: TypingLeaseStopping {
     }
 }
 
-private func fixtureConversation(
+func fixtureConversation(
     id: ConversationID,
     participants: [RecipientHandle]
 ) -> Conversation {
@@ -923,7 +965,7 @@ private func fixtureConversation(
     )
 }
 
-private func fixtureMessage(
+func fixtureMessage(
     id: MessageID,
     conversationID: ConversationID,
     thread: ThreadReference? = nil,
