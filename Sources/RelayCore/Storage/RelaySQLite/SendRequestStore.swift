@@ -13,6 +13,7 @@ public enum SendRequestStorageError: Error, Equatable, Sendable {
 }
 
 public protocol SendRequestStoring: Sendable {
+    func existing(idempotencyKey: String, fingerprint: String) async throws -> SendMessageResponse?
     func reserve(
         requestID: RequestID,
         idempotencyKey: String?,
@@ -38,6 +39,17 @@ public actor InMemorySendRequestStore: SendRequestStoring {
     private var correlations: [RequestID: SendCorrelationCriteria] = [:]
 
     public init() {}
+
+    public func existing(idempotencyKey: String, fingerprint: String) throws -> SendMessageResponse? {
+        guard let entry = idempotency[idempotencyKey] else { return nil }
+        guard entry.fingerprint == fingerprint else {
+            throw SendRequestStorageError.conflict(entry.requestID)
+        }
+        guard let response = responses[entry.requestID] else {
+            throw SendRequestStorageError.unavailable("The existing send request cannot be read.")
+        }
+        return response
+    }
 
     public func reserve(
         requestID: RequestID,
@@ -127,6 +139,14 @@ public actor SQLiteSendRequestStore: SendRequestStoring {
             throw error
         }
         connection = Connection(handle: opened)
+    }
+
+    public func existing(idempotencyKey: String, fingerprint: String) throws -> SendMessageResponse? {
+        guard let stored = try existing(digest: Self.digest(idempotencyKey)) else { return nil }
+        guard stored.fingerprint == fingerprint else {
+            throw SendRequestStorageError.conflict(stored.response.requestID)
+        }
+        return stored.response
     }
 
     public func reserve(
@@ -488,10 +508,15 @@ public actor SQLiteSendRequestStore: SendRequestStoring {
                 PRIMARY KEY (request_id, ordinal)
             )
             """)
-        try execute(
-            handle,
-            "UPDATE send_request SET status = 'result_unknown' WHERE status = 'sending'"
-        )
+        try execute(handle, """
+            UPDATE send_request
+            SET status = 'result_unknown',
+                correlation_status = CASE
+                    WHEN correlation_json IS NOT NULL THEN 'pending'
+                    ELSE 'ambiguous'
+                END
+            WHERE status = 'sending'
+            """)
         try execute(handle, """
             INSERT OR IGNORE INTO send_request_message (
                 request_id, message_id, ordinal, last_status
@@ -503,7 +528,7 @@ public actor SQLiteSendRequestStore: SendRequestStoring {
         try execute(handle, """
             UPDATE send_request
             SET correlation_status = CASE
-                WHEN status = 'result_unknown' THEN 'ambiguous'
+                WHEN status = 'result_unknown' AND correlation_json IS NULL THEN 'ambiguous'
                 WHEN message_id IS NOT NULL THEN 'complete'
                 WHEN status IN ('failed', 'unsupported') THEN 'complete'
                 ELSE correlation_status

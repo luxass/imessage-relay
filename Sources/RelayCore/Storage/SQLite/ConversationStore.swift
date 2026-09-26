@@ -36,7 +36,9 @@ public final class SQLiteConversationStore: ConversationStoring, Sendable {
         try await executor.run { database in
             try database.withReadTransaction {
                 guard let row = try Self.row(database: database, id: id) else { return nil }
-                let participants = try Self.participants(database: database, chatRowIDs: [row.rowID])
+                let participants = try Self.participants(
+                    database: database, chatRowIDs: [row.rowID], requireAllHandles: true
+                )
                 return ConversationSendContext(
                     conversationID: id,
                     providerGUID: row.guid,
@@ -74,7 +76,8 @@ public final class SQLiteConversationStore: ConversationStoring, Sendable {
                     }
                 let participantsByChat = try Self.participants(
                     database: database,
-                    chatRowIDs: chatRowIDs
+                    chatRowIDs: chatRowIDs,
+                    requireAllHandles: true
                 )
                 let expectedKeys = Set(expected.map(Self.handleKey))
                 let matchingRowIDs = chatRowIDs.filter {
@@ -386,7 +389,8 @@ public final class SQLiteConversationStore: ConversationStoring, Sendable {
 
     private static func participants(
         database: SQLiteDatabase,
-        chatRowIDs: [Int64]
+        chatRowIDs: [Int64],
+        requireAllHandles: Bool = false
     ) throws -> [Int64: [RecipientHandle]] {
         guard !chatRowIDs.isEmpty else { return [:] }
         let original = database.schema.expression(
@@ -409,14 +413,17 @@ public final class SQLiteConversationStore: ConversationStoring, Sendable {
                 var result: [Int64: [RecipientHandle]] = [:]
                 while try statement.step() == .row {
                     let chatID = try statement.int64(0)
-                    guard let value = try SQLiteValue.optionalText(statement, 1) else { continue }
-                    let originalValue = try SQLiteValue.optionalText(statement, 2)
-                    if let handle = try? RecipientHandle.stored(
-                        value: value,
-                        originalValue: originalValue
-                    ) {
-                        result[chatID, default: []].append(handle)
+                    guard let value = try SQLiteValue.optionalText(statement, 1),
+                          let handle = try? RecipientHandle.stored(
+                              value: value,
+                              originalValue: try SQLiteValue.optionalText(statement, 2)
+                          ) else {
+                        if requireAllHandles {
+                            throw SQLiteStorageError.queryFailed("A conversation participant has an invalid handle.")
+                        }
+                        continue
                     }
+                    result[chatID, default: []].append(handle)
                 }
                 return result
             }
