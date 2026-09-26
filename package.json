@@ -1,7 +1,7 @@
 {
   "name": "imessage-relay",
   "private": true,
-  "packageManager": "pnpm@12.3.4",
+  "packageManager": "pnpm@12.5.1",
   "engines": {
     "node": ">=22.12.0"
   },

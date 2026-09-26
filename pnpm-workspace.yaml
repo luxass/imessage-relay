@@ -16,12 +16,12 @@ catalogMode: prefer
 
 catalogs:
   astro:
-    "@astrojs/starlight": "0.42.0"
-    "astro": "7.3.1"
+    "@astrojs/starlight": "0.42.2"
+    "astro": "7.3.3"
   tooling:
     "@astrojs/check": "0.9.10"
     "typescript": "6.0.3"
-    "wrangler": "4.129.0"
+    "wrangler": "4.135.0"
 
 overrides:
   "chokidar": "5.0.0"

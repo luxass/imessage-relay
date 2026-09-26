@@ -12,10 +12,10 @@ let package = Package(
         .library(name: "RelayCore", targets: ["RelayCore"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/hummingbird-project/hummingbird.git", from: "2.4.0"),
-        .package(url: "https://github.com/apple/swift-nio.git", from: "2.80.0"),
+        .package(url: "https://github.com/hummingbird-project/hummingbird.git", from: "2.27.0"),
+        .package(url: "https://github.com/apple/swift-nio.git", from: "2.103.0"),
         .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.8.2"),
-        .package(url: "https://github.com/PhoneNumberKit/PhoneNumberKit.git", from: "5.0.9"),
+        .package(url: "https://github.com/PhoneNumberKit/PhoneNumberKit.git", from: "5.0.11"),
     ],
     targets: [
         .target(
