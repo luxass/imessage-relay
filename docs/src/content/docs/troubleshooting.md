@@ -15,6 +15,8 @@ Reload the app configuration or restart the standalone process. If you set
 Sending is disabled until the app's `allowedRecipients` setting or the CLI's
 `RELAY_ALLOWED_RECIPIENTS` variable contains recipients. An empty allowlist
 denies every send. For an existing group chat, every participant must be allowed.
+If a stored participant cannot be identified, the relay refuses the send with
+`503 database_unavailable` instead of checking an incomplete participant list.
 
 Set the app's `senderAccountID` or the CLI's `RELAY_SENDER_ACCOUNT_ID` for direct
 sends. The value identifies your local iMessage account, not the recipient. A
@@ -29,8 +31,9 @@ Accessibility permission to the process that runs `imessage-relay`. Direct media
 sends to `to` are unsupported.
 
 See [send errors](/api/#retry-a-send-safely) before retrying. A `502` response
-with `send_result_unknown` means that the outcome is uncertain. Do not retry with
-a new idempotency key.
+with `send_result_unknown`, or a request status of `result_unknown` after an
+interruption, means the outcome is uncertain. Poll the original `request_id` to
+check for a matching provider message. Do not retry with a new idempotency key.
 
 ## A native reply is unavailable
 
