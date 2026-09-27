@@ -6,7 +6,8 @@
 
 Expose Apple Messages as a local `/v1` HTTP API on macOS. Read conversations,
 search messages, stream live changes, download attachments, upload media, and
-send through one local iMessage account.
+send through the configured local iMessage account for direct and new-group
+sends, or through an existing conversation's account.
 
 Reads go directly to `~/Library/Messages/chat.db`. Sends use Messages.app's
 AppleScript interface. The relay does not use private frameworks or process

@@ -383,9 +383,12 @@ Start or reuse a group by supplying at least two other participants:
 
 Provide exactly one of `to`, `participants`, and `conversation_id`. A direct or
 new-group send requires `RELAY_SENDER_ACCOUNT_ID`. A conversation send uses the
-account ID stored on the conversation. Every resolved destination participant must match
-`RELAY_ALLOWED_RECIPIENTS`. Contact lookup never bypasses the allowlist. An
-ambiguous or missing contact name returns `400 invalid_destination`.
+account ID stored on the conversation. Every destination participant must match
+`RELAY_ALLOWED_RECIPIENTS`. If the relay cannot identify every stored participant
+in an existing conversation, it refuses the send rather than checking a partial
+list. This currently returns `503 database_unavailable`; a known but unlisted
+participant returns `403 disallowed_recipient`. Contact lookup never bypasses
+the allowlist. An ambiguous or missing contact name returns `400 invalid_destination`.
 
 The relay normalizes every group participant and rejects duplicates. It reuses
 one conversation whose normalized participant set matches exactly. If several
@@ -440,7 +443,8 @@ relay-owned uploaded media.
 one unique key for one logical send:
 
 - The same key and the same normalized request return the stored response. The
-  relay does not dispatch again.
+  relay does not dispatch again, even if an uploaded media file from the original
+  request is no longer available.
 - The same key with a changed destination, text, media list, or reply target
   returns `409 duplicate_request`.
 - Request state persists in `RELAY_STATE_DB_PATH`. The database stores a hash of
@@ -470,7 +474,7 @@ durable poll URL:
 | `pending` | The relay has not identified a provider result. Poll the request. |
 | `partial` | The relay has identified some requested content. Poll the request. |
 | `complete` | The relay has identified the text and every requested media item. |
-| `ambiguous` | The relay found conflicting evidence and did not guess. |
+| `ambiguous` | The relay cannot safely determine the result. It may have found conflicting evidence, or the send may have been interrupted before it could record a correlation checkpoint. |
 
 When correlation completes, `messages` contains every resulting Messages GUID
 and its lifecycle status. The top-level `status` summarizes those messages. It
@@ -519,9 +523,14 @@ has not identified every provider result.
 `correlation_status` is `pending` or `partial`. After identification, it reads
 every identified message again and updates the lifecycle statuses.
 
-`result_unknown` means the relay found ambiguous rows, observed a reply mismatch,
-or could not inspect the provider result. Do not retry that operation with a new
-idempotency key.
+If a send is interrupted, its durable request can have `status: result_unknown`
+and `correlation_status: pending` when the relay recorded a correlation checkpoint.
+Polling the request may identify a matching outgoing message, including after a
+relay restart. If there is no checkpoint, the correlation status is `ambiguous`
+and polling cannot identify the result automatically. An unknown result can also
+come from conflicting rows, a reply mismatch, or a failed provider inspection.
+Do not retry an uncertain operation with a new idempotency key. Reusing the
+original key returns the stored result without sending again.
 
 ## Upload and download media
 
