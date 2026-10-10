@@ -15,8 +15,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/hummingbird-project/hummingbird.git",
       "state" : {
-        "revision" : "55bc9025a4825ee2a234b1f82b51b87be6ef74e4",
-        "version" : "2.26.0"
+        "revision" : "f2a7f918ac422cbac049c4b5169c59b9d5a778a1",
+        "version" : "2.27.1"
       }
     },
     {
@@ -24,8 +24,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/PhoneNumberKit/PhoneNumberKit.git",
       "state" : {
-        "revision" : "38783049b71a4f774843341baa7ef5f4ceecfcaf",
-        "version" : "5.0.10"
+        "revision" : "df3bcccd1d88ba96fb89cccf51b84b7b6f7f53fe",
+        "version" : "5.0.12"
       }
     },
     {
@@ -159,8 +159,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-nio.git",
       "state" : {
-        "revision" : "0b18836bd8b0162e7e17a995a3fbee20ed8f3b2b",
-        "version" : "2.101.3"
+        "revision" : "6db9d9abd92ad7399b8a564cafbb87d3507245fa",
+        "version" : "2.104.0"
       }
     },
     {
