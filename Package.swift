@@ -12,6 +12,7 @@ let package = Package(
         .library(name: "RelayCore", targets: ["RelayCore"]),
     ],
     dependencies: [
+        .package(path: "Packages/HummingbirdOpenAPI"),
         .package(url: "https://github.com/hummingbird-project/hummingbird.git", from: "2.4.0"),
         .package(url: "https://github.com/apple/swift-nio.git", from: "2.80.0"),
         .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.8.2"),
@@ -27,6 +28,7 @@ let package = Package(
             name: "RelayCore",
             dependencies: [
                 "AttributedBodyBridge",
+                .product(name: "HummingbirdOpenAPIModels", package: "HummingbirdOpenAPI"),
                 .product(name: "NIOPosix", package: "swift-nio"),
                 .product(name: "PhoneNumberKit", package: "PhoneNumberKit"),
             ]
@@ -34,6 +36,8 @@ let package = Package(
         .target(
             name: "RelayServer",
             dependencies: [
+                .product(name: "HummingbirdOpenAPI", package: "HummingbirdOpenAPI"),
+                .product(name: "HummingbirdOpenAPIModels", package: "HummingbirdOpenAPI"),
                 .product(name: "Hummingbird", package: "hummingbird"),
                 .product(name: "HummingbirdRouter", package: "hummingbird"),
                 .product(name: "NIOCore", package: "swift-nio"),
@@ -41,6 +45,7 @@ let package = Package(
                 "RelayCore",
             ]
         ),
+        .executableTarget(name: "RelayOpenAPI", dependencies: ["RelayServer"]),
         .executableTarget(
             name: "RelayCLI",
             dependencies: [
@@ -63,6 +68,8 @@ let package = Package(
             name: "RelayServerTests",
             dependencies: [
                 .product(name: "HummingbirdTesting", package: "hummingbird"),
+                .product(name: "HummingbirdOpenAPI", package: "HummingbirdOpenAPI"),
+                .product(name: "HummingbirdOpenAPIModels", package: "HummingbirdOpenAPI"),
                 "RelayServer",
                 "RelayCore",
             ]

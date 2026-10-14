@@ -29,6 +29,14 @@ default: build
 @test-openapi:
     swift test --package-path Packages/HummingbirdOpenAPI --scratch-path .build/openapi-package
 
+# Generate the prototype OpenAPI document from the live route declarations.
+@openapi:
+    swift run RelayOpenAPI
+
+# Reject stale generated OpenAPI output.
+@check-openapi:
+    swift run RelayOpenAPI --check
+
 # Lint with SwiftLint.
 @lint:
     swiftlint lint --quiet
