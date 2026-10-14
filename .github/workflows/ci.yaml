@@ -75,5 +75,7 @@ jobs:
         run: just lint
       - name: Test
         run: just test
+      - name: Test Hummingbird OpenAPI package
+        run: just test-openapi
       - name: Build
         run: just build
