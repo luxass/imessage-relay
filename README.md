@@ -31,9 +31,9 @@ mv "iMessage Relay.app" /Applications/
 open "/Applications/iMessage Relay.app"
 ```
 
-The app requires macOS 14 or newer. It runs in the menu bar and registers itself
-as a login item when launched from `/Applications`. The relay binds to
-`127.0.0.1:8080` by default.
+The app requires macOS 14 or newer and runs in the menu bar. To start it at
+login, install it in `/Applications` and enable Launch at login in Settings.
+The relay binds to `127.0.0.1:8080` by default.
 
 <details>
 <summary>Install the CLI</summary><br/>
@@ -66,10 +66,18 @@ swift build
 
 ## Usage
 
-Grant **iMessage Relay** Full Disk Access in **System Settings > Privacy &
-Security**, then choose **Reload Configuration** from its menu. Use **Copy API
-Token** to copy the bearer token generated and stored in your login Keychain.
+Grant iMessage Relay Full Disk Access in System Settings > Privacy & Security.
+Finish setup, then open Settings > Status from the menu bar. Under API Token,
+choose Reveal, then Copy. The app stores the token in your login Keychain.
+Export it in each terminal that runs the examples:
+
+```sh
+export RELAY_TOKEN='paste-the-copied-token-here'
+```
+
 Add `-H "Authorization: Bearer $RELAY_TOKEN"` to every request.
+After editing the app configuration, choose Reload under Settings > Status >
+Configuration. If the relay is stopped, start it to apply the changes.
 
 The app creates `~/Library/Application Support/imessage-relay/config.json` with
 owner-only permissions. To send directly, set `senderAccountID` and add every
@@ -170,7 +178,7 @@ has Accessibility access. This check cannot request permission. Automation
 permission remains unknown until a text send is attempted.
 
 > [!TIP]
-> See the [API reference](docs/src/content/docs/api.md) for all endpoints, query parameters,
+> See the [API reference](docs/src/content/docs/api.mdx) for all endpoints, query parameters,
 > cursor behavior, and response details.
 
 Opaque conversation and message cursors belong to the database identity returned
@@ -280,5 +288,5 @@ Published under [MIT License](./LICENSE).
 [release-href]: https://github.com/luxass/imessage-relay/releases/latest
 [downloads-src]: https://img.shields.io/github/downloads/luxass/imessage-relay/total?style=flat&colorA=18181B&colorB=4169E1
 [downloads-href]: https://github.com/luxass/imessage-relay/releases
-[ci-src]: https://img.shields.io/github/actions/workflow/status/luxass/imessage-relay/ci.yml?branch=main&style=flat&label=ci&colorA=18181B&colorB=4169E1
-[ci-href]: https://github.com/luxass/imessage-relay/actions/workflows/ci.yml
+[ci-src]: https://img.shields.io/github/actions/workflow/status/luxass/imessage-relay/ci.yaml?branch=main&style=flat&label=ci&colorA=18181B&colorB=4169E1
+[ci-href]: https://github.com/luxass/imessage-relay/actions/workflows/ci.yaml

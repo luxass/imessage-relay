@@ -1,0 +1,23 @@
+---
+interface Props {
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE';
+  path: string;
+  status?: string;
+}
+const { method, path, status = '200 OK' } = Astro.props;
+---
+<div class="endpoint" aria-label={`${method} ${path}, success: ${status}`}>
+  <span class:list={['method', method.toLowerCase()]}>{method}</span>
+  <code>{path}</code>
+  <span class="status">{status}</span>
+</div>
+<style>
+  .endpoint { display: flex; align-items: center; flex-wrap: wrap; gap: .75rem; padding: 1rem; margin-block: 1rem; border: 1px solid var(--sl-color-gray-5); border-radius: .65rem; background: var(--sl-color-gray-6); }
+  .endpoint code { min-width: 0; overflow-wrap: anywhere; background: none; padding: 0; font-size: .85rem; }
+  .method { font: 700 .75rem var(--sl-font-system-mono); border: 1px solid currentColor; border-radius: .3rem; padding: .2rem .45rem; }
+  .get { color: var(--sl-color-green-high); background: var(--sl-color-green-low); }
+  .post { color: var(--sl-color-blue-high); background: var(--sl-color-blue-low); }
+  .put { color: var(--sl-color-orange-high); background: var(--sl-color-orange-low); }
+  .delete { color: var(--sl-color-red-high); background: var(--sl-color-red-low); }
+  .status { margin-inline-start: auto; color: var(--sl-color-gray-2); font-size: .75rem; white-space: nowrap; }
+</style>

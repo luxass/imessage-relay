@@ -12,6 +12,10 @@ Use `pnpm check` to check the project, `pnpm build` to build the static site, an
 
 Edit pages in `docs/src/content/docs/`. The Swift relay does not depend on this project.
 
+The single-page API reference lives in `docs/src/content/docs/api.mdx`.
+The endpoint navigator reads the badges on that page. The reference does not
+send live requests or store API tokens.
+
 `docs/public/openapi.json` is generated, not handwritten. The prototype covers
 `GET /v1/status` and `POST /v1/messages` only. Run `just openapi` to regenerate it
 and `just check-openapi` to reject stale output. Swift CI runs that check.
@@ -48,9 +52,9 @@ upload configuration without publishing, run:
 pnpm --filter imessage-relay-docs exec wrangler deploy --dry-run
 ```
 
-Set `SITE_URL` before building to generate the sitemap and canonical URLs. Workers
-Builds does not provide the Pages-specific `CF_PAGES_URL` fallback. Local builds
-can omit `SITE_URL`.
+The site defaults to `https://imessage-relay.luxass.dev` for its sitemap and
+canonical URLs. Set `SITE_URL` to use another deployment URL. Workers Builds
+does not provide the Pages-specific `CF_PAGES_URL` fallback.
 
 The site uses Workers Static Assets with Starlight's generated 404 page. It needs no Astro
 Cloudflare adapter, Worker entry point, or relay credentials. The relay runs on your Mac.
