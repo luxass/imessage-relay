@@ -1,14 +1,31 @@
 ---
 title: API reference
-description: The /v1 endpoints, request models, status values, and error contract.
+description: Requests, responses, and native Messages behavior in one place.
+tableOfContents:
+  maxHeadingLevel: 3
 ---
 
-`imessage-relay` listens on `http://127.0.0.1:8080` by default. Every endpoint uses
-the `/v1` prefix.
+import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+import ApiOverview from '../../components/ApiOverview.astro';
+import Endpoint from '../../components/Endpoint.astro';
+
+Read conversations, send messages, and follow live changes from your Mac.
+All routes use the `/v1` prefix. Requests, responses, and native Messages
+behavior stay together on this page.
+
+<ApiOverview />
+
+<Aside type="note" title="Generated OpenAPI prototype">
+  [Download the generated OpenAPI document](/openapi.json). It currently covers
+  only `GET /v1/status` and `POST /v1/messages`. Its structural schemas come from
+  the live Swift wire models. The remaining endpoints and business validation
+  rules are documented on this page but are not included in the prototype.
+</Aside>
 
 ## Authentication
 
-Every request requires the bearer token from `RELAY_TOKEN`:
+Every request requires a bearer token. The CLI reads it from `RELAY_TOKEN`.
+For the app, copy it from **Settings > Status > API Token**.
 
 ```http
 Authorization: Bearer <token>
@@ -16,35 +33,16 @@ Authorization: Bearer <token>
 
 A missing or invalid token returns `401 invalid_authentication`.
 
-## Endpoints
-
-| Method | Path | Purpose |
-| --- | --- | --- |
-| `GET` | `/v1/status` | Read service, database, and sender status. |
-| `GET` | `/v1/sender` | Read sender identity and capabilities. |
-| `GET` | `/v1/conversations` | Page through conversations. |
-| `GET` | `/v1/conversations/{conversation_id}` | Read one conversation. |
-| `GET` | `/v1/conversations/{conversation_id}/messages` | Page through messages. |
-| `PUT` | `/v1/conversations/{conversation_id}/read` | Mark a conversation as read. |
-| `PUT` | `/v1/conversations/{conversation_id}/typing` | Start or refresh a typing lease. |
-| `DELETE` | `/v1/conversations/{conversation_id}/typing` | Stop a typing lease. |
-| `GET` | `/v1/messages/{message_id}` | Read one message. |
-| `PUT` | `/v1/messages/{message_id}/reaction` | Set the local sender's reaction. |
-| `DELETE` | `/v1/messages/{message_id}/reaction` | Clear the local sender's reaction. |
-| `POST` | `/v1/messages` | Submit a message send. |
-| `GET` | `/v1/requests/{request_id}` | Read durable send request status. |
-| `POST` | `/v1/media` | Upload media. |
-| `GET` | `/v1/media/{media_id}` | Read metadata or download media. |
-| `GET` | `/v1/events` | Stream live message changes with server-sent events. |
-
 Public conversation IDs, message IDs, and Messages-owned media IDs are provider
 GUIDs. They are not SQLite row IDs.
 
-## Read service status
+## Status
 
-```http
-GET /v1/status
-```
+### Read service status
+
+<Endpoint method="GET" path="/v1/status" />
+
+<Endpoint method="GET" path="/v1/sender" />
 
 The response contains service health, database readiness and identity, and the
 sender status. The route does not run AppleScript or trigger an Automation
@@ -76,11 +74,11 @@ access. Automation remains `unknown` because probing it would contact Messages.
 Media, native replies, and reaction writes report `unavailable` until
 Accessibility permission is granted.
 
-## List conversations
+## Conversations
 
-```http
-GET /v1/conversations?limit=20&unread_only=false&participant=person@example.com&cursor=
-```
+### List conversations
+
+<Endpoint method="GET" path="/v1/conversations" />
 
 | Parameter | Default | Description |
 | --- | --- | --- |
@@ -106,99 +104,23 @@ The response uses the common page shape:
 }
 ```
 
+Omit `cursor` on the first request. An empty `cursor` returns `400 invalid_cursor`.
 Pass `next_cursor` unchanged to the same route and query. A cursor is opaque,
 versioned, route-specific, query-bound, and database-bound.
+See [Pagination](/pagination/) for ordering and empty continuation pages.
 
-## Mark a conversation as read
+### Read a conversation
 
-```http
-PUT /v1/conversations/{conversation_id}/read
-```
-
-The request has no body. It returns `applied` only after Messages performs the
-operation and `chat.db` reports zero unread messages. If the conversation is
-already read, it returns `unchanged` without invoking Accessibility:
-
-```json
-{
-  "request_id": "9bf177d3-cabb-41fe-bf44-e073d1a3113c",
-  "conversation_id": "any;-;person@example.com",
-  "status": "applied"
-}
-```
-
-The relay opens the conversation through a provider message GUID and verifies
-that Messages selected that message before invoking the mark-read shortcut. It
-never writes to `chat.db`. Messages may send a read receipt according to the
-Mac's Messages settings; this endpoint guarantees the local conversation state,
-not remote receipt delivery.
-
-A `502 read_result_unknown` response means the native action may have occurred,
-but the database did not confirm it. Refetch the conversation before retrying.
-The endpoint returns `503 messages_unavailable` when Accessibility permission
-is unavailable.
-
-## Send a typing indicator
-
-Start or refresh typing for an existing conversation:
-
-```http
-PUT /v1/conversations/{conversation_id}/typing
-```
-
-The request has no body. A successful response describes a five-second local
-lease:
-
-```json
-{
-  "request_id": "9bf177d3-cabb-41fe-bf44-e073d1a3113c",
-  "conversation_id": "any;-;person@example.com",
-  "status": "active",
-  "expires_at": "2026-09-17T18:30:05.000Z"
-}
-```
-
-Refresh the lease with another `PUT` approximately every three seconds. Stop it
-explicitly with:
-
-```http
-DELETE /v1/conversations/{conversation_id}/typing
-```
-
-The relay automatically stops an expired lease. It also stops active typing
-before sending a message, changing a reaction, marking a conversation read, or
-shutting down normally. There is only one relay-managed typing lease because
-the Mac has one Messages UI. Starting one conversation stops the previous one.
-
-The Accessibility provider opens an exact provider message GUID, verifies the
-selection, and places one space in the normal conversation composer. It never
-presses Return. It clears only that one-space value when stopping. Any other
-draft content returns `409 typing_conflict` without modifying the draft.
-
-`active` confirms only that the local composer contains the relay's typing
-marker. It cannot prove that a remote device displayed the indicator. A
-`502 typing_result_unknown` response means the local result could not be
-determined, and `503 messages_unavailable` means Accessibility is unavailable.
-Group typing requires macOS Tahoe or later.
-
-Leases are in memory and are not restored after a process crash. A normal
-shutdown clears the marker. Native timing still requires manual verification on
-the target Mac before the five-second duration is treated as final.
-
-## Read a conversation
-
-```http
-GET /v1/conversations/{conversation_id}
-```
+<Endpoint method="GET" path="/v1/conversations/{conversation_id}" />
 
 The endpoint returns `404 unknown_conversation` when no conversation has that
 provider GUID.
 
-## List messages
+## Messages
 
-```http
-GET /v1/conversations/{conversation_id}/messages?limit=50&include_attachments=true&q=hello&search_mode=contains
-```
+### List messages
+
+<Endpoint method="GET" path="/v1/conversations/{conversation_id}/messages" />
 
 | Parameter | Default | Description |
 | --- | --- | --- |
@@ -223,7 +145,7 @@ keeps two relationships separate:
 ```
 
 `thread_originator_message_id` identifies the first message in the native inline
-thread. The thread object is absent for a top-level message.
+thread. A top-level message returns `"thread": null`.
 
 On the tested macOS schema, `reply_to_guid` does not reliably identify the
 immediate parent. Messages uses it to chain ordinary top-level bubbles and can
@@ -234,7 +156,7 @@ column as a verified parent relationship. For inline-thread rows,
 `thread_originator_message_id` identifies the verified root. A send request
 still accepts the exact message to target in `reply_to.message_id`.
 
-### Native message metadata
+#### Native message metadata
 
 Message responses decode additional optional provider metadata:
 
@@ -253,7 +175,7 @@ responses fold a `com.apple.messages.URLBalloonProvider` row into the preceding
 same-sender text message as `url_preview`, avoiding a duplicate message. The
 preview metadata retains its own `message_id`, `provider_guid`, and timestamp.
 
-### Message parts
+#### Message parts
 
 The `parts` array preserves provider order for text and attachments when the
 Messages attributed body contains part metadata:
@@ -290,77 +212,33 @@ When a reaction target uses the provider form `p:<index>/<message-guid>`, the
 reaction contains `target_part_index`. Other reaction target forms return null
 for that field.
 
-## Read one message
+### Read one message
 
-```http
-GET /v1/messages/{message_id}
-```
+<Endpoint method="GET" path="/v1/messages/{message_id}" />
 
 The endpoint returns `404 unknown_message` when no message has that provider
 GUID.
 
-## Set or clear a reaction
+### Send a message
 
-Set the configured local sender's reaction on a message:
+<Endpoint method="POST" path="/v1/messages" status="202 Accepted" />
 
-```http
-PUT /v1/messages/{message_id}/reaction
-Content-Type: application/json
+Choose a destination. Direct and group sends accept phone numbers, email
+addresses, or unique Contacts names. Phone numbers use `RELAY_PHONE_REGION`.
 
-{
-  "reaction": "love"
-}
+<Tabs>
+<TabItem label="Direct message">
+
+```sh
+curl -sS http://127.0.0.1:8080/v1/messages \
+  -H "Authorization: Bearer $RELAY_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -H 'Idempotency-Key: client-operation-123' \
+  -d '{"to":"person@example.com","text":"Hello"}'
 ```
 
-The supported values are `love`, `like`, `dislike`, `laugh`, `emphasis`, and
-`question`. Sending the same `PUT` again is safe. The response status is
-`unchanged` when the requested reaction is already present.
-
-Clear the configured local sender's current reaction:
-
-```http
-DELETE /v1/messages/{message_id}/reaction
-```
-
-Deleting an absent reaction also returns `unchanged`. Both routes operate on
-the provider's default message part. They do not accept a part index.
-
-A changed reaction returns the resulting local reaction state:
-
-```json
-{
-  "request_id": "9bf177d3-cabb-41fe-bf44-e073d1a3113c",
-  "status": "applied",
-  "message_id": "message-provider-guid",
-  "reaction": "love"
-}
-```
-
-After a successful `DELETE`, `reaction` is null.
-
-Reaction writes use Accessibility and the same serialized operation queue as
-replies and media. The API returns success only after it observes the expected
-outgoing reaction row. A `502 reaction_result_unknown` response means Messages
-may have changed the reaction, but the database did not confirm it. Refetch the
-message before retrying.
-
-## Send a message
-
-Send to one phone number, email address, or unique Contacts name. Phone numbers
-are normalized with `RELAY_PHONE_REGION` before matching:
-
-```http
-POST /v1/messages
-Content-Type: application/json
-Idempotency-Key: client-operation-123
-
-{
-  "to": "+1 500 555 0006",
-  "text": "Hello"
-}
-```
-
-Send through an existing conversation's local iMessage account context:
+</TabItem>
+<TabItem label="Existing conversation">
 
 ```json
 {
@@ -369,17 +247,24 @@ Send through an existing conversation's local iMessage account context:
 }
 ```
 
-Start or reuse a group by supplying at least two other participants:
+Use the same POST route and headers as the direct-message example.
+The relay uses this conversation's local account context.
+
+</TabItem>
+<TabItem label="Group message">
 
 ```json
 {
-  "participants": [
-    "person@example.com",
-    "+1 500 555 0006"
-  ],
+  "participants": ["person@example.com", "+1 500 555 0006"],
   "text": "Hello everyone"
 }
 ```
+
+Use the same POST route and headers with a new idempotency key.
+Supply at least two other participants to start or reuse a group.
+
+</TabItem>
+</Tabs>
 
 Provide exactly one of `to`, `participants`, and `conversation_id`. A direct or
 new-group send requires `RELAY_SENDER_ACCOUNT_ID`. A conversation send uses the
@@ -417,7 +302,7 @@ The macOS sender uses Accessibility for `reply_to`. The relay returns
 `501 unsupported_capability` if Accessibility permission is unavailable. Reply
 sends require an existing conversation.
 
-### Uploaded media
+#### Uploaded media
 
 `POST /v1/media` stores files outside the Messages database. The macOS sender
 uses Accessibility to send uploaded files through an existing conversation.
@@ -437,10 +322,11 @@ The request model reserves this shape for a sender provider that supports media:
 A message request cannot contain an arbitrary local path. It can only refer to
 relay-owned uploaded media.
 
-### Retry a send safely
+#### Retry a send safely
 
-`Idempotency-Key` is optional and accepts 1 through 128 visible characters. Use
-one unique key for one logical send:
+`Idempotency-Key` is optional. The relay trims surrounding whitespace and treats
+an empty key as omitted. A nonempty key must contain no control characters and
+must fit within 128 UTF-8 bytes. Use one unique key for one logical send:
 
 - The same key and the same normalized request return the stored response. The
   relay does not dispatch again, even if an uploaded media file from the original
@@ -532,7 +418,142 @@ come from conflicting rows, a reply mismatch, or a failed provider inspection.
 Do not retry an uncertain operation with a new idempotency key. Reusing the
 original key returns the stored result without sending again.
 
-## Upload and download media
+### Poll a send request
+
+<Endpoint method="GET" path="/v1/requests/{request_id}" />
+
+Fetch the `poll_url` from a send response with the same bearer token.
+The response uses the same shape as `POST /v1/messages`.
+Poll while `correlation_status` is `pending` or `partial`.
+A missing request returns `404 unknown_request`.
+
+Use the original idempotency key after an uncertain send. A new key can send
+another message. Request state survives relay restarts, but event replay does not.
+
+## Conversation actions
+
+### Mark a conversation as read
+
+<Endpoint method="PUT" path="/v1/conversations/{conversation_id}/read" />
+
+The request has no body. It returns `applied` only after Messages performs the
+operation and `chat.db` reports zero unread messages. If the conversation is
+already read, it returns `unchanged` without invoking Accessibility:
+
+```json
+{
+  "request_id": "9bf177d3-cabb-41fe-bf44-e073d1a3113c",
+  "conversation_id": "any;-;person@example.com",
+  "status": "applied"
+}
+```
+
+The relay opens the conversation through a provider message GUID and verifies
+that Messages selected that message before invoking the mark-read shortcut. It
+never writes to `chat.db`. Messages may send a read receipt according to the
+Mac's Messages settings; this endpoint guarantees the local conversation state,
+not remote receipt delivery.
+
+A `502 read_result_unknown` response means the native action may have occurred,
+but the database did not confirm it. Refetch the conversation before retrying.
+The endpoint returns `503 messages_unavailable` when Accessibility permission
+is unavailable.
+
+### Send a typing indicator
+
+Start or refresh typing for an existing conversation:
+
+<Endpoint method="PUT" path="/v1/conversations/{conversation_id}/typing" />
+
+The request has no body. A successful response describes a five-second local
+lease:
+
+```json
+{
+  "request_id": "9bf177d3-cabb-41fe-bf44-e073d1a3113c",
+  "conversation_id": "any;-;person@example.com",
+  "status": "active",
+  "expires_at": "2026-09-17T18:30:05.000Z"
+}
+```
+
+Refresh the lease with another `PUT` approximately every three seconds. Stop it
+explicitly with:
+
+<Endpoint method="DELETE" path="/v1/conversations/{conversation_id}/typing" />
+
+The relay automatically stops an expired lease. It also stops active typing
+before sending a message, changing a reaction, marking a conversation read, or
+shutting down normally. There is only one relay-managed typing lease because
+the Mac has one Messages UI. Starting one conversation stops the previous one.
+
+The Accessibility provider opens an exact provider message GUID, verifies the
+selection, and places one space in the normal conversation composer. It never
+presses Return. It clears only that one-space value when stopping. Any other
+draft content returns `409 typing_conflict` without modifying the draft.
+
+`active` confirms only that the local composer contains the relay's typing
+marker. It cannot prove that a remote device displayed the indicator. A
+`502 typing_result_unknown` response means the local result could not be
+determined, and `503 messages_unavailable` means Accessibility is unavailable.
+Group typing requires macOS Tahoe or later.
+
+Leases are in memory and are not restored after a process crash. A normal
+shutdown clears the marker. Native timing still requires manual verification on
+the target Mac before the five-second duration is treated as final.
+
+### Set or clear a reaction
+
+<Endpoint method="PUT" path="/v1/messages/{message_id}/reaction" />
+
+Set the configured local sender's reaction on a message:
+
+```http
+PUT /v1/messages/{message_id}/reaction
+Content-Type: application/json
+
+{
+  "reaction": "love"
+}
+```
+
+The supported values are `love`, `like`, `dislike`, `laugh`, `emphasis`, and
+`question`. Sending the same `PUT` again is safe. The response status is
+`unchanged` when the requested reaction is already present.
+
+Clear the configured local sender's current reaction:
+
+<Endpoint method="DELETE" path="/v1/messages/{message_id}/reaction" />
+
+Deleting an absent reaction also returns `unchanged`. Both routes operate on
+the provider's default message part. They do not accept a part index.
+
+A changed reaction returns the resulting local reaction state:
+
+```json
+{
+  "request_id": "9bf177d3-cabb-41fe-bf44-e073d1a3113c",
+  "status": "applied",
+  "message_id": "message-provider-guid",
+  "reaction": "love"
+}
+```
+
+After a successful `DELETE`, `reaction` is null.
+
+Reaction writes use Accessibility and the same serialized operation queue as
+replies and media. The API returns success only after it observes the expected
+outgoing reaction row. A `502 reaction_result_unknown` response means Messages
+may have changed the reaction, but the database did not confirm it. Refetch the
+message before retrying.
+
+## Media and events
+
+### Upload and download media
+
+<Endpoint method="POST" path="/v1/media" status="201 Created" />
+
+<Endpoint method="GET" path="/v1/media/{media_id}" />
 
 Upload the raw request body:
 
@@ -556,7 +577,9 @@ Messages attachments are opened component by component without following
 symlinks. Pipes, non-regular files, and files with extra hard links are rejected.
 Downloads also stop if file identity, size, or timestamps change during a read.
 
-## Stream live events
+### Stream live events
+
+<Endpoint method="GET" path="/v1/events" status="200 · text/event-stream" />
 
 Open one authenticated server-sent event stream:
 
@@ -573,7 +596,16 @@ does not send messages or change the Messages database.
 
 Each data event carries an SSE `id`. The relay retains a bounded history for the
 current process. Reconnect with that value in `Last-Event-ID` to replay later
-events in order. Browser `EventSource` clients send this header automatically.
+events in order.
+
+<Aside type="caution" title="Browser authentication">
+  Native browser `EventSource` cannot set the required `Authorization` header.
+  Use a client that supports headers, or read the stream with `fetch` and an SSE
+  parser. An SSE parser separates event frames from arbitrary network chunks.
+  Store the latest event ID and set `Last-Event-ID` when reconnecting.
+  The relay does not provide CORS headers, so a browser application on another
+  origin also needs a same-origin proxy. Do not put the token in a URL.
+</Aside>
 
 Replay does not survive a relay restart and old cursors expire when they leave
 the bounded history. In either case the server sends `stream.reset` with

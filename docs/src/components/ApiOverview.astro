@@ -1,0 +1,60 @@
+---
+import reference from '../content/docs/api.mdx?raw';
+
+type Operation = { method: string; path: string; anchor: string };
+type Group = { name: string; operations: Operation[] };
+const groups: Group[] = [];
+let group: Group | undefined;
+let anchor = '';
+// Navigation comes from the page's endpoint badges, not a second API contract.
+for (const line of reference.split('\n')) {
+  const heading = line.match(/^(#{2,3}) (.+)$/);
+  if (heading?.[1] === '##') {
+    group = { name: heading[2], operations: [] };
+    groups.push(group);
+  } else if (heading?.[1] === '###') {
+    anchor = heading[2].toLowerCase().replace(/[^\w\s-]/g, '').replace(/\s+/g, '-');
+  }
+  const endpoint = line.match(/^<Endpoint method="(GET|POST|PUT|DELETE)" path="([^"]+)"/);
+  if (endpoint && group) {
+    group.operations.push({ method: endpoint[1].toLowerCase(), path: endpoint[2], anchor });
+  }
+}
+const endpointGroups = groups.filter(group => group.operations.length > 0);
+---
+<section class="api-overview" aria-label="API at a glance">
+  <div class="connection">
+    <div><span class="eyebrow">LOCAL API · V1</span><code>http://127.0.0.1:8080</code><p>Bearer authentication on every endpoint.</p></div>
+    <a class="download" href="/getting-started/">Getting started <span aria-hidden="true">→</span></a>
+  </div>
+  <nav class="groups" aria-label="Jump to an endpoint">
+    {endpointGroups.map(group => <div class="group">
+      <div class="group-heading"><span>{group.name}</span><span class="count">{group.operations.length} endpoints</span></div>
+      {group.operations.map(operation => <a href={`#${operation.anchor}`}>
+        <span class:list={['method', operation.method]}>{operation.method.toUpperCase()}</span>
+        <span class="path">{operation.path}</span><span class="arrow" aria-hidden="true">↗</span>
+      </a>)}
+    </div>)}
+  </nav>
+</section>
+<style>
+  .api-overview { margin-block: 1.5rem 2rem; }
+  .connection { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1.25rem; padding: 1.5rem; border: 1px solid var(--sl-color-gray-5); border-radius: .8rem; background: var(--sl-color-gray-6); }
+  .eyebrow { display: block; margin-bottom: .6rem; color: var(--sl-color-text-accent); font-size: .7rem; font-weight: 700; letter-spacing: .1em; }
+  .connection code { padding: 0; background: none; font-size: .95rem; overflow-wrap: anywhere; }
+  .connection p { margin: .5rem 0 0; font-size: .85rem; color: var(--sl-color-gray-2); }
+  .download { display: inline-flex; gap: .8rem; align-items: center; padding: .6rem .9rem; border-radius: .4rem; background: var(--sl-color-text-accent); color: var(--sl-color-black); text-decoration: none; font-size: .8rem; font-weight: 600; }
+  .groups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin-top: 1rem; }
+  .group { margin: 0; border: 1px solid var(--sl-color-gray-5); border-radius: .65rem; padding: .8rem; }
+  .group:last-child { grid-column: 1 / -1; }
+  .group-heading { display: flex; justify-content: space-between; gap: .5rem; padding: .25rem .4rem .75rem; font-weight: 600; font-size: .9rem; }
+  .count { color: var(--sl-color-gray-2); font-size: .75rem; font-weight: 400; }
+  .group a { margin: 0; display: flex; align-items: center; gap: .6rem; padding: .55rem .4rem; border-radius: .3rem; color: var(--sl-color-text); text-decoration: none; font-size: .8rem; }
+  .group a:hover { background: var(--sl-color-gray-6); }
+  a:focus-visible { outline: 2px solid var(--sl-color-text-accent); outline-offset: 3px; }
+  .method { min-width: 3.5rem; font: 700 .65rem var(--sl-font-system-mono); }
+  .get { color: var(--sl-color-green-high); } .post { color: var(--sl-color-blue-high); } .put { color: var(--sl-color-orange-high); } .delete { color: var(--sl-color-red-high); }
+  .path { min-width: 0; overflow-wrap: anywhere; font-family: var(--sl-font-system-mono); font-size: .7rem; }
+  .arrow { margin-inline-start: auto; color: var(--sl-color-gray-3); }
+  @media (max-width: 40rem) { .groups { grid-template-columns: 1fr; } .connection { padding: 1rem; } }
+</style>

@@ -2,7 +2,7 @@ import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 
 export default defineConfig({
-  site: process.env.SITE_URL || process.env.CF_PAGES_URL,
+  site: process.env.SITE_URL || process.env.CF_PAGES_URL || 'https://imessage-relay.luxass.dev',
   integrations: [
     starlight({
       title: 'imessage-relay',
