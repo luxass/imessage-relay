@@ -1,3 +1,5 @@
+import HummingbirdOpenAPIModels
+
 public enum DeliveryState: String, Codable, Equatable, Sendable {
     case unknown
     case notSent = "not_sent"
@@ -12,6 +14,7 @@ public enum ReadState: String, Codable, Equatable, Sendable {
     case read
 }
 
+@OpenAPIModel
 public enum MessageStatus: String, Codable, Equatable, Sendable {
     case accepted
     case queued
@@ -369,15 +372,6 @@ public struct SendMessageRequest: Codable, Equatable, Sendable {
     public let content: MessageContent
     public let replyTo: ReplyTarget?
 
-    private enum CodingKeys: String, CodingKey, CaseIterable {
-        case to
-        case participants
-        case conversationID = "conversation_id"
-        case text
-        case media
-        case replyTo = "reply_to"
-    }
-
     public init(
         destination: MessageDestination,
         content: MessageContent,
@@ -390,60 +384,20 @@ public struct SendMessageRequest: Codable, Equatable, Sendable {
 
     public init(from decoder: Decoder) throws {
         let raw = try decoder.container(keyedBy: AnyCodingKey.self)
-        let allowed = Set(CodingKeys.allCases.map(\.rawValue))
+        let allowed = Set(MessageSubmission.jsonPropertyNames)
         let unsupported = raw.allKeys.map(\.stringValue).filter { !allowed.contains($0) }
         guard unsupported.isEmpty else {
             throw ValidationError.unsupportedFields(unsupported.sorted())
         }
-
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        let conversationID = try container.decodeIfPresent(ConversationID.self, forKey: .conversationID)
-        let recipient = try container.decodeIfPresent(String.self, forKey: .to)
-            .map(RecipientHandle.resolvable(value:))
-        let rawParticipants = try container.decodeIfPresent([String].self, forKey: .participants)
-        let participants = try rawParticipants?.map(RecipientHandle.resolvable(value:))
-        let destinationCount = [conversationID != nil, recipient != nil, participants != nil]
-            .filter { $0 }.count
-        guard destinationCount > 0 else { throw ValidationError.missingDestination }
-        guard destinationCount == 1 else { throw ValidationError.ambiguousDestination }
-        if let conversationID {
-            destination = .conversation(conversationID)
-        } else if let recipient {
-            destination = .recipient(recipient)
-        } else if let participants {
-            guard participants.count >= 2 else { throw ValidationError.invalidParticipantCount }
-            var seen: Set<String> = []
-            for (index, participant) in participants.enumerated() {
-                let key = "\(participant.type.rawValue)\u{0}\(participant.value)"
-                guard seen.insert(key).inserted else {
-                    throw ValidationError.duplicateParticipant(index)
-                }
-            }
-            destination = .participants(participants)
-        } else {
-            throw ValidationError.missingDestination
-        }
-        content = MessageContent(
-            text: try container.decodeIfPresent(String.self, forKey: .text),
-            media: try container.decodeIfPresent([SendMediaReference].self, forKey: .media) ?? []
-        )
-        replyTo = try container.decodeIfPresent(ReplyTarget.self, forKey: .replyTo)
+        self = try MessageSubmission(from: decoder).validated()
     }
 
     public func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        switch destination {
-        case .conversation(let id): try container.encode(id, forKey: .conversationID)
-        case .recipient(let handle): try container.encode(handle.displayValue ?? handle.value, forKey: .to)
-        case .participants(let handles):
-            try container.encode(handles.map { $0.displayValue ?? $0.value }, forKey: .participants)
-        }
-        try container.encodeIfPresent(content.text, forKey: .text)
-        if !content.media.isEmpty { try container.encode(content.media, forKey: .media) }
-        try container.encodeIfPresent(replyTo, forKey: .replyTo)
+        try MessageSubmission(request: self).encode(to: encoder)
     }
 }
 
+@OpenAPIModel
 public enum SendCorrelationStatus: String, Codable, Equatable, Sendable {
     case pending
     case partial

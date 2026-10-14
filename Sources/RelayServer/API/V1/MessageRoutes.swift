@@ -1,17 +1,38 @@
 import Foundation
 import Hummingbird
+import HummingbirdOpenAPI
 import RelayCore
 
 struct MessageRoutes {
     let messages: MessageService
     let reactions: ReactionService
 
-    func register(on router: Router<RelayRequestContext>) {
+    static let idempotencyKey = StringHeader(
+        "Idempotency-Key", description: "Reuse this key for the same logical send. See the retry rules in the API reference."
+    )
+
+    func register(on router: Router<RelayRequestContext>, jsonRoutes: JSONRoutes<RelayRequestContext>) {
         router.get("/v1/messages/:message_id", use: get)
         router.get("/v1/requests/:request_id", use: getRequest)
-        router.post("/v1/messages", use: send)
+        Self.registerSend(on: jsonRoutes, use: send)
         router.put("/v1/messages/:message_id/reaction", use: setReaction)
         router.delete("/v1/messages/:message_id/reaction", use: clearReaction)
+    }
+
+    static func registerSend(
+        on routes: JSONRoutes<RelayRequestContext>,
+        use handler: @escaping @Sendable (MessageSubmission, Request, RelayRequestContext) async throws -> SendReceiptPayload
+    ) {
+        routes.post(
+            "/v1/messages",
+            info: .init(
+                operationID: "sendMessage", summary: "Send a message", tag: "Messages",
+                anchor: "send-a-message", headers: [idempotencyKey]
+            ),
+            status: .accepted,
+            maximumBodyBytes: { $0.maxUploadSize },
+            use: handler
+        )
     }
 
     @Sendable private func setReaction(
@@ -70,14 +91,14 @@ struct MessageRoutes {
         return try jsonResponse(try await messages.get(id: id), requestID: context.requestID)
     }
 
-    @Sendable private func send(_ request: Request, context: RelayRequestContext) async throws -> Response {
-        let body = try await request.body.collect(upTo: context.maxUploadSize)
+    @Sendable private func send(
+        _ submission: MessageSubmission,
+        request: Request,
+        context: RelayRequestContext
+    ) async throws -> SendReceiptPayload {
         let payload: SendMessageRequest
         do {
-            payload = try RelayJSON.decoder.decode(
-                SendMessageRequest.self,
-                from: Data(body.readableBytesView)
-            )
+            payload = try submission.validated()
         } catch SendMessageRequest.ValidationError.ambiguousDestination {
             throw RelayServiceError.ambiguousDestination
         } catch SendMessageRequest.ValidationError.missingDestination {
@@ -103,8 +124,8 @@ struct MessageRoutes {
         let result = try await messages.send(
             payload,
             requestID: context.requestID,
-            idempotencyKey: request.headers[.init("idempotency-key")!]
+            idempotencyKey: Self.idempotencyKey.value(in: request)
         )
-        return try jsonResponse(result, status: .accepted, requestID: context.requestID)
+        return SendReceiptPayload(result)
     }
 }

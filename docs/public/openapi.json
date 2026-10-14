@@ -1,0 +1,644 @@
+{
+  "components" : {
+    "schemas" : {
+      "RelayCore.APIErrorCode" : {
+        "enum" : [
+          "malformed_json",
+          "invalid_authentication",
+          "invalid_destination",
+          "ambiguous_destination",
+          "ambiguous_conversation",
+          "disallowed_recipient",
+          "unknown_conversation",
+          "unknown_message",
+          "unknown_media",
+          "unknown_request",
+          "unsupported_capability",
+          "sender_unavailable",
+          "database_unavailable",
+          "invalid_cursor",
+          "unsafe_media",
+          "media_too_large",
+          "duplicate_request",
+          "send_result_unknown",
+          "reaction_result_unknown",
+          "read_result_unknown",
+          "messages_unavailable",
+          "typing_conflict",
+          "typing_result_unknown",
+          "request_tracking_unavailable",
+          "invalid_request",
+          "internal_error",
+          "not_found"
+        ],
+        "type" : "string"
+      },
+      "RelayCore.APIFieldError" : {
+        "additionalProperties" : false,
+        "properties" : {
+          "field" : {
+            "type" : "string"
+          },
+          "message" : {
+            "type" : "string"
+          }
+        },
+        "required" : [
+          "field",
+          "message"
+        ],
+        "type" : "object"
+      },
+      "RelayCore.CapabilityAvailability" : {
+        "enum" : [
+          "available",
+          "unavailable",
+          "permission_unknown",
+          "unsupported"
+        ],
+        "type" : "string"
+      },
+      "RelayCore.DatabaseStatus" : {
+        "additionalProperties" : false,
+        "properties" : {
+          "error" : {
+            "anyOf" : [
+              {
+                "type" : "string"
+              },
+              {
+                "type" : "null"
+              }
+            ]
+          },
+          "identity" : {
+            "anyOf" : [
+              {
+                "type" : "string"
+              },
+              {
+                "type" : "null"
+              }
+            ]
+          },
+          "ready" : {
+            "type" : "boolean"
+          }
+        },
+        "required" : [
+          "ready"
+        ],
+        "type" : "object"
+      },
+      "RelayCore.MessageStatus" : {
+        "enum" : [
+          "accepted",
+          "queued",
+          "sending",
+          "sent",
+          "delivered",
+          "read",
+          "failed",
+          "unsupported",
+          "result_unknown"
+        ],
+        "type" : "string"
+      },
+      "RelayCore.MessageSubmission" : {
+        "additionalProperties" : false,
+        "properties" : {
+          "conversation_id" : {
+            "anyOf" : [
+              {
+                "type" : "string"
+              },
+              {
+                "type" : "null"
+              }
+            ]
+          },
+          "media" : {
+            "anyOf" : [
+              {
+                "items" : {
+                  "$ref" : "#/components/schemas/RelayCore.SubmittedMedia"
+                },
+                "type" : "array"
+              },
+              {
+                "type" : "null"
+              }
+            ]
+          },
+          "participants" : {
+            "anyOf" : [
+              {
+                "items" : {
+                  "type" : "string"
+                },
+                "type" : "array"
+              },
+              {
+                "type" : "null"
+              }
+            ]
+          },
+          "reply_to" : {
+            "anyOf" : [
+              {
+                "$ref" : "#/components/schemas/RelayCore.SubmittedReply"
+              },
+              {
+                "type" : "null"
+              }
+            ]
+          },
+          "text" : {
+            "anyOf" : [
+              {
+                "type" : "string"
+              },
+              {
+                "type" : "null"
+              }
+            ]
+          },
+          "to" : {
+            "anyOf" : [
+              {
+                "type" : "string"
+              },
+              {
+                "type" : "null"
+              }
+            ]
+          }
+        },
+        "required" : [
+
+        ],
+        "type" : "object"
+      },
+      "RelayCore.PermissionAvailability" : {
+        "enum" : [
+          "granted",
+          "not_granted",
+          "unknown"
+        ],
+        "type" : "string"
+      },
+      "RelayCore.RecipientHandleType" : {
+        "enum" : [
+          "phone",
+          "email",
+          "other"
+        ],
+        "type" : "string"
+      },
+      "RelayCore.SendCorrelationStatus" : {
+        "enum" : [
+          "pending",
+          "partial",
+          "complete",
+          "ambiguous"
+        ],
+        "type" : "string"
+      },
+      "RelayCore.SenderAvailability" : {
+        "enum" : [
+          "available",
+          "unavailable",
+          "permission_unknown"
+        ],
+        "type" : "string"
+      },
+      "RelayCore.SenderCapabilities" : {
+        "additionalProperties" : false,
+        "properties" : {
+          "group_creation" : {
+            "$ref" : "#/components/schemas/RelayCore.CapabilityAvailability"
+          },
+          "media" : {
+            "$ref" : "#/components/schemas/RelayCore.CapabilityAvailability"
+          },
+          "native_reply" : {
+            "$ref" : "#/components/schemas/RelayCore.CapabilityAvailability"
+          },
+          "reactions" : {
+            "$ref" : "#/components/schemas/RelayCore.CapabilityAvailability"
+          },
+          "text" : {
+            "$ref" : "#/components/schemas/RelayCore.CapabilityAvailability"
+          }
+        },
+        "required" : [
+          "group_creation",
+          "media",
+          "native_reply",
+          "reactions",
+          "text"
+        ],
+        "type" : "object"
+      },
+      "RelayCore.SenderPermissions" : {
+        "additionalProperties" : false,
+        "properties" : {
+          "accessibility" : {
+            "$ref" : "#/components/schemas/RelayCore.PermissionAvailability"
+          },
+          "automation" : {
+            "$ref" : "#/components/schemas/RelayCore.PermissionAvailability"
+          }
+        },
+        "required" : [
+          "accessibility",
+          "automation"
+        ],
+        "type" : "object"
+      },
+      "RelayCore.SubmittedMedia" : {
+        "additionalProperties" : false,
+        "properties" : {
+          "media_id" : {
+            "type" : "string"
+          }
+        },
+        "required" : [
+          "media_id"
+        ],
+        "type" : "object"
+      },
+      "RelayCore.SubmittedReply" : {
+        "additionalProperties" : false,
+        "properties" : {
+          "message_id" : {
+            "type" : "string"
+          }
+        },
+        "required" : [
+          "message_id"
+        ],
+        "type" : "object"
+      },
+      "RelayServer.ErrorPayload" : {
+        "additionalProperties" : false,
+        "properties" : {
+          "code" : {
+            "$ref" : "#/components/schemas/RelayCore.APIErrorCode"
+          },
+          "field_details" : {
+            "anyOf" : [
+              {
+                "items" : {
+                  "$ref" : "#/components/schemas/RelayCore.APIFieldError"
+                },
+                "type" : "array"
+              },
+              {
+                "type" : "null"
+              }
+            ]
+          },
+          "message" : {
+            "type" : "string"
+          },
+          "request_id" : {
+            "type" : "string"
+          }
+        },
+        "required" : [
+          "code",
+          "message",
+          "request_id"
+        ],
+        "type" : "object"
+      },
+      "RelayServer.HandlePayload" : {
+        "additionalProperties" : false,
+        "properties" : {
+          "display_value" : {
+            "anyOf" : [
+              {
+                "type" : "string"
+              },
+              {
+                "type" : "null"
+              }
+            ]
+          },
+          "type" : {
+            "$ref" : "#/components/schemas/RelayCore.RecipientHandleType"
+          },
+          "value" : {
+            "type" : "string"
+          }
+        },
+        "required" : [
+          "type",
+          "value"
+        ],
+        "type" : "object"
+      },
+      "RelayServer.MediaReceiptPayload" : {
+        "additionalProperties" : false,
+        "properties" : {
+          "media_id" : {
+            "anyOf" : [
+              {
+                "type" : "string"
+              },
+              {
+                "type" : "null"
+              }
+            ]
+          },
+          "message_id" : {
+            "anyOf" : [
+              {
+                "type" : "string"
+              },
+              {
+                "type" : "null"
+              }
+            ]
+          },
+          "requested_media_id" : {
+            "type" : "string"
+          }
+        },
+        "required" : [
+          "media_id",
+          "message_id",
+          "requested_media_id"
+        ],
+        "type" : "object"
+      },
+      "RelayServer.MessageReceiptPayload" : {
+        "additionalProperties" : false,
+        "properties" : {
+          "message_id" : {
+            "type" : "string"
+          },
+          "status" : {
+            "$ref" : "#/components/schemas/RelayCore.MessageStatus"
+          }
+        },
+        "required" : [
+          "message_id",
+          "status"
+        ],
+        "type" : "object"
+      },
+      "RelayServer.SendReceiptPayload" : {
+        "additionalProperties" : false,
+        "properties" : {
+          "conversation_id" : {
+            "anyOf" : [
+              {
+                "type" : "string"
+              },
+              {
+                "type" : "null"
+              }
+            ]
+          },
+          "correlation_status" : {
+            "$ref" : "#/components/schemas/RelayCore.SendCorrelationStatus"
+          },
+          "media" : {
+            "items" : {
+              "$ref" : "#/components/schemas/RelayServer.MediaReceiptPayload"
+            },
+            "type" : "array"
+          },
+          "messages" : {
+            "items" : {
+              "$ref" : "#/components/schemas/RelayServer.MessageReceiptPayload"
+            },
+            "type" : "array"
+          },
+          "poll_url" : {
+            "anyOf" : [
+              {
+                "type" : "string"
+              },
+              {
+                "type" : "null"
+              }
+            ]
+          },
+          "request_id" : {
+            "type" : "string"
+          },
+          "status" : {
+            "$ref" : "#/components/schemas/RelayCore.MessageStatus"
+          }
+        },
+        "required" : [
+          "correlation_status",
+          "media",
+          "messages",
+          "request_id",
+          "status"
+        ],
+        "type" : "object"
+      },
+      "RelayServer.SenderPayload" : {
+        "additionalProperties" : false,
+        "properties" : {
+          "account_identity" : {
+            "anyOf" : [
+              {
+                "type" : "string"
+              },
+              {
+                "type" : "null"
+              }
+            ]
+          },
+          "availability" : {
+            "$ref" : "#/components/schemas/RelayCore.SenderAvailability"
+          },
+          "capabilities" : {
+            "$ref" : "#/components/schemas/RelayCore.SenderCapabilities"
+          },
+          "configured" : {
+            "type" : "boolean"
+          },
+          "id" : {
+            "type" : "string"
+          },
+          "login" : {
+            "anyOf" : [
+              {
+                "$ref" : "#/components/schemas/RelayServer.HandlePayload"
+              },
+              {
+                "type" : "null"
+              }
+            ]
+          },
+          "permissions" : {
+            "$ref" : "#/components/schemas/RelayCore.SenderPermissions"
+          },
+          "reason" : {
+            "anyOf" : [
+              {
+                "type" : "string"
+              },
+              {
+                "type" : "null"
+              }
+            ]
+          }
+        },
+        "required" : [
+          "availability",
+          "capabilities",
+          "configured",
+          "id",
+          "permissions"
+        ],
+        "type" : "object"
+      },
+      "RelayServer.StatusPayload" : {
+        "additionalProperties" : false,
+        "properties" : {
+          "database" : {
+            "$ref" : "#/components/schemas/RelayCore.DatabaseStatus"
+          },
+          "healthy" : {
+            "type" : "boolean"
+          },
+          "sender" : {
+            "$ref" : "#/components/schemas/RelayServer.SenderPayload"
+          },
+          "version" : {
+            "type" : "string"
+          }
+        },
+        "required" : [
+          "database",
+          "healthy",
+          "sender",
+          "version"
+        ],
+        "type" : "object"
+      }
+    },
+    "securitySchemes" : {
+      "bearerAuth" : {
+        "scheme" : "bearer",
+        "type" : "http"
+      }
+    }
+  },
+  "info" : {
+    "description" : "GENERATED by swift run RelayOpenAPI. Do not edit.\nPrototype coverage: GET /v1/status and POST /v1/messages only.\nStructural schemas come from the live wire models. Destination rules,\nallowlists, permissions, and other business validation remain in the API reference.",
+    "title" : "imessage-relay: code-first OpenAPI prototype",
+    "version" : "v1"
+  },
+  "openapi" : "3.1.0",
+  "paths" : {
+    "/v1/messages" : {
+      "post" : {
+        "operationId" : "sendMessage",
+        "parameters" : [
+          {
+            "description" : "Reuse this key for the same logical send. See the retry rules in the API reference.",
+            "in" : "header",
+            "name" : "Idempotency-Key",
+            "required" : false,
+            "schema" : {
+              "type" : "string"
+            }
+          }
+        ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/RelayCore.MessageSubmission"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "202" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RelayServer.SendReceiptPayload"
+                }
+              }
+            },
+            "description" : "Accepted"
+          },
+          "default" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RelayServer.ErrorPayload"
+                }
+              }
+            },
+            "description" : "Error returned by the application's middleware."
+          }
+        },
+        "summary" : "Send a message",
+        "tags" : [
+          "Messages"
+        ],
+        "x-doc-anchor" : "send-a-message"
+      }
+    },
+    "/v1/status" : {
+      "get" : {
+        "operationId" : "getStatus",
+        "parameters" : [
+
+        ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RelayServer.StatusPayload"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RelayServer.ErrorPayload"
+                }
+              }
+            },
+            "description" : "Error returned by the application's middleware."
+          }
+        },
+        "summary" : "Read service status",
+        "tags" : [
+          "Status"
+        ],
+        "x-doc-anchor" : "read-service-status"
+      }
+    }
+  },
+  "security" : [
+    {
+      "bearerAuth" : [
+
+      ]
+    }
+  ],
+  "servers" : [
+    {
+      "url" : "http://127.0.0.1:8080"
+    }
+  ]
+}

@@ -12,6 +12,13 @@ Use `pnpm check` to check the project, `pnpm build` to build the static site, an
 
 Edit pages in `docs/src/content/docs/`. The Swift relay does not depend on this project.
 
+`docs/public/openapi.json` is generated, not handwritten. The prototype covers
+`GET /v1/status` and `POST /v1/messages` only. Run `just openapi` to regenerate it
+and `just check-openapi` to reject stale output. Swift CI runs that check.
+The docs build consumes the checked-in output and needs no Swift toolchain.
+See [the package guide](../Packages/HummingbirdOpenAPI/README.md) for the supported
+models and current limits.
+
 ## Cloudflare Workers
 
 Connect this repository to the `imsg-relay-docs` Worker using these build settings:
