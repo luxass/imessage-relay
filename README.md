@@ -229,6 +229,12 @@ pnpm dev
 
 Cloudflare Workers deployment settings are in the [docs setup guide](docs/README.md#cloudflare-workers).
 
+The local [HummingbirdOpenAPI package](Packages/HummingbirdOpenAPI/README.md)
+generates a prototype specification from the live status and message-send
+declarations and wire models. Run `just openapi` to regenerate it. Do not edit
+`docs/public/openapi.json` by hand. Run `just test-openapi` and
+`just check-openapi` to test the package and check generated output.
+
 ## Create a release archive
 
 Build and verify the universal archive locally:
