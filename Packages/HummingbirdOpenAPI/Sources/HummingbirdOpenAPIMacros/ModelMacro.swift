@@ -159,14 +159,14 @@ public struct ModelMacro: MemberMacro, ExtensionMacro {
             $0.decl.as(EnumDeclSyntax.self)?.name.text == "CodingKeys"
         }) {
             members.append(DeclSyntax(stringLiteral: """
-            private enum CodingKeys: String, CodingKey {
+            private enum CodingKeys: \(properties.isEmpty ? "" : "String, ")CodingKey {
                 \(properties.map { "case \($0.name)" }.joined(separator: "\n"))
             }
             """))
         }
         let encoding = properties.map { property in
             let method = property.optional && !encodeNil ? "encodeIfPresent" : "encode"
-            return "try container.\(method)(\(property.name), forKey: .\(property.name))"
+            return "try container.\(method)(self.\(property.name), forKey: .\(property.name))"
         }.joined(separator: "\n")
         let decoding = properties.map { property in
             let method = property.optional && !encodeNil ? "decodeIfPresent" : "decode"
@@ -175,13 +175,13 @@ public struct ModelMacro: MemberMacro, ExtensionMacro {
         }.joined(separator: "\n")
         members.append(DeclSyntax(stringLiteral: """
         public func encode(to encoder: Encoder) throws {
-            var container = encoder.container(keyedBy: CodingKeys.self)
+            \(properties.isEmpty ? "_ =" : "var container =") encoder.container(keyedBy: CodingKeys.self)
             \(encoding)
         }
         """))
         members.append(DeclSyntax(stringLiteral: """
         public init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
+            \(properties.isEmpty ? "_ =" : "let container =") try decoder.container(keyedBy: CodingKeys.self)
             \(decoding)
         }
         """))
