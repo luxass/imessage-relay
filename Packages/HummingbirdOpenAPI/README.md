@@ -98,8 +98,18 @@ with the same types when their real handlers need databases or native providers.
 ## Scope
 
 This is not a complete OpenAPI integration yet. The prototype supports JSON GET
-and POST routes and string path captures in `:name` form. Wildcards, duplicate
-routes, and duplicate operation IDs fail document generation.
+and POST routes and string path captures in `:name` form. Document paths omit
+empty segments, matching Hummingbird's handling of repeated and trailing slashes.
+Route registration fails fast: unsupported paths (including wildcards), duplicate
+routes, duplicate operation IDs, duplicate capture names, conflicting path
+templates (`/items/:id` vs `/items/:name`, even across HTTP methods), duplicate
+header names (case-insensitive), and invalid HTTP header names all throw at the
+`routes.get` / `routes.post` call. Document generation itself therefore cannot
+fail on route metadata.
+
+Headers are emitted as optional parameters by default; mark a header required
+with `StringHeader(name, description:, required: true)` to reflect that in the
+document.
 
 Summaries, tags, documentation anchors, and header descriptions remain route
 metadata. Authentication and error handling remain the application's middleware.

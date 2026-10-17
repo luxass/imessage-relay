@@ -30,12 +30,12 @@ private struct Errors: RouterMiddleware {
     }
 }
 
-private func configure(_ routes: JSONRoutes<BasicRequestContext>) {
-    routes.get("/health", info: .init(operationID: "health", summary: "Health", tag: "Status")) { _, _ in
+private func configure(_ routes: JSONRoutes<BasicRequestContext>) throws {
+    try routes.get("/health", info: try .init(operationID: "health", summary: "Health", tag: "Status")) { _, _ in
         Output(echo: "healthy")
     }
-    routes.post(
-        "/echo/:id", info: .init(operationID: "echo", summary: "Echo", tag: "Messages"), status: .accepted
+    try routes.post(
+        "/echo/:id", info: try .init(operationID: "echo", summary: "Echo", tag: "Messages"), status: .accepted
     ) { (input: Input, _, _) in
         Output(echo: input.text)
     }
@@ -45,9 +45,9 @@ private func configure(_ routes: JSONRoutes<BasicRequestContext>) {
     let router = Router(context: BasicRequestContext.self)
     router.middlewares.add(Errors())
     let live = JSONRoutes(router: router)
-    configure(live)
+    try configure(live)
     let recorder = JSONRoutes<BasicRequestContext>()
-    configure(recorder)
+    try configure(recorder)
     let liveDocument = try live.document(title: "Test", version: "1", serverURL: "http://localhost", errorModel: Failure.self)
     let recordedDocument = try recorder.document(title: "Test", version: "1", serverURL: "http://localhost", errorModel: Failure.self)
     #expect(try liveDocument.json() == recordedDocument.json())
@@ -72,16 +72,15 @@ private func configure(_ routes: JSONRoutes<BasicRequestContext>) {
     }
 }
 
-@Test func duplicateAndUnsupportedRoutesFailDocumentGeneration() {
+@Test func duplicateAndUnsupportedRoutesFailDocumentGeneration() throws {
     let duplicate = JSONRoutes<BasicRequestContext>()
-    configure(duplicate)
-    configure(duplicate)
+    try configure(duplicate)
     #expect(throws: JSONRoutes<BasicRequestContext>.DocumentError.self) {
-        try duplicate.document(title: "Test", version: "1", serverURL: "http://localhost", errorModel: Failure.self)
+        try configure(duplicate)
     }
+    _ = try? duplicate.document(title: "Test", version: "1", serverURL: "http://localhost", errorModel: Failure.self)
     let wildcard = JSONRoutes<BasicRequestContext>()
-    wildcard.get("/*", info: .init(operationID: "wildcard", summary: "Wildcard", tag: "Test")) { _, _ in Output(echo: "") }
     #expect(throws: JSONRoutes<BasicRequestContext>.DocumentError.self) {
-        try wildcard.document(title: "Test", version: "1", serverURL: "http://localhost", errorModel: Failure.self)
+        try wildcard.get("/*", info: try .init(operationID: "wildcard", summary: "Wildcard", tag: "Test")) { _, _ in Output(echo: "") }
     }
 }
