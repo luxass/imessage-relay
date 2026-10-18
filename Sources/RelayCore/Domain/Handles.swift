@@ -1,5 +1,7 @@
 import Foundation
+import HummingbirdOpenAPIModels
 
+@OpenAPIModel
 public enum RecipientHandleType: String, Codable, Equatable, Hashable, Sendable {
     case phone
     case email

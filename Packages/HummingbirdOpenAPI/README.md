@@ -92,8 +92,8 @@ calling the handler. Unknown JSON fields, including nested fields, throw
 error to an HTTP response. Response status codes come from the same declaration
 that sends the live response. Body size limits are enforced before decoding.
 
-The recorder never calls handlers. Applications can pass placeholder handlers
-with the same types when their real handlers need databases or native providers.
+The recorder never calls handlers. The relay exporter uses placeholder handlers
+with the same types, so it needs no database, native provider, or API token.
 
 ## Scope
 
@@ -127,8 +127,15 @@ From the repository root, run:
 
 ```sh
 just test-openapi
+just openapi
+just check-openapi
 ```
 
 The package has its own tests and dependency lockfile. Tests cover model
 changes, CodingKeys, enums, optional/null behavior, recursive schemas, rejected
 custom codecs, nested unknown fields, live handlers, and deterministic output.
+The relay tests compare the new payloads with the existing JSON representations.
+
+The relay pilot covers `GET /v1/status` and `POST /v1/messages`. Its other routes
+still use their existing handlers. Expand the pilot only after each route's
+wire format passes compatibility tests.

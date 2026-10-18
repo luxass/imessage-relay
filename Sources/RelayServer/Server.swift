@@ -1,6 +1,7 @@
 import Foundation
 import Hummingbird
 import HummingbirdRouter
+import HummingbirdOpenAPI
 import Logging
 import RelayCore
 import ServiceLifecycle
@@ -55,14 +56,18 @@ func buildRouter(
     router.middlewares.add(APIErrorMiddleware())
     router.middlewares.add(RequestIDMiddleware())
     router.middlewares.add(AuthenticationMiddleware(token: serverConfig.token))
-    StatusRoutes(database: dependencies.database, sender: dependencies.sender).register(on: router)
+    let jsonRoutes = JSONRoutes(router: router, responseHeaders: { context in
+        [.init("x-request-id")!: context.requestID.rawValue]
+    })
+    StatusRoutes(database: dependencies.database, sender: dependencies.sender).register(on: jsonRoutes)
     SenderRoutes(sender: dependencies.sender).register(on: router)
     ConversationRoutes(
         conversations: dependencies.conversations,
         messages: dependencies.messages,
         typing: dependencies.typing
     ).register(on: router)
-    MessageRoutes(messages: dependencies.messages, reactions: dependencies.reactions).register(on: router)
+    MessageRoutes(messages: dependencies.messages, reactions: dependencies.reactions)
+        .register(on: router, jsonRoutes: jsonRoutes)
     MediaRoutes(media: dependencies.media, maximumBytes: serverConfig.maximumMediaBytes)
         .register(on: router)
     EventRoutes(database: dependencies.database, events: dependencies.events).register(on: router)

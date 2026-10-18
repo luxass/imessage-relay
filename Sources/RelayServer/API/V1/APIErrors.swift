@@ -1,4 +1,5 @@
 import Hummingbird
+import HummingbirdOpenAPI
 import NIOCore
 import RelayCore
 
@@ -38,6 +39,10 @@ struct APIErrorMiddleware: RouterMiddleware {
         let mapped: APIHTTPError
         if let error = error as? APIHTTPError {
             mapped = error
+        } else if case JSONInputError.unknownFields(let fields) = error {
+            mapped = map(.invalidRequest(fields.map {
+                APIFieldError(field: $0, message: "This field is not supported.")
+            }))
         } else if let error = error as? RelayServiceError {
             mapped = map(error)
         } else if let error = error as? SQLiteStorageError {
@@ -104,10 +109,10 @@ struct APIErrorMiddleware: RouterMiddleware {
         context: RelayRequestContext
     ) throws -> Response {
         try jsonResponse(
-            APIError(
+            ErrorPayload(
                 code: error.code,
                 message: error.message,
-                requestID: context.requestID,
+                requestID: context.requestID.rawValue,
                 fieldDetails: error.fieldDetails
             ),
             status: error.status,
