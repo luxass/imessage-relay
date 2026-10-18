@@ -21,9 +21,13 @@ default: build
 @check-toolchain:
     ./scripts/check-swift-version.sh
 
-# Run the full test suite.
+# Run the relay test suite.
 @test:
     swift test
+
+# Test the independent Hummingbird OpenAPI package.
+@test-openapi:
+    swift test --package-path Packages/HummingbirdOpenAPI --scratch-path .build/openapi-package
 
 # Lint with SwiftLint.
 @lint:
