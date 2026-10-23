@@ -1,3 +1,6 @@
+import HummingbirdOpenAPIModels
+
+@OpenAPISchema
 public struct APIFieldError: Codable, Equatable, Sendable {
     public let field: String
     public let message: String

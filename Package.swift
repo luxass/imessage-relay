@@ -30,6 +30,8 @@ let package = Package(
             name: "RelayCore",
             dependencies: [
                 "AttributedBodyBridge",
+                "HummingbirdOpenAPIModels",
+                .product(name: "OpenAPIKit", package: "OpenAPIKit"),
                 .product(name: "NIOPosix", package: "swift-nio"),
                 .product(name: "PhoneNumberKit", package: "PhoneNumberKit"),
             ]
@@ -38,6 +40,9 @@ let package = Package(
             name: "RelayServer",
             dependencies: [
                 .product(name: "Hummingbird", package: "hummingbird"),
+                "HummingbirdOpenAPI",
+                "HummingbirdOpenAPIModels",
+                .product(name: "OpenAPIKit", package: "OpenAPIKit"),
                 .product(name: "HummingbirdRouter", package: "hummingbird"),
                 .product(name: "NIOCore", package: "swift-nio"),
                 .product(name: "NIOPosix", package: "swift-nio"),
@@ -90,6 +95,8 @@ let package = Package(
             name: "RelayServerTests",
             dependencies: [
                 .product(name: "HummingbirdTesting", package: "hummingbird"),
+                "HummingbirdOpenAPIModels",
+                .product(name: "OpenAPIKit", package: "OpenAPIKit"),
                 "RelayServer",
                 "RelayCore",
             ]

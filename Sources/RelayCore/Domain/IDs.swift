@@ -1,4 +1,5 @@
 import Foundation
+import HummingbirdOpenAPIModels
 
 public enum IdentifierValidationError: Error, Equatable, Sendable {
     case empty
@@ -13,7 +14,7 @@ private func validateIdentifier(_ value: String) throws -> String {
     return value
 }
 
-public protocol RelayIdentifier: Codable, Hashable, RawRepresentable, Sendable
+public protocol RelayIdentifier: Codable, Hashable, RawRepresentable, Sendable, OpenAPISchemaProviding
 where RawValue == String {
     init(validating value: String) throws
 }

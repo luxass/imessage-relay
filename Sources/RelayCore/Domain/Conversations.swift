@@ -1,3 +1,6 @@
+import HummingbirdOpenAPIModels
+
+@OpenAPISchema
 public struct Conversation: Codable, Equatable, Sendable {
     public let id: ConversationID
     public let providerGUID: String?
@@ -66,11 +69,13 @@ public struct ConversationSendContext: Equatable, Sendable {
     }
 }
 
+@OpenAPISchema
 public enum ConversationReadStatus: String, Codable, Equatable, Sendable {
     case applied
     case unchanged
 }
 
+@OpenAPISchema
 public struct ConversationReadResponse: Codable, Equatable, Sendable {
     public let requestID: RequestID
     public let conversationID: ConversationID

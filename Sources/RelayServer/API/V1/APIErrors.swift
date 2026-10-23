@@ -1,7 +1,9 @@
 import Hummingbird
+import HummingbirdOpenAPIModels
 import NIOCore
 import RelayCore
 
+@OpenAPISchema
 enum APIErrorCode: String, Codable, Equatable, Sendable {
     case malformedJSON = "malformed_json"
     case invalidAuthentication = "invalid_authentication"
@@ -32,6 +34,7 @@ enum APIErrorCode: String, Codable, Equatable, Sendable {
     case notFound = "not_found"
 }
 
+@OpenAPISchema
 struct APIError: Codable, Equatable, Sendable {
     let code: APIErrorCode
     let message: String

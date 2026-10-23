@@ -1,5 +1,6 @@
 import Foundation
 import Hummingbird
+import HummingbirdOpenAPI
 import NIOCore
 import RelayCore
 
@@ -8,11 +9,11 @@ struct MediaRoutes {
     let maximumBytes: Int64
 
     func register(on router: Router<RelayRequestContext>) {
-        router.post("/v1/media", use: upload)
-        router.get("/v1/media/:media_id", use: get)
+        Self.uploadEndpoint.register(on: router, use: upload)
+        Self.getEndpoint.register(on: router, use: get)
     }
 
-    @Sendable private func upload(_ request: Request, context: RelayRequestContext) async throws -> Response {
+    @Sendable private func upload(_ request: Request, context: RelayRequestContext) async throws -> JSONResponse<UploadMediaResponse> {
         guard let filename = request.headers[.init("x-filename")!] else {
             throw RelayServiceError.unsafeMedia("Provide the original filename in X-Filename.")
         }
@@ -26,7 +27,7 @@ struct MediaRoutes {
             mimeType: mimeType,
             data: Data(buffer.readableBytesView)
         )
-        return try jsonResponse(response, status: .created)
+        return relayJSONResponse(response, status: .created)
     }
 
     @Sendable private func get(_ request: Request, context: RelayRequestContext) async throws -> Response {

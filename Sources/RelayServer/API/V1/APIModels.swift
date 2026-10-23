@@ -1,5 +1,6 @@
 import Foundation
 import Hummingbird
+import HummingbirdOpenAPI
 import NIOCore
 import RelayCore
 
@@ -27,6 +28,18 @@ func decodeJSONBody<Body: Decodable>(_ type: Body.Type, from request: Request) a
         )
     }
     return try RelayJSON.decoder.decode(type, from: Data(body.readableBytesView))
+}
+
+/// Keeps the model type available to JSONEndpoint while preserving Relay's existing response bytes.
+/// Rendering delegates to jsonResponse, so RelayJSON and the status stay unchanged.
+/// This helper connects typed endpoint registration to the existing renderer. It adds no schema validation.
+func relayJSONResponse<Value: Encodable & Sendable>(
+    _ value: Value,
+    status: HTTPResponse.Status = .ok
+) -> JSONResponse<Value> {
+    JSONResponse(value, status: status) { value, status in
+        try jsonResponse(value, status: status)
+    }
 }
 
 enum V1Query {

@@ -1,4 +1,5 @@
 import Hummingbird
+import HummingbirdOpenAPI
 import RelayCore
 
 struct MessageRoutes {
@@ -6,20 +7,20 @@ struct MessageRoutes {
     let reactions: ReactionService
 
     func register(on router: Router<RelayRequestContext>) {
-        router.get("/v1/messages/:message_id", use: get)
-        router.get("/v1/requests/:request_id", use: getRequest)
-        router.post("/v1/messages", use: send)
-        router.put("/v1/messages/:message_id/reaction", use: setReaction)
-        router.delete("/v1/messages/:message_id/reaction", use: clearReaction)
+        Self.getEndpoint.register(on: router, use: get)
+        Self.requestEndpoint.register(on: router, use: getRequest)
+        Self.sendEndpoint.register(on: router, use: send)
+        Self.setReactionEndpoint.register(on: router, use: setReaction)
+        Self.clearReactionEndpoint.register(on: router, use: clearReaction)
     }
 
     @Sendable private func setReaction(
         _ request: Request,
         context: RelayRequestContext
-    ) async throws -> Response {
+    ) async throws -> JSONResponse<ReactionWriteResponse> {
         let messageID: MessageID = try pathID("message_id", context: context)
         let payload = try await decodeJSONBody(SetReactionRequest.self, from: request)
-        return try jsonResponse(
+        return relayJSONResponse(
             try await reactions.set(
                 messageID: messageID,
                 request: payload,
@@ -31,31 +32,31 @@ struct MessageRoutes {
     @Sendable private func clearReaction(
         _ request: Request,
         context: RelayRequestContext
-    ) async throws -> Response {
+    ) async throws -> JSONResponse<ReactionWriteResponse> {
         let messageID: MessageID = try pathID("message_id", context: context)
-        return try jsonResponse(try await reactions.clear(messageID: messageID, requestID: context.requestID))
+        return relayJSONResponse(try await reactions.clear(messageID: messageID, requestID: context.requestID))
     }
 
     @Sendable private func getRequest(
         _ request: Request,
         context: RelayRequestContext
-    ) async throws -> Response {
+    ) async throws -> JSONResponse<SendMessageResponse> {
         let id: RelayCore.RequestID = try pathID("request_id", context: context)
-        return try jsonResponse(try await messages.request(id: id))
+        return relayJSONResponse(try await messages.request(id: id))
     }
 
-    @Sendable private func get(_ request: Request, context: RelayRequestContext) async throws -> Response {
+    @Sendable private func get(_ request: Request, context: RelayRequestContext) async throws -> JSONResponse<Message> {
         let id: MessageID = try pathID("message_id", context: context)
-        return try jsonResponse(try await messages.get(id: id))
+        return relayJSONResponse(try await messages.get(id: id))
     }
 
-    @Sendable private func send(_ request: Request, context: RelayRequestContext) async throws -> Response {
+    @Sendable private func send(_ request: Request, context: RelayRequestContext) async throws -> JSONResponse<SendMessageResponse> {
         let payload = try await decodeJSONBody(SendMessageRequest.self, from: request)
         let result = try await messages.send(
             payload,
             requestID: context.requestID,
             idempotencyKey: request.headers[.init("idempotency-key")!]
         )
-        return try jsonResponse(result, status: .accepted)
+        return relayJSONResponse(result, status: .accepted)
     }
 }

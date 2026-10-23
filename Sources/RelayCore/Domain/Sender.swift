@@ -1,9 +1,13 @@
+import HummingbirdOpenAPIModels
+
+@OpenAPISchema
 public enum SenderAvailability: String, Codable, Equatable, Sendable {
     case available
     case unavailable
     case permissionUnknown = "permission_unknown"
 }
 
+@OpenAPISchema
 public enum CapabilityAvailability: String, Codable, Equatable, Sendable {
     case available
     case unavailable
@@ -11,12 +15,14 @@ public enum CapabilityAvailability: String, Codable, Equatable, Sendable {
     case unsupported
 }
 
+@OpenAPISchema
 public enum PermissionAvailability: String, Codable, Equatable, Sendable {
     case granted
     case notGranted = "not_granted"
     case unknown
 }
 
+@OpenAPISchema
 public struct SenderPermissions: Codable, Equatable, Sendable {
     public let automation: PermissionAvailability
     public let accessibility: PermissionAvailability
@@ -35,6 +41,7 @@ public struct SenderPermissions: Codable, Equatable, Sendable {
     )
 }
 
+@OpenAPISchema
 public struct SenderCapabilities: Codable, Equatable, Sendable {
     public let text: CapabilityAvailability
     public let media: CapabilityAvailability
@@ -63,6 +70,7 @@ public struct SenderCapabilities: Codable, Equatable, Sendable {
     }
 }
 
+@OpenAPISchema
 public struct Sender: Codable, Equatable, Sendable {
     public let id: SenderID
     public let accountIdentity: String?
@@ -100,6 +108,7 @@ public struct Sender: Codable, Equatable, Sendable {
     }
 }
 
+@OpenAPISchema
 public struct DatabaseStatus: Codable, Equatable, Sendable {
     public let ready: Bool
     public let identity: String?
@@ -112,6 +121,7 @@ public struct DatabaseStatus: Codable, Equatable, Sendable {
     }
 }
 
+@OpenAPISchema
 public struct ServiceStatus: Codable, Equatable, Sendable {
     public let version: String
     public let healthy: Bool
