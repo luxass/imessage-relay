@@ -1,5 +1,6 @@
 import Foundation
 import Hummingbird
+import HummingbirdOpenAPI
 import RelayCore
 
 struct MessageRoutes {
@@ -7,17 +8,17 @@ struct MessageRoutes {
     let reactions: ReactionService
 
     func register(on router: Router<RelayRequestContext>) {
-        router.get("/v1/messages/:message_id", use: get)
-        router.get("/v1/requests/:request_id", use: getRequest)
-        router.post("/v1/messages", use: send)
-        router.put("/v1/messages/:message_id/reaction", use: setReaction)
-        router.delete("/v1/messages/:message_id/reaction", use: clearReaction)
+        Self.getEndpoint.register(on: router, use: get)
+        Self.requestEndpoint.register(on: router, use: getRequest)
+        Self.sendEndpoint.register(on: router, use: send)
+        Self.setReactionEndpoint.register(on: router, use: setReaction)
+        Self.clearReactionEndpoint.register(on: router, use: clearReaction)
     }
 
     @Sendable private func setReaction(
         _ request: Request,
         context: RelayRequestContext
-    ) async throws -> Response {
+    ) async throws -> JSONResponse<ReactionWriteResponse> {
         let messageID = try MessageID(validating: pathValue("message_id", context: context))
         let body = try await request.body.collect(upTo: context.maxUploadSize)
         let payload: SetReactionRequest
@@ -34,7 +35,7 @@ struct MessageRoutes {
                 )
             ])
         }
-        return try jsonResponse(
+        return relayJSONResponse(
             try await reactions.set(
                 messageID: messageID,
                 request: payload,
@@ -47,9 +48,9 @@ struct MessageRoutes {
     @Sendable private func clearReaction(
         _ request: Request,
         context: RelayRequestContext
-    ) async throws -> Response {
+    ) async throws -> JSONResponse<ReactionWriteResponse> {
         let messageID = try MessageID(validating: pathValue("message_id", context: context))
-        return try jsonResponse(
+        return relayJSONResponse(
             try await reactions.clear(messageID: messageID, requestID: context.requestID),
             requestID: context.requestID
         )
@@ -58,19 +59,19 @@ struct MessageRoutes {
     @Sendable private func getRequest(
         _ request: Request,
         context: RelayRequestContext
-    ) async throws -> Response {
+    ) async throws -> JSONResponse<SendMessageResponse> {
         let raw = try pathValue("request_id", context: context)
         let id = try RequestID(validating: raw)
-        return try jsonResponse(try await messages.request(id: id), requestID: context.requestID)
+        return relayJSONResponse(try await messages.request(id: id), requestID: context.requestID)
     }
 
-    @Sendable private func get(_ request: Request, context: RelayRequestContext) async throws -> Response {
+    @Sendable private func get(_ request: Request, context: RelayRequestContext) async throws -> JSONResponse<Message> {
         let raw = try pathValue("message_id", context: context)
         let id = try MessageID(validating: raw)
-        return try jsonResponse(try await messages.get(id: id), requestID: context.requestID)
+        return relayJSONResponse(try await messages.get(id: id), requestID: context.requestID)
     }
 
-    @Sendable private func send(_ request: Request, context: RelayRequestContext) async throws -> Response {
+    @Sendable private func send(_ request: Request, context: RelayRequestContext) async throws -> JSONResponse<SendMessageResponse> {
         let body = try await request.body.collect(upTo: context.maxUploadSize)
         let payload: SendMessageRequest
         do {
@@ -105,6 +106,6 @@ struct MessageRoutes {
             requestID: context.requestID,
             idempotencyKey: request.headers[.init("idempotency-key")!]
         )
-        return try jsonResponse(result, status: .accepted, requestID: context.requestID)
+        return relayJSONResponse(result, status: .accepted, requestID: context.requestID)
     }
 }

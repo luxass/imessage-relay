@@ -1,3 +1,6 @@
+import HummingbirdOpenAPIModels
+
+@OpenAPISchema
 public struct PaginatedResponse<Element: Codable & Equatable & Sendable>: Codable, Equatable, Sendable {
     public let items: [Element]
     public let nextCursor: Cursor?

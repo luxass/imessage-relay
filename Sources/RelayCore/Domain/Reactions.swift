@@ -1,5 +1,7 @@
 import Foundation
+import HummingbirdOpenAPIModels
 
+@OpenAPISchema
 public enum WritableReaction: String, Codable, Equatable, Sendable {
     case love
     case like
@@ -9,6 +11,7 @@ public enum WritableReaction: String, Codable, Equatable, Sendable {
     case question
 }
 
+@OpenAPISchema(customCoding: .explicitPropertyRules)
 public struct SetReactionRequest: Codable, Equatable, Sendable {
     public enum ValidationError: Error, Equatable, Sendable {
         case invalidReaction
@@ -34,15 +37,18 @@ public struct SetReactionRequest: Codable, Equatable, Sendable {
     }
 }
 
+@OpenAPISchema
 public enum ReactionWriteStatus: String, Codable, Equatable, Sendable {
     case applied
     case unchanged
 }
 
+@OpenAPISchema(customCoding: .explicitPropertyRules)
 public struct ReactionWriteResponse: Codable, Equatable, Sendable {
     public let requestID: RequestID
     public let status: ReactionWriteStatus
     public let messageID: MessageID
+    @OpenAPIProperty(response: .requiredNullable)
     public let reaction: WritableReaction?
 
     private enum CodingKeys: String, CodingKey {

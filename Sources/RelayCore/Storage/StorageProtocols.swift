@@ -1,7 +1,8 @@
 import Darwin
 import Foundation
 
-public enum MessageSearchMode: String, Codable, Equatable, Sendable {
+/// CaseIterable supplies the documented search_mode values from the same cases accepted by the query parser.
+public enum MessageSearchMode: String, Codable, Equatable, Sendable, CaseIterable {
     case contains
     case exact
 }

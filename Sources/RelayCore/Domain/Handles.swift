@@ -1,11 +1,14 @@
 import Foundation
+import HummingbirdOpenAPIModels
 
+@OpenAPISchema
 public enum RecipientHandleType: String, Codable, Equatable, Hashable, Sendable {
     case phone
     case email
     case other
 }
 
+@OpenAPISchema(customCoding: .explicitPropertyRules)
 public struct RecipientHandle: Codable, Equatable, Hashable, Sendable {
     public enum ValidationError: Error, Equatable, Sendable {
         case empty

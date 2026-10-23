@@ -1,5 +1,9 @@
 import Foundation
+import HummingbirdOpenAPIModels
 
+/// Exported event names appear as event.const values in /v1/events' itemSchema variants.
+/// openAPISSEPayloadsMatchAllEmittedEventShapes compares them with this enum's macro-generated schema.
+@OpenAPISchema
 public enum RelayEventType: String, Codable, Equatable, Sendable {
     case streamReady = "stream.ready"
     case messageCreated = "message.created"
@@ -10,11 +14,13 @@ public enum RelayEventType: String, Codable, Equatable, Sendable {
     case streamReset = "stream.reset"
 }
 
+@OpenAPISchema
 public enum MessageChangedField: String, Codable, Equatable, Sendable {
     case deliveryState = "delivery_state"
     case readState = "read_state"
 }
 
+@OpenAPISchema
 public enum StreamResetReason: String, Codable, Equatable, Sendable {
     case databaseChanged = "database_changed"
     case observerFailed = "observer_failed"
@@ -40,6 +46,7 @@ public struct EventCursor: RawRepresentable, Codable, Equatable, Hashable, Senda
     }
 }
 
+@OpenAPISchema
 public struct StreamReadyEvent: Codable, Equatable, Sendable {
     public let databaseIdentity: String
     public let replaySupported: Bool
@@ -55,6 +62,7 @@ public struct StreamReadyEvent: Codable, Equatable, Sendable {
     }
 }
 
+@OpenAPISchema
 public struct MessageCreatedEvent: Codable, Equatable, Sendable {
     public let messageID: MessageID
     public let conversationID: ConversationID
@@ -81,6 +89,7 @@ public struct MessageCreatedEvent: Codable, Equatable, Sendable {
     }
 }
 
+@OpenAPISchema
 public struct MessageUpdatedEvent: Codable, Equatable, Sendable {
     public let messageID: MessageID
     public let conversationID: ConversationID
@@ -107,6 +116,7 @@ public struct MessageUpdatedEvent: Codable, Equatable, Sendable {
     }
 }
 
+@OpenAPISchema
 public struct ReactionChangedEvent: Codable, Equatable, Sendable {
     public let messageID: MessageID
     public let reactionID: MessageID
@@ -125,6 +135,7 @@ public struct ReactionChangedEvent: Codable, Equatable, Sendable {
     }
 }
 
+@OpenAPISchema
 public struct MediaAvailableEvent: Codable, Equatable, Sendable {
     public let messageID: MessageID
     public let mediaID: MediaID
@@ -143,6 +154,7 @@ public struct MediaAvailableEvent: Codable, Equatable, Sendable {
     }
 }
 
+@OpenAPISchema
 public struct StreamResetEvent: Codable, Equatable, Sendable {
     public let reason: StreamResetReason
     public let message: String
