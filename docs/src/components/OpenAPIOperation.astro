@@ -1,0 +1,143 @@
+---
+import OpenAPIFields from './OpenAPIFields.astro';
+import OpenAPIMedia from './OpenAPIMedia.astro';
+import OpenAPIMethod from './OpenAPIMethod.astro';
+import { operationTitle } from '../lib/api-document';
+import type { OperationView, ResponseGroup } from '../lib/openapi';
+
+interface Props {
+  operation: OperationView;
+}
+
+const { operation } = Astro.props;
+const security = operation.security.join(' or ');
+
+function responseDescription(group: ResponseGroup) {
+  if (group.statuses.length === 1) {
+    return group.statuses[0].description;
+  }
+
+  return group.success ? 'Response variants' : 'Error responses';
+}
+---
+
+<article class="min-w-0 overflow-hidden rounded-xl border border-(--sl-color-gray-5)">
+  <header class="space-y-4 border-b border-(--sl-color-gray-5) p-5 sm:p-6">
+    <div class="flex flex-wrap items-start justify-between gap-4">
+      <div class="min-w-0 space-y-1">
+        <div class="flex items-baseline gap-3">
+          <h2 id={operation.anchor} class="scroll-mt-24 text-lg font-semibold text-(--sl-color-white)">
+            {operationTitle(operation)}
+          </h2>
+          <a
+            href={'#' + operation.anchor}
+            aria-label={'Link to ' + operationTitle(operation)}
+            class="text-sm text-(--sl-color-gray-3) no-underline hover:text-(--sl-color-text-accent)"
+          >
+            #
+          </a>
+        </div>
+        {operation.id && (
+          <p class="text-xs text-(--sl-color-gray-3)">
+            <span class="sr-only">Operation ID: </span>
+            <code class="font-mono wrap-anywhere">{operation.id}</code>
+          </p>
+        )}
+      </div>
+
+      {operation.security.length === 0 ? (
+        <span class="text-xs text-(--sl-color-gray-3)">No authentication</span>
+      ) : (
+        <a
+          href="/api/#authentication"
+          aria-label={'Read authentication requirements for ' + security}
+          class="inline-flex items-center gap-2 rounded-md border border-(--sl-color-gray-5) px-3 py-1.5 text-xs text-(--sl-color-text-accent) no-underline hover:border-(--sl-color-text-accent) hover:bg-(--sl-color-gray-6)"
+        >
+          <svg class="size-3.5 shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+            <rect x="3" y="7" width="10" height="7" rx="2" />
+            <path d="M5 7V5a3 3 0 0 1 6 0v2" />
+          </svg>
+          <code class="font-mono">{security}</code>
+          <span aria-hidden="true">↗</span>
+        </a>
+      )}
+    </div>
+
+    <div class="flex min-w-0 items-start gap-3 rounded-lg bg-(--sl-color-gray-6) p-3">
+      <OpenAPIMethod method={operation.method} />
+      <code class="min-w-0 self-center font-mono text-sm wrap-anywhere text-(--sl-color-white)">
+        {operation.path}
+      </code>
+    </div>
+
+    {operation.description && <p class="text-sm leading-relaxed">{operation.description}</p>}
+  </header>
+
+  <div class="grid min-w-0 divide-y divide-(--sl-color-gray-5) xl:grid-cols-2 xl:divide-x xl:divide-y-0">
+    <section class="min-w-0 space-y-6 p-5 sm:p-6" aria-label="Request">
+      <h3 class="text-sm font-semibold text-(--sl-color-white)">Request</h3>
+
+      {operation.parameters.length > 0 && (
+        <OpenAPIFields fields={operation.parameters} />
+      )}
+
+      {operation.body ? (
+        <div class="space-y-3">
+          <h4 class="text-sm font-medium text-(--sl-color-white)">
+            Body <span class="ms-2 text-xs font-normal text-(--sl-color-gray-3)">
+              {operation.body.required ? 'Required' : 'Optional'}
+            </span>
+          </h4>
+          {operation.body.description && <p class="text-sm leading-relaxed">{operation.body.description}</p>}
+          <OpenAPIMedia media={operation.body.media} />
+        </div>
+      ) : operation.parameters.length === 0 && (
+        <p class="text-sm text-(--sl-color-gray-3)">No parameters or request body.</p>
+      )}
+    </section>
+
+    <section class="min-w-0 space-y-4 p-5 sm:p-6" aria-label="Responses">
+      <h3 class="text-sm font-semibold text-(--sl-color-white)">Responses</h3>
+
+      {operation.responses.map((group) => (
+        <details class="overflow-hidden rounded-lg border border-(--sl-color-gray-5)" open={group.success}>
+          <summary class="cursor-pointer px-4 py-3 text-sm">
+            <code class:list={[
+              'me-2 font-mono text-xs font-semibold',
+              group.success ? 'text-emerald-700 dark:text-emerald-300' : 'text-(--sl-color-gray-3)',
+            ]}>
+              {group.statuses.map((status) => status.code).join(', ')}
+            </code>
+            {responseDescription(group)}
+          </summary>
+
+          <div class="min-w-0 space-y-4 border-t border-(--sl-color-gray-5) p-4">
+            {group.statuses.length > 1 && (
+              <dl class="space-y-2 text-xs">
+                {group.statuses.map((status) => (
+                  <div class="grid grid-cols-[auto_1fr] gap-3">
+                    <dt class="font-mono font-semibold text-(--sl-color-white)">{status.code}</dt>
+                    <dd class="m-0">{status.description}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+            {group.headers.length > 0 && <OpenAPIFields fields={group.headers} />}
+            <OpenAPIMedia media={group.media} />
+          </div>
+        </details>
+      ))}
+
+      {operation.commonHeaders.length > 0 && (
+        <details class="rounded-lg border border-(--sl-color-gray-5)">
+          <summary class="cursor-pointer px-4 py-3 text-xs text-(--sl-color-gray-3)">
+            Headers on every response
+          </summary>
+          <div class="border-t border-(--sl-color-gray-5) p-4">
+            <OpenAPIFields fields={operation.commonHeaders} />
+          </div>
+        </details>
+      )}
+    </section>
+  </div>
+</article>

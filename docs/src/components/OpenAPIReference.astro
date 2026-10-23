@@ -1,0 +1,96 @@
+---
+import OpenAPIMethod from './OpenAPIMethod.astro';
+import { reference, resources, operationTitle } from '../lib/api-document';
+---
+
+<div class="api-reference not-content space-y-8">
+  <div class="flex flex-wrap items-center justify-between gap-4">
+    <p class="text-sm text-(--sl-color-gray-3)">
+      {reference.operations.length} endpoints
+      <span class="mx-2" aria-hidden="true">·</span>
+      API {reference.version}
+      <span class="mx-2" aria-hidden="true">·</span>
+      OpenAPI {reference.openapi}
+    </p>
+    <a
+      href="/openapi.json"
+      download
+      class="rounded-lg border border-(--sl-color-gray-5) px-4 py-2 text-sm font-medium text-(--sl-color-white) no-underline hover:border-(--sl-color-text-accent)"
+    >
+      Download OpenAPI JSON <span class="ms-1" aria-hidden="true">↓</span>
+    </a>
+  </div>
+
+  <p class="max-w-2xl text-base leading-relaxed">
+    Browse endpoints by resource. Each page includes request fields, response shapes, and links to model definitions.
+    For examples and native behavior, start with the <a class="text-(--sl-color-text-accent) underline underline-offset-4" href="/api-guide/">API basics</a>.
+  </p>
+
+  <div class="grid gap-4 md:grid-cols-2">
+    <section class="space-y-3 rounded-xl border border-(--sl-color-gray-5) bg-(--sl-color-gray-6) p-5">
+      <h2 class="text-sm font-semibold text-(--sl-color-white)">Base URL</h2>
+      {reference.servers.map((server) => <p class="font-mono text-sm wrap-anywhere">{server}</p>)}
+      <p class="text-xs text-(--sl-color-gray-3)">All endpoints use the /v1 prefix.</p>
+    </section>
+    <section id="authentication" class="scroll-mt-24 space-y-3 rounded-xl border border-(--sl-color-gray-5) bg-(--sl-color-gray-6) p-5 target:border-(--sl-color-text-accent)">
+      <h2 class="text-sm font-semibold text-(--sl-color-white)">Authentication</h2>
+      {reference.security.map((scheme) => (
+        <div class="space-y-2">
+          <p class="font-mono text-xs text-(--sl-color-gray-3)">{scheme.name}</p>
+          <p class="font-mono text-sm wrap-anywhere">{scheme.usage}</p>
+          {scheme.description && <p class="text-sm">{scheme.description}</p>}
+        </div>
+      ))}
+      <p class="text-xs text-(--sl-color-gray-3)">
+        Set your token in the <a class="text-(--sl-color-text-accent) underline underline-offset-4" href="/configuration/">relay configuration</a>.
+      </p>
+    </section>
+  </div>
+
+  <div class="grid items-start gap-5 lg:grid-cols-2">
+    {resources.map((resource) => (
+      <section class="min-w-0 overflow-hidden rounded-xl border border-(--sl-color-gray-5)">
+        <header class="space-y-2 border-b border-(--sl-color-gray-5) p-5">
+          <h2 class="flex items-center justify-between gap-3 text-lg font-semibold text-(--sl-color-white)">
+            <a class="text-inherit no-underline hover:text-(--sl-color-text-accent)" href={resource.href}>{resource.name}</a>
+            <span class="text-xs font-normal text-(--sl-color-gray-3)">{resource.operations.length} endpoints</span>
+          </h2>
+          <p class="text-sm leading-relaxed">{resource.description}</p>
+        </header>
+        <ul class="m-0 list-none divide-y divide-(--sl-color-gray-5) p-0">
+          {resource.operations.map((operation) => (
+            <li>
+              <a
+                href={resource.href + '#' + operation.anchor}
+                class="flex min-w-0 items-start gap-3 p-4 no-underline hover:bg-(--sl-color-gray-6)"
+              >
+                <OpenAPIMethod method={operation.method} />
+                <span class="min-w-0 space-y-1">
+                  <span class="block text-sm font-medium text-(--sl-color-white)">{operationTitle(operation)}</span>
+                  <code class="block font-mono text-xs wrap-anywhere text-(--sl-color-gray-3)">{operation.path}</code>
+                </span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </section>
+    ))}
+
+    <section class="space-y-4 rounded-xl border border-(--sl-color-gray-5) bg-(--sl-color-gray-6) p-5">
+      <h2 class="text-lg font-semibold text-(--sl-color-white)">
+        <a class="text-inherit no-underline hover:text-(--sl-color-text-accent)" href="/api/schemas/">Model schemas <span aria-hidden="true">↗</span></a>
+      </h2>
+      <p class="text-sm leading-relaxed">
+        Browse {reference.schemas.length} definitions for request and response fields, allowed values, and nested objects.
+      </p>
+      <p class="text-xs leading-relaxed text-(--sl-color-gray-3)">
+        Required fields must be present. Optional fields can be absent.
+        Null is accepted only where the schema includes it.
+      </p>
+    </section>
+  </div>
+
+  <p class="border-t border-(--sl-color-gray-5) pt-5 text-xs leading-relaxed text-(--sl-color-gray-3)">
+    Generated from Swift models and endpoint declarations. This reference does not send API requests.
+  </p>
+</div>

@@ -1,0 +1,46 @@
+---
+title: API basics
+description: Authenticate requests and choose a guide for your integration.
+---
+
+import { CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+The relay listens on `http://127.0.0.1:8080` by default. Every endpoint uses the `/v1` prefix.
+The [API reference](/api/) describes parameters and schemas. These guides explain how to use the API and handle native behavior.
+
+## Authentication
+
+Every request requires the bearer token from `RELAY_TOKEN`:
+
+```http
+Authorization: Bearer <token>
+```
+
+A missing or invalid token returns `401 invalid_authentication`.
+
+Public conversation IDs, message IDs, and Messages-owned media IDs are provider
+GUIDs. They are not SQLite row IDs.
+
+## Choose a guide
+
+<CardGrid>
+  <LinkCard title="Conversations" href="/guides/conversations/" description="Find conversations, mark them as read, and manage typing indicators." />
+  <LinkCard title="Messages and sending" href="/guides/messages/" description="Read messages, send text and media, update reactions, and retry safely." />
+  <LinkCard title="Uploads and downloads" href="/guides/media/" description="Upload raw bytes and safely download Messages attachments." />
+  <LinkCard title="Live events" href="/guides/events/" description="Follow changes, reconnect, and recover when event history expires." />
+  <LinkCard title="Service status" href="/guides/status/" description="Inspect database readiness and the sender's capabilities and permissions." />
+  <LinkCard title="Cursors and pagination" href="/pagination/" description="Read successive pages and understand when a cursor becomes invalid." />
+</CardGrid>
+
+## Handle errors
+
+Read [error responses](/guides/errors/) for the shared JSON error shape and HTTP status codes.
+Before retrying a send, read [retry behavior](/guides/messages/#retry-a-send-safely).
+For permission and database problems, use [troubleshooting](/troubleshooting/).
+
+## Compatibility
+
+The Messages database schema is private and changes between macOS releases. The
+current mapping was verified against the local macOS 27 schema. Startup schema
+checks fail when required tables or columns are missing. Optional columns follow the generated schema
+for null values or omitted fields. Unsupported capabilities are reported without invented values.

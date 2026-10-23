@@ -1,0 +1,43 @@
+---
+import type { GetStaticPaths, InferGetStaticPropsType } from 'astro';
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
+import OpenAPIOperation from '../../components/OpenAPIOperation.astro';
+import { reference, resources, operationTitle } from '../../lib/api-document';
+
+export const getStaticPaths = (() => resources.map((resource) => ({
+  params: { resource: resource.slug },
+  props: { resource },
+}))) satisfies GetStaticPaths;
+
+type Props = InferGetStaticPropsType<typeof getStaticPaths>;
+const { resource } = Astro.props;
+const headings = resource.operations.map((operation) => ({
+  depth: 2,
+  slug: operation.anchor,
+  text: operationTitle(operation),
+}));
+---
+
+<StarlightPage
+  frontmatter={{ title: resource.name, description: resource.description }}
+  headings={headings}
+>
+  <div class="api-reference not-content space-y-8">
+    <div class="flex flex-wrap items-start justify-between gap-4">
+      <div class="space-y-2">
+        <p class="text-base leading-relaxed">{resource.description}</p>
+        <p class="text-xs text-(--sl-color-gray-3)">
+          {resource.operations.length} endpoints <span class="mx-2" aria-hidden="true">·</span> API {reference.version}
+        </p>
+      </div>
+      <a
+        href={resource.guide}
+        class="rounded-lg border border-(--sl-color-gray-5) px-4 py-2 text-sm font-medium text-(--sl-color-white) no-underline hover:border-(--sl-color-text-accent)"
+      >
+        Read the usage guide <span class="ms-1" aria-hidden="true">↗</span>
+      </a>
+    </div>
+
+    {resource.operations.map((operation) => <OpenAPIOperation operation={operation} />)}
+  </div>
+</StarlightPage>

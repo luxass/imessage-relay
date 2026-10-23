@@ -12,6 +12,24 @@ Use `pnpm check` to check the project, `pnpm build` to build the static site, an
 
 Edit pages in `docs/src/content/docs/`. The Swift relay does not depend on this project.
 
+## Styling
+
+Use Tailwind utility classes in Astro components. `src/styles/global.css` loads the theme and utilities.
+It skips Tailwind's global reset (Preflight), so Starlight keeps its existing styles.
+Use Starlight's `--sl-*` color variables to match the light and dark themes.
+
+## Generated API reference
+
+The API pages render `docs/public/openapi.json`, which Swift models and endpoint declarations generate.
+Do not edit that file by hand. Read [Development](./src/content/docs/development.md) for the commands that regenerate and check it.
+Cloudflare builds from the committed file and does not need Swift. The build also publishes it at `/openapi.json`.
+
+`src/lib/api-document.ts` groups operations by resource for the sidebar, overview, and resource pages.
+`src/lib/openapi.ts` turns the document into display data once at build time, so the Astro templates never read raw OpenAPI JSON.
+Schema references link to their definitions on `/api/schemas/` instead of expanding inline.
+
+The OpenAPI 3.2 types in `src/vendor/openapi3-ts/` are vendored from `openapi3-ts`, with its pinned revision and MIT license.
+
 ## Cloudflare Workers
 
 Connect this repository to the `imsg-relay-docs` Worker using these build settings:
