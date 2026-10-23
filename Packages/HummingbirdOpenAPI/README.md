@@ -116,4 +116,4 @@ Export works without Relay environment variables, database access, or Messages p
 
 Tests cover macro expansions and diagnostics, property presence and nulls, generic models, recursive references, registration, media, and SSE.
 Relay tests compare exported operations with the live router and compare schemas with actual encoded fixtures.
-No code from PR #36 was copied.
+The docs render the generated JSON with existing Astro components. No code from PR #36 was copied.

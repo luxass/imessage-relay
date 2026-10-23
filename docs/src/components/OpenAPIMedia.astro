@@ -1,0 +1,49 @@
+---
+import OpenAPISchema from './OpenAPISchema.astro';
+import type { MediaView } from '../lib/openapi';
+
+interface Props {
+  media: MediaView[];
+}
+
+const { media } = Astro.props;
+---
+
+{
+  media.map((content) => (
+    <section class="min-w-0 space-y-3">
+      <p class="text-xs text-(--sl-color-gray-3)">
+        Content type <code class="ms-1 font-mono">{content.type}</code>
+      </p>
+
+      {content.schema && <OpenAPISchema schema={content.schema} />}
+
+      {content.itemSchema && (
+        <div class="space-y-3">
+          <p class="text-sm font-medium text-(--sl-color-white)">Stream frame</p>
+          <OpenAPISchema schema={content.itemSchema} />
+        </div>
+      )}
+
+      {!content.schema && !content.itemSchema && (
+        <p class="text-sm">Raw bytes. No JSON schema applies.</p>
+      )}
+
+      {content.examples.map((example) => (
+        <details class="rounded-lg border border-(--sl-color-gray-5)">
+          <summary class="cursor-pointer px-4 py-2.5 text-xs font-medium">{example.name}</summary>
+          <div class="space-y-3 border-t border-(--sl-color-gray-5) p-4">
+            {example.value !== undefined && (
+              <pre class="overflow-x-auto text-xs"><code>{example.value}</code></pre>
+            )}
+            {example.externalURL && (
+              <a class="text-sm text-(--sl-color-text-accent) underline underline-offset-4" href={example.externalURL}>
+                Read the external example
+              </a>
+            )}
+          </div>
+        </details>
+      ))}
+    </section>
+  ))
+}

@@ -1,0 +1,46 @@
+---
+title: iMessage Relay
+description: Read and send Apple Messages through a local HTTP API on macOS.
+tableOfContents: false
+hero:
+  title: Apple Messages. A local API.
+  tagline: Read conversations, send messages, download attachments, and follow live events from your Mac.
+  actions:
+    - text: Install and run
+      link: /getting-started/
+      variant: primary
+    - text: Explore the API
+      link: /api/
+      variant: secondary
+---
+
+import { CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+## Choose your next step
+
+<CardGrid>
+  <LinkCard title="Set up your Mac" href="/getting-started/" description="Install the relay, grant macOS permissions, and make your first request." />
+  <LinkCard title="Build an integration" href="/api-guide/" description="Set up authentication, then follow guides for messages, media, and events." />
+  <LinkCard title="Look up an endpoint" href="/api/" description="Browse request fields, response shapes, and generated model definitions." />
+  <LinkCard title="Resolve a problem" href="/troubleshooting/" description="Understand permissions, database access, and uncertain native results." />
+</CardGrid>
+
+## How the relay works
+
+The relay runs on macOS 14 or newer. Reads use your local Messages database.
+Sends use Messages.app. The relay does not use private frameworks or process injection.
+
+The HTTP server listens on `http://127.0.0.1:8080` by default. Every request requires your bearer token.
+The relay process needs Full Disk Access to read Messages.
+Read the [configuration guide](/configuration/) before changing its listening address or allowed recipients.
+
+## Common tasks
+
+<CardGrid>
+  <LinkCard title="Send a message" href="/guides/messages/#send-a-message" description="Choose a destination, send text, and track the result without sending twice." />
+  <LinkCard title="Follow live changes" href="/guides/events/" description="Connect to the event stream and resume after a disconnect." />
+  <LinkCard title="Upload or download a file" href="/guides/media/" description="Store files for sending or retrieve a Messages attachment." />
+  <LinkCard title="Read sender capabilities" href="/guides/status/" description="Find out which operations the Mac can perform before calling them." />
+</CardGrid>
+
+Source code and releases are available on [GitHub](https://github.com/luxass/imessage-relay).

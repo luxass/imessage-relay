@@ -1,0 +1,62 @@
+---
+import OpenAPISchema from './OpenAPISchema.astro';
+import OpenAPIMedia from './OpenAPIMedia.astro';
+import type { FieldView } from '../lib/openapi';
+
+interface Props {
+  fields: FieldView[];
+}
+
+const { fields } = Astro.props;
+const groups = Map.groupBy(fields, (field) => field.location ?? '');
+const locations: Record<string, string> = {
+  path: 'Path parameters',
+  query: 'Query parameters',
+  header: 'Request headers',
+  cookie: 'Cookies',
+  querystring: 'Query string',
+};
+---
+
+<div class="space-y-5">
+  {
+    [...groups].map(([location, fields]) => (
+      <div class="space-y-3">
+        {location && (
+          <h4 class="text-xs font-medium text-(--sl-color-gray-3)">
+            {locations[location] ?? location}
+          </h4>
+        )}
+
+        <dl class="space-y-3">
+          {fields.map((field) => (
+            <div class="space-y-3 rounded-lg bg-(--sl-color-gray-6) p-4">
+              <dt class="flex flex-wrap items-center gap-2">
+                <code class="min-w-0 font-mono text-sm font-semibold wrap-anywhere text-(--sl-color-white)">
+                  {field.name}
+                </code>
+                {field.schema?.type && (
+                  <span class="font-mono text-xs text-(--sl-color-gray-3)">{field.schema.type}</span>
+                )}
+                <span class:list={[
+                  'ms-auto rounded px-2 py-0.5 text-xs',
+                  field.required
+                    ? 'bg-(--sl-color-accent-low) text-(--sl-color-text-accent)'
+                    : 'bg-(--sl-color-bg) text-(--sl-color-gray-3)',
+                ]}>
+                  {field.required ? 'Required' : 'Optional'}
+                </span>
+              </dt>
+
+              <dd class="m-0 min-w-0 space-y-3">
+                {field.description && <p class="text-sm leading-relaxed">{field.description}</p>}
+                {field.schema && <OpenAPISchema schema={field.schema} compact />}
+                {field.media.length > 0 && <OpenAPIMedia media={field.media} />}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+    ))
+  }
+</div>

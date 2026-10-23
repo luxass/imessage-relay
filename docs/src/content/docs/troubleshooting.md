@@ -30,7 +30,7 @@ Attachment sends use Accessibility and require an existing conversation. Grant
 Accessibility permission to the process that runs `imessage-relay`. Direct media
 sends to `to` are unsupported.
 
-See [send errors](/api/#retry-a-send-safely) before retrying. A `502` response
+See [send errors](/guides/messages/#retry-a-send-safely) before retrying. A `502` response
 with `send_result_unknown`, or a request status of `result_unknown` after an
 interruption, means the outcome is uncertain. Poll the original `request_id` to
 check for a matching provider message. Do not retry with a new idempotency key.
