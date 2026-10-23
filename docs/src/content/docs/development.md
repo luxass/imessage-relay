@@ -15,6 +15,31 @@ just test
 just build
 ```
 
+## Generate the OpenAPI reference
+
+Swift declarations generate the API description. The documentation site renders the committed JSON file.
+After an API model, endpoint, or version changes, run:
+
+```sh
+just openapi
+just test
+pnpm check
+pnpm build
+```
+
+Commit `docs/public/openapi.json` with its source changes. Do not edit the generated file by hand.
+Export does not start the relay or require configuration, Messages access, or database files.
+
+Release Please updates `info.version` through its native JSONPath updater.
+`just test` fails when the committed file differs from the generated JSON content. It ignores whitespace and object-key order.
+
+Ordinary Codable models use `@OpenAPISchema`. Custom codecs need an explicit schema strategy or a manual provider.
+The macro does not replace serialization or business validation.
+Read `Sources/HummingbirdOpenAPI/README.md` for model and endpoint examples.
+
+The exporter targets OpenAPI 3.2.1. Client generators have uneven support for 3.2, especially streaming schemas.
+Make sure that a client tool supports the features that it consumes.
+
 ## Run the app locally
 
 `swift run` launches the binary without an app bundle, so activation,

@@ -12,6 +12,11 @@
         {
           "type": "generic",
           "path": "Sources/RelayServer/Server.swift"
+        },
+        {
+          "type": "json",
+          "path": "docs/public/openapi.json",
+          "jsonpath": "$.info.version"
         }
       ]
     }
