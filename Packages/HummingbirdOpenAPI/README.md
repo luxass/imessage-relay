@@ -2,7 +2,7 @@
 
 Code-first OpenAPI generation for Hummingbird 2. Models describe their JSON fields once. Endpoint values supply both route registration and OpenAPI operations.
 
-The package has no application-specific dependency. Typed and raw endpoints cover JSON, binary bodies, and server-sent events.
+The package has no RelayCore dependency. Relay uses it for all 16 API operations, including raw media bodies and server-sent events.
 The package targets Swift 6.3 or newer. Its implementation uses portable Swift APIs rather than macOS services.
 
 ## Model declaration
@@ -30,7 +30,7 @@ Supported models include String/Int raw-value enums, structs, generic structs, S
 Recursive models use references. Generic specializations have separate stable component names.
 The registry rejects name collisions and rolls back failed expansions. Use `@OpenAPISchema(name: "UniqueName")` to select a name.
 
-Automatic derivation rejects custom codecs unless the author selects `customCoding: .explicitPropertyRules`. This selection asserts that property types and CodingKeys describe the custom wire shape. It does not inspect arbitrary codec bodies or infer business validation.
+Automatic derivation rejects custom codecs unless the author selects `customCoding: .explicitPropertyRules`. This selection asserts that property types and CodingKeys describe the custom wire shape. It does not inspect arbitrary codec bodies or infer business validation. Relay's `RecipientHandle` uses this selection for its existing keyed decoder and synthesized encoder.
 
 Use a manual provider for a different wire shape. For example, Relay's `Timestamp` stores a Date but encodes an ISO 8601 string:
 
@@ -78,7 +78,7 @@ builder.add(greeting)
 let json = try builder.encodedJSON()
 ```
 
-Live registration uses `greeting.register(on: router, use: handler)`. The handler must return `JSONResponse<Greeting>`. The response wrapper takes an application-supplied renderer. Use a renderer to retain application codecs, response headers, and request identifiers.
+Live registration uses `greeting.register(on: router, use: handler)`. The handler must return `JSONResponse<Greeting>`. The response wrapper takes an application-supplied renderer. Relay uses this renderer to retain `RelayJSON`, response headers, and request IDs.
 
 The document builder emits OpenAPI 3.2.1 through OpenAPIKit. It rejects duplicate operations, duplicate response codes, incomplete definitions, and unsupported paths. OpenAPIKit checks document structure and references. It does not validate arbitrary JSON instances against Draft 2020-12.
 
@@ -101,12 +101,19 @@ The adapter does not modify examples or defaults.
 OpenAPI 3.2 support varies between downstream tools. No 3.1 compatibility output is provided.
 The package generates documentation, not runtime request validation or client/server code.
 
-## Tests
+## Relay export and tests
 
-Run the standalone package tests from the repository root:
+Run these commands from the repository root:
 
 ```sh
+swift run imessage-relay-openapi --output docs/public/openapi.json
+swift run imessage-relay-openapi --check docs/public/openapi.json
 swift test --package-path Packages/HummingbirdOpenAPI
+swift test
 ```
 
+Export works without Relay environment variables, database access, or Messages permissions. `--check` compares bytes and never updates the file. Export without either option writes JSON to standard output.
+
 Tests cover macro expansions and diagnostics, property presence and nulls, generic models, recursive references, registration, media, and SSE.
+Relay tests compare exported operations with the live router and compare schemas with actual encoded fixtures.
+No code from PR #36 was copied.

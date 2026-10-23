@@ -1,0 +1,4122 @@
+{
+  "components" : {
+    "schemas" : {
+      "APIError_response" : {
+        "properties" : {
+          "code" : {
+            "$ref" : "#/components/schemas/APIErrorCode_response"
+          },
+          "field_details" : {
+            "items" : {
+              "$ref" : "#/components/schemas/APIFieldError_response"
+            },
+            "type" : "array"
+          },
+          "message" : {
+            "type" : "string"
+          },
+          "request_id" : {
+            "minLength" : 1,
+            "pattern" : "^[^\\p{Cc}\\p{Cf}]+$",
+            "type" : "string"
+          }
+        },
+        "required" : [
+          "code",
+          "message",
+          "request_id"
+        ],
+        "type" : "object"
+      },
+      "APIErrorCode_response" : {
+        "enum" : [
+          "malformed_json",
+          "invalid_authentication",
+          "invalid_destination",
+          "ambiguous_destination",
+          "ambiguous_conversation",
+          "disallowed_recipient",
+          "unknown_conversation",
+          "unknown_message",
+          "unknown_media",
+          "unknown_request",
+          "unsupported_capability",
+          "sender_unavailable",
+          "database_unavailable",
+          "invalid_cursor",
+          "unsafe_media",
+          "media_too_large",
+          "duplicate_request",
+          "send_result_unknown",
+          "reaction_result_unknown",
+          "read_result_unknown",
+          "messages_unavailable",
+          "typing_conflict",
+          "typing_result_unknown",
+          "request_tracking_unavailable",
+          "invalid_request",
+          "internal_error",
+          "not_found"
+        ],
+        "type" : "string"
+      },
+      "APIFieldError_response" : {
+        "properties" : {
+          "field" : {
+            "type" : "string"
+          },
+          "message" : {
+            "type" : "string"
+          }
+        },
+        "required" : [
+          "field",
+          "message"
+        ],
+        "type" : "object"
+      },
+      "CapabilityAvailability_response" : {
+        "enum" : [
+          "available",
+          "unavailable",
+          "permission_unknown",
+          "unsupported"
+        ],
+        "type" : "string"
+      },
+      "Conversation_response" : {
+        "properties" : {
+          "display_name" : {
+            "type" : "string"
+          },
+          "id" : {
+            "minLength" : 1,
+            "pattern" : "^[^\\p{Cc}\\p{Cf}]+$",
+            "type" : "string"
+          },
+          "identifier" : {
+            "type" : "string"
+          },
+          "is_group" : {
+            "type" : "boolean"
+          },
+          "last_message_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "participants" : {
+            "items" : {
+              "$ref" : "#/components/schemas/RecipientHandle_response"
+            },
+            "type" : "array"
+          },
+          "provider_guid" : {
+            "type" : "string"
+          },
+          "service" : {
+            "type" : "string"
+          },
+          "unread_count" : {
+            "type" : "integer"
+          }
+        },
+        "required" : [
+          "id",
+          "is_group",
+          "participants",
+          "unread_count"
+        ],
+        "type" : "object"
+      },
+      "ConversationReadResponse_response" : {
+        "properties" : {
+          "conversation_id" : {
+            "minLength" : 1,
+            "pattern" : "^[^\\p{Cc}\\p{Cf}]+$",
+            "type" : "string"
+          },
+          "request_id" : {
+            "minLength" : 1,
+            "pattern" : "^[^\\p{Cc}\\p{Cf}]+$",
+            "type" : "string"
+          },
+          "status" : {
+            "$ref" : "#/components/schemas/ConversationReadStatus_response"
+          }
+        },
+        "required" : [
+          "request_id",
+          "conversation_id",
+          "status"
+        ],
+        "type" : "object"
+      },
+      "ConversationReadStatus_response" : {
+        "enum" : [
+          "applied",
+          "unchanged"
+        ],
+        "type" : "string"
+      },
+      "ConversationTypingResponse_response" : {
+        "properties" : {
+          "conversation_id" : {
+            "minLength" : 1,
+            "pattern" : "^[^\\p{Cc}\\p{Cf}]+$",
+            "type" : "string"
+          },
+          "expires_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "request_id" : {
+            "minLength" : 1,
+            "pattern" : "^[^\\p{Cc}\\p{Cf}]+$",
+            "type" : "string"
+          },
+          "status" : {
+            "$ref" : "#/components/schemas/ConversationTypingStatus_response"
+          }
+        },
+        "required" : [
+          "request_id",
+          "conversation_id",
+          "status"
+        ],
+        "type" : "object"
+      },
+      "ConversationTypingStatus_response" : {
+        "enum" : [
+          "active",
+          "inactive"
+        ],
+        "type" : "string"
+      },
+      "DatabaseStatus_response" : {
+        "properties" : {
+          "error" : {
+            "type" : "string"
+          },
+          "identity" : {
+            "type" : "string"
+          },
+          "ready" : {
+            "type" : "boolean"
+          }
+        },
+        "required" : [
+          "ready"
+        ],
+        "type" : "object"
+      },
+      "DeliveryState_response" : {
+        "enum" : [
+          "unknown",
+          "not_sent",
+          "sent",
+          "delivered",
+          "failed"
+        ],
+        "type" : "string"
+      },
+      "MediaAvailableEvent_response" : {
+        "properties" : {
+          "media_id" : {
+            "minLength" : 1,
+            "pattern" : "^[^\\p{Cc}\\p{Cf}]+$",
+            "type" : "string"
+          },
+          "message_id" : {
+            "minLength" : 1,
+            "pattern" : "^[^\\p{Cc}\\p{Cf}]+$",
+            "type" : "string"
+          },
+          "observed_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          }
+        },
+        "required" : [
+          "message_id",
+          "media_id",
+          "observed_at"
+        ],
+        "type" : "object"
+      },
+      "MediaReceipt_response" : {
+        "properties" : {
+          "media_id" : {
+            "minLength" : 1,
+            "pattern" : "^[^\\p{Cc}\\p{Cf}]+$",
+            "type" : [
+              "string",
+              "null"
+            ]
+          },
+          "message_id" : {
+            "minLength" : 1,
+            "pattern" : "^[^\\p{Cc}\\p{Cf}]+$",
+            "type" : [
+              "string",
+              "null"
+            ]
+          },
+          "requested_media_id" : {
+            "minLength" : 1,
+            "pattern" : "^[^\\p{Cc}\\p{Cf}]+$",
+            "type" : "string"
+          }
+        },
+        "required" : [
+          "requested_media_id",
+          "media_id",
+          "message_id"
+        ],
+        "type" : "object"
+      },
+      "MediaReference_response" : {
+        "properties" : {
+          "byte_size" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "filename" : {
+            "type" : "string"
+          },
+          "is_sticker" : {
+            "type" : "boolean"
+          },
+          "media_id" : {
+            "minLength" : 1,
+            "pattern" : "^[^\\p{Cc}\\p{Cf}]+$",
+            "type" : "string"
+          },
+          "mime_type" : {
+            "type" : "string"
+          },
+          "source" : {
+            "$ref" : "#/components/schemas/MediaSource_response"
+          }
+        },
+        "required" : [
+          "media_id",
+          "source",
+          "is_sticker"
+        ],
+        "type" : "object"
+      },
+      "MediaSource_response" : {
+        "enum" : [
+          "messages",
+          "upload"
+        ],
+        "type" : "string"
+      },
+      "Message_response" : {
+        "properties" : {
+          "attachments" : {
+            "items" : {
+              "$ref" : "#/components/schemas/MediaReference_response"
+            },
+            "type" : "array"
+          },
+          "balloon_bundle_id" : {
+            "type" : "string"
+          },
+          "conversation_id" : {
+            "minLength" : 1,
+            "pattern" : "^[^\\p{Cc}\\p{Cf}]+$",
+            "type" : "string"
+          },
+          "created_at" : {
+            "format" : "date-time",
+            "type" : [
+              "string",
+              "null"
+            ]
+          },
+          "delivered_at" : {
+            "format" : "date-time",
+            "type" : [
+              "string",
+              "null"
+            ]
+          },
+          "delivery_state" : {
+            "$ref" : "#/components/schemas/DeliveryState_response"
+          },
+          "id" : {
+            "minLength" : 1,
+            "pattern" : "^[^\\p{Cc}\\p{Cf}]+$",
+            "type" : "string"
+          },
+          "is_audio_message" : {
+            "type" : "boolean"
+          },
+          "is_from_me" : {
+            "type" : "boolean"
+          },
+          "parts" : {
+            "items" : {
+              "$ref" : "#/components/schemas/MessagePart_response"
+            },
+            "type" : [
+              "array",
+              "null"
+            ]
+          },
+          "poll" : {
+            "$ref" : "#/components/schemas/NativePoll_response"
+          },
+          "provider_guid" : {
+            "type" : [
+              "string",
+              "null"
+            ]
+          },
+          "reactions" : {
+            "items" : {
+              "$ref" : "#/components/schemas/Reaction_response"
+            },
+            "type" : "array"
+          },
+          "read_at" : {
+            "format" : "date-time",
+            "type" : [
+              "string",
+              "null"
+            ]
+          },
+          "read_state" : {
+            "$ref" : "#/components/schemas/ReadState_response"
+          },
+          "schedule" : {
+            "$ref" : "#/components/schemas/MessageSchedule_response"
+          },
+          "sender" : {
+            "$ref" : "#/components/schemas/RecipientHandle_response"
+          },
+          "text" : {
+            "type" : [
+              "string",
+              "null"
+            ]
+          },
+          "thread" : {
+            "$ref" : "#/components/schemas/ThreadReference_response"
+          },
+          "url_preview" : {
+            "$ref" : "#/components/schemas/URLPreview_response"
+          }
+        },
+        "required" : [
+          "id",
+          "provider_guid",
+          "conversation_id",
+          "text",
+          "sender",
+          "is_from_me",
+          "created_at",
+          "delivery_state",
+          "read_state",
+          "delivered_at",
+          "read_at",
+          "thread",
+          "parts",
+          "reactions",
+          "attachments"
+        ],
+        "type" : "object"
+      },
+      "MessageChangedField_response" : {
+        "enum" : [
+          "delivery_state",
+          "read_state"
+        ],
+        "type" : "string"
+      },
+      "MessageCreatedEvent_response" : {
+        "properties" : {
+          "conversation_id" : {
+            "minLength" : 1,
+            "pattern" : "^[^\\p{Cc}\\p{Cf}]+$",
+            "type" : "string"
+          },
+          "is_from_me" : {
+            "type" : "boolean"
+          },
+          "message_id" : {
+            "minLength" : 1,
+            "pattern" : "^[^\\p{Cc}\\p{Cf}]+$",
+            "type" : "string"
+          },
+          "observed_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          }
+        },
+        "required" : [
+          "message_id",
+          "conversation_id",
+          "is_from_me",
+          "observed_at"
+        ],
+        "type" : "object"
+      },
+      "MessagePart_response" : {
+        "oneOf" : [
+          {
+            "properties" : {
+              "index" : {
+                "minimum" : 0,
+                "type" : "integer"
+              },
+              "text" : {
+                "type" : "string"
+              },
+              "type" : {
+                "const" : "text",
+                "type" : "string"
+              }
+            },
+            "required" : [
+              "index",
+              "type",
+              "text"
+            ],
+            "type" : "object"
+          },
+          {
+            "properties" : {
+              "attachment" : {
+                "$ref" : "#/components/schemas/MediaReference_response"
+              },
+              "index" : {
+                "minimum" : 0,
+                "type" : "integer"
+              },
+              "type" : {
+                "const" : "attachment",
+                "type" : "string"
+              }
+            },
+            "required" : [
+              "index",
+              "type",
+              "attachment"
+            ],
+            "type" : "object"
+          },
+          {
+            "properties" : {
+              "index" : {
+                "minimum" : 0,
+                "type" : "integer"
+              },
+              "type" : {
+                "const" : "unknown",
+                "type" : "string"
+              }
+            },
+            "required" : [
+              "index",
+              "type"
+            ],
+            "type" : "object"
+          }
+        ]
+      },
+      "MessageReceipt_response" : {
+        "properties" : {
+          "message_id" : {
+            "minLength" : 1,
+            "pattern" : "^[^\\p{Cc}\\p{Cf}]+$",
+            "type" : "string"
+          },
+          "status" : {
+            "$ref" : "#/components/schemas/MessageStatus_response"
+          }
+        },
+        "required" : [
+          "message_id",
+          "status"
+        ],
+        "type" : "object"
+      },
+      "MessageSchedule_response" : {
+        "properties" : {
+          "scheduled_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "state" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "type" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "required" : [
+          "type",
+          "state"
+        ],
+        "type" : "object"
+      },
+      "MessageStatus_response" : {
+        "enum" : [
+          "accepted",
+          "queued",
+          "sending",
+          "sent",
+          "delivered",
+          "read",
+          "failed",
+          "unsupported",
+          "result_unknown"
+        ],
+        "type" : "string"
+      },
+      "MessageUpdatedEvent_response" : {
+        "properties" : {
+          "changed_fields" : {
+            "items" : {
+              "$ref" : "#/components/schemas/MessageChangedField_response"
+            },
+            "type" : "array"
+          },
+          "conversation_id" : {
+            "minLength" : 1,
+            "pattern" : "^[^\\p{Cc}\\p{Cf}]+$",
+            "type" : "string"
+          },
+          "message_id" : {
+            "minLength" : 1,
+            "pattern" : "^[^\\p{Cc}\\p{Cf}]+$",
+            "type" : "string"
+          },
+          "observed_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          }
+        },
+        "required" : [
+          "message_id",
+          "conversation_id",
+          "changed_fields",
+          "observed_at"
+        ],
+        "type" : "object"
+      },
+      "NativePoll_response" : {
+        "properties" : {
+          "kind" : {
+            "$ref" : "#/components/schemas/NativePollKind_response"
+          },
+          "original_message_id" : {
+            "minLength" : 1,
+            "pattern" : "^[^\\p{Cc}\\p{Cf}]+$",
+            "type" : "string"
+          }
+        },
+        "required" : [
+          "kind"
+        ],
+        "type" : "object"
+      },
+      "NativePollKind_response" : {
+        "enum" : [
+          "created",
+          "vote"
+        ],
+        "type" : "string"
+      },
+      "PaginatedResponse__Conversation_response" : {
+        "properties" : {
+          "has_more" : {
+            "type" : "boolean"
+          },
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/Conversation_response"
+            },
+            "type" : "array"
+          },
+          "next_cursor" : {
+            "minLength" : 1,
+            "pattern" : "^[^\\p{Cc}\\p{Cf}]+$",
+            "type" : "string"
+          }
+        },
+        "required" : [
+          "items",
+          "has_more"
+        ],
+        "type" : "object"
+      },
+      "PaginatedResponse__Message_response" : {
+        "properties" : {
+          "has_more" : {
+            "type" : "boolean"
+          },
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/Message_response"
+            },
+            "type" : "array"
+          },
+          "next_cursor" : {
+            "minLength" : 1,
+            "pattern" : "^[^\\p{Cc}\\p{Cf}]+$",
+            "type" : "string"
+          }
+        },
+        "required" : [
+          "items",
+          "has_more"
+        ],
+        "type" : "object"
+      },
+      "PermissionAvailability_response" : {
+        "enum" : [
+          "granted",
+          "not_granted",
+          "unknown"
+        ],
+        "type" : "string"
+      },
+      "Reaction_response" : {
+        "properties" : {
+          "action" : {
+            "$ref" : "#/components/schemas/ReactionAction_response"
+          },
+          "created_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "emoji" : {
+            "type" : "string"
+          },
+          "id" : {
+            "minLength" : 1,
+            "pattern" : "^[^\\p{Cc}\\p{Cf}]+$",
+            "type" : "string"
+          },
+          "is_from_me" : {
+            "type" : "boolean"
+          },
+          "kind" : {
+            "$ref" : "#/components/schemas/ReactionKind_response"
+          },
+          "sender" : {
+            "$ref" : "#/components/schemas/RecipientHandle_response"
+          },
+          "target_part_index" : {
+            "type" : "integer"
+          }
+        },
+        "required" : [
+          "id",
+          "kind",
+          "action",
+          "is_from_me"
+        ],
+        "type" : "object"
+      },
+      "ReactionAction_response" : {
+        "enum" : [
+          "added",
+          "removed"
+        ],
+        "type" : "string"
+      },
+      "ReactionChangedEvent_response" : {
+        "properties" : {
+          "message_id" : {
+            "minLength" : 1,
+            "pattern" : "^[^\\p{Cc}\\p{Cf}]+$",
+            "type" : "string"
+          },
+          "observed_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "reaction_id" : {
+            "minLength" : 1,
+            "pattern" : "^[^\\p{Cc}\\p{Cf}]+$",
+            "type" : "string"
+          }
+        },
+        "required" : [
+          "message_id",
+          "reaction_id",
+          "observed_at"
+        ],
+        "type" : "object"
+      },
+      "ReactionKind_response" : {
+        "enum" : [
+          "love",
+          "like",
+          "dislike",
+          "laugh",
+          "emphasis",
+          "question",
+          "custom",
+          "unknown"
+        ],
+        "type" : "string"
+      },
+      "ReactionWriteResponse_response" : {
+        "properties" : {
+          "message_id" : {
+            "minLength" : 1,
+            "pattern" : "^[^\\p{Cc}\\p{Cf}]+$",
+            "type" : "string"
+          },
+          "reaction" : {
+            "$ref" : "#/components/schemas/WritableReaction_response"
+          },
+          "request_id" : {
+            "minLength" : 1,
+            "pattern" : "^[^\\p{Cc}\\p{Cf}]+$",
+            "type" : "string"
+          },
+          "status" : {
+            "$ref" : "#/components/schemas/ReactionWriteStatus_response"
+          }
+        },
+        "required" : [
+          "request_id",
+          "status",
+          "message_id",
+          "reaction"
+        ],
+        "type" : "object"
+      },
+      "ReactionWriteStatus_response" : {
+        "enum" : [
+          "applied",
+          "unchanged"
+        ],
+        "type" : "string"
+      },
+      "ReadState_response" : {
+        "enum" : [
+          "unknown",
+          "unread",
+          "read"
+        ],
+        "type" : "string"
+      },
+      "RecipientHandle_response" : {
+        "properties" : {
+          "display_value" : {
+            "type" : "string"
+          },
+          "type" : {
+            "$ref" : "#/components/schemas/RecipientHandleType_response"
+          },
+          "value" : {
+            "type" : "string"
+          }
+        },
+        "required" : [
+          "type",
+          "value"
+        ],
+        "type" : "object"
+      },
+      "RecipientHandleType_response" : {
+        "enum" : [
+          "phone",
+          "email",
+          "other"
+        ],
+        "type" : "string"
+      },
+      "ReplyTarget_request" : {
+        "properties" : {
+          "message_id" : {
+            "minLength" : 1,
+            "pattern" : "^[^\\p{Cc}\\p{Cf}]+$",
+            "type" : "string"
+          }
+        },
+        "required" : [
+          "message_id"
+        ],
+        "type" : "object"
+      },
+      "SendCorrelationStatus_response" : {
+        "enum" : [
+          "pending",
+          "partial",
+          "complete",
+          "ambiguous"
+        ],
+        "type" : "string"
+      },
+      "Sender_response" : {
+        "properties" : {
+          "account_identity" : {
+            "type" : "string"
+          },
+          "availability" : {
+            "$ref" : "#/components/schemas/SenderAvailability_response"
+          },
+          "capabilities" : {
+            "$ref" : "#/components/schemas/SenderCapabilities_response"
+          },
+          "configured" : {
+            "type" : "boolean"
+          },
+          "id" : {
+            "minLength" : 1,
+            "pattern" : "^[^\\p{Cc}\\p{Cf}]+$",
+            "type" : "string"
+          },
+          "login" : {
+            "$ref" : "#/components/schemas/RecipientHandle_response"
+          },
+          "permissions" : {
+            "$ref" : "#/components/schemas/SenderPermissions_response"
+          },
+          "reason" : {
+            "type" : "string"
+          }
+        },
+        "required" : [
+          "id",
+          "configured",
+          "availability",
+          "permissions",
+          "capabilities"
+        ],
+        "type" : "object"
+      },
+      "SenderAvailability_response" : {
+        "enum" : [
+          "available",
+          "unavailable",
+          "permission_unknown"
+        ],
+        "type" : "string"
+      },
+      "SenderCapabilities_response" : {
+        "properties" : {
+          "group_creation" : {
+            "$ref" : "#/components/schemas/CapabilityAvailability_response"
+          },
+          "media" : {
+            "$ref" : "#/components/schemas/CapabilityAvailability_response"
+          },
+          "native_reply" : {
+            "$ref" : "#/components/schemas/CapabilityAvailability_response"
+          },
+          "reactions" : {
+            "$ref" : "#/components/schemas/CapabilityAvailability_response"
+          },
+          "text" : {
+            "$ref" : "#/components/schemas/CapabilityAvailability_response"
+          }
+        },
+        "required" : [
+          "text",
+          "media",
+          "native_reply",
+          "reactions",
+          "group_creation"
+        ],
+        "type" : "object"
+      },
+      "SenderPermissions_response" : {
+        "properties" : {
+          "accessibility" : {
+            "$ref" : "#/components/schemas/PermissionAvailability_response"
+          },
+          "automation" : {
+            "$ref" : "#/components/schemas/PermissionAvailability_response"
+          }
+        },
+        "required" : [
+          "automation",
+          "accessibility"
+        ],
+        "type" : "object"
+      },
+      "SendMediaReference_request" : {
+        "properties" : {
+          "media_id" : {
+            "minLength" : 1,
+            "pattern" : "^[^\\p{Cc}\\p{Cf}]+$",
+            "type" : "string"
+          }
+        },
+        "required" : [
+          "media_id"
+        ],
+        "type" : "object"
+      },
+      "SendMessageRequest_request" : {
+        "allOf" : [
+          {
+            "additionalProperties" : false,
+            "description" : "Exactly one non-null destination. The service requires text or uploaded media. Participant sends require text and do not support media or reply_to. Normalized participants must be unique.",
+            "properties" : {
+              "conversation_id" : {
+                "minLength" : 1,
+                "pattern" : "^[^\\p{Cc}\\p{Cf}]+$",
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              },
+              "media" : {
+                "items" : {
+                  "$ref" : "#/components/schemas/SendMediaReference_request"
+                },
+                "type" : [
+                  "array",
+                  "null"
+                ]
+              },
+              "participants" : {
+                "items" : {
+                  "minLength" : 1,
+                  "type" : "string"
+                },
+                "minItems" : 2,
+                "type" : [
+                  "array",
+                  "null"
+                ]
+              },
+              "reply_to" : {
+                "$ref" : "#/components/schemas/ReplyTarget_request"
+              },
+              "text" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              },
+              "to" : {
+                "minLength" : 1,
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "type" : "object"
+          },
+          {
+            "oneOf" : [
+              {
+                "properties" : {
+                  "conversation_id" : {
+                    "minLength" : 1,
+                    "pattern" : "^[^\\p{Cc}\\p{Cf}]+$",
+                    "type" : "string"
+                  },
+                  "participants" : {
+                    "type" : "null"
+                  },
+                  "to" : {
+                    "type" : "null"
+                  }
+                },
+                "required" : [
+                  "conversation_id"
+                ],
+                "type" : "object"
+              },
+              {
+                "properties" : {
+                  "conversation_id" : {
+                    "type" : "null"
+                  },
+                  "participants" : {
+                    "type" : "null"
+                  },
+                  "to" : {
+                    "minLength" : 1,
+                    "type" : "string"
+                  }
+                },
+                "required" : [
+                  "to"
+                ],
+                "type" : "object"
+              },
+              {
+                "properties" : {
+                  "conversation_id" : {
+                    "type" : "null"
+                  },
+                  "participants" : {
+                    "items" : {
+                      "minLength" : 1,
+                      "type" : "string"
+                    },
+                    "minItems" : 2,
+                    "type" : "array"
+                  },
+                  "to" : {
+                    "type" : "null"
+                  }
+                },
+                "required" : [
+                  "participants"
+                ],
+                "type" : "object"
+              }
+            ]
+          }
+        ]
+      },
+      "SendMessageResponse_response" : {
+        "properties" : {
+          "conversation_id" : {
+            "minLength" : 1,
+            "pattern" : "^[^\\p{Cc}\\p{Cf}]+$",
+            "type" : "string"
+          },
+          "correlation_status" : {
+            "$ref" : "#/components/schemas/SendCorrelationStatus_response"
+          },
+          "media" : {
+            "items" : {
+              "$ref" : "#/components/schemas/MediaReceipt_response"
+            },
+            "type" : "array"
+          },
+          "messages" : {
+            "items" : {
+              "$ref" : "#/components/schemas/MessageReceipt_response"
+            },
+            "type" : "array"
+          },
+          "poll_url" : {
+            "type" : "string"
+          },
+          "request_id" : {
+            "minLength" : 1,
+            "pattern" : "^[^\\p{Cc}\\p{Cf}]+$",
+            "type" : "string"
+          },
+          "status" : {
+            "$ref" : "#/components/schemas/MessageStatus_response"
+          }
+        },
+        "required" : [
+          "request_id",
+          "status",
+          "correlation_status",
+          "messages",
+          "media"
+        ],
+        "type" : "object"
+      },
+      "ServiceStatus_response" : {
+        "properties" : {
+          "database" : {
+            "$ref" : "#/components/schemas/DatabaseStatus_response"
+          },
+          "healthy" : {
+            "type" : "boolean"
+          },
+          "sender" : {
+            "$ref" : "#/components/schemas/Sender_response"
+          },
+          "version" : {
+            "type" : "string"
+          }
+        },
+        "required" : [
+          "version",
+          "healthy",
+          "database",
+          "sender"
+        ],
+        "type" : "object"
+      },
+      "SetReactionRequest_request" : {
+        "properties" : {
+          "reaction" : {
+            "$ref" : "#/components/schemas/WritableReaction_request"
+          }
+        },
+        "required" : [
+          "reaction"
+        ],
+        "type" : "object"
+      },
+      "StreamReadyEvent_response" : {
+        "properties" : {
+          "database_identity" : {
+            "type" : "string"
+          },
+          "replay_supported" : {
+            "type" : "boolean"
+          }
+        },
+        "required" : [
+          "database_identity",
+          "replay_supported"
+        ],
+        "type" : "object"
+      },
+      "StreamResetEvent_response" : {
+        "properties" : {
+          "message" : {
+            "type" : "string"
+          },
+          "reason" : {
+            "$ref" : "#/components/schemas/StreamResetReason_response"
+          },
+          "refetch_required" : {
+            "type" : "boolean"
+          },
+          "resume_after_event_id" : {
+            "type" : "string"
+          }
+        },
+        "required" : [
+          "reason",
+          "message",
+          "refetch_required"
+        ],
+        "type" : "object"
+      },
+      "StreamResetReason_response" : {
+        "enum" : [
+          "database_changed",
+          "observer_failed",
+          "replay_unavailable",
+          "subscriber_overflow"
+        ],
+        "type" : "string"
+      },
+      "ThreadReference_response" : {
+        "properties" : {
+          "provider_reply_to_message_id" : {
+            "minLength" : 1,
+            "pattern" : "^[^\\p{Cc}\\p{Cf}]+$",
+            "type" : "string"
+          },
+          "reply_to_message_id" : {
+            "minLength" : 1,
+            "pattern" : "^[^\\p{Cc}\\p{Cf}]+$",
+            "type" : "string"
+          },
+          "thread_originator_message_id" : {
+            "minLength" : 1,
+            "pattern" : "^[^\\p{Cc}\\p{Cf}]+$",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "UploadMediaResponse_response" : {
+        "properties" : {
+          "download_url" : {
+            "type" : "string"
+          },
+          "media" : {
+            "$ref" : "#/components/schemas/MediaReference_response"
+          }
+        },
+        "required" : [
+          "media",
+          "download_url"
+        ],
+        "type" : "object"
+      },
+      "URLPreview_response" : {
+        "properties" : {
+          "balloon_bundle_id" : {
+            "type" : "string"
+          },
+          "created_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "message_id" : {
+            "minLength" : 1,
+            "pattern" : "^[^\\p{Cc}\\p{Cf}]+$",
+            "type" : "string"
+          },
+          "provider_guid" : {
+            "type" : "string"
+          }
+        },
+        "required" : [
+          "message_id",
+          "provider_guid",
+          "balloon_bundle_id"
+        ],
+        "type" : "object"
+      },
+      "WritableReaction_request" : {
+        "enum" : [
+          "love",
+          "like",
+          "dislike",
+          "laugh",
+          "emphasis",
+          "question"
+        ],
+        "type" : "string"
+      },
+      "WritableReaction_response" : {
+        "enum" : [
+          "love",
+          "like",
+          "dislike",
+          "laugh",
+          "emphasis",
+          "question"
+        ],
+        "type" : "string"
+      }
+    },
+    "securitySchemes" : {
+      "relayToken" : {
+        "scheme" : "bearer",
+        "type" : "http"
+      }
+    }
+  },
+  "info" : {
+    "title" : "iMessage Relay",
+    "version" : "0.4.0"
+  },
+  "openapi" : "3.2.1",
+  "paths" : {
+    "/v1/conversations" : {
+      "get" : {
+        "description" : "Newest messages sort first. Cursor values are opaque and bound to this exact filter and database.",
+        "operationId" : "listConversations",
+        "parameters" : [
+          {
+            "description" : "Maximum number of items in this page.",
+            "in" : "query",
+            "name" : "limit",
+            "schema" : {
+              "default" : 20,
+              "maximum" : 200,
+              "minimum" : 1,
+              "type" : "integer"
+            }
+          },
+          {
+            "description" : "Opaque next_cursor from the previous page, bound to the route, query, and database.",
+            "in" : "query",
+            "name" : "cursor",
+            "schema" : {
+              "minLength" : 1,
+              "pattern" : "^[^\\p{Cc}\\p{Cf}]+$",
+              "type" : "string"
+            }
+          },
+          {
+            "description" : "Return only conversations with unread messages. Accepts true, false, 1, or 0. Word spellings are case-insensitive.",
+            "in" : "query",
+            "name" : "unread_only",
+            "schema" : {
+              "default" : "false",
+              "pattern" : "^([Tt][Rr][Uu][Ee]|[Ff][Aa][Ll][Ss][Ee]|[01])$",
+              "type" : "string"
+            }
+          },
+          {
+            "description" : "Exact normalized phone number or email address. Email matching is case-insensitive.",
+            "in" : "query",
+            "name" : "participant",
+            "schema" : {
+              "type" : "string"
+            }
+          }
+        ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PaginatedResponse__Conversation_response"
+                }
+              }
+            },
+            "description" : "A page of conversations.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "Malformed JSON, query parameter, cursor, destination selection, or resource identifier.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "Missing or invalid bearer token.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "422" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "A destination, payload field, filename, or media file failed validation.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "The request failed.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "503" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "The database, sender, Messages access, or request store is unavailable.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          }
+        },
+        "summary" : "Page through conversations.",
+        "tags" : [
+          "Conversations"
+        ]
+      }
+    },
+    "/v1/conversations/{conversation_id}" : {
+      "get" : {
+        "operationId" : "getConversation",
+        "parameters" : [
+          {
+            "description" : "Percent-encoded public resource identifier, not a database row ID.",
+            "in" : "path",
+            "name" : "conversation_id",
+            "required" : true,
+            "schema" : {
+              "minLength" : 1,
+              "pattern" : "^[^\\p{Cc}\\p{Cf}]+$",
+              "type" : "string"
+            }
+          }
+        ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Conversation_response"
+                }
+              }
+            },
+            "description" : "The conversation.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "Malformed JSON, query parameter, cursor, destination selection, or resource identifier.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "Missing or invalid bearer token.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "The requested resource was not found.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "The request failed.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "503" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "The database, sender, Messages access, or request store is unavailable.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          }
+        },
+        "summary" : "Read one conversation.",
+        "tags" : [
+          "Conversations"
+        ]
+      }
+    },
+    "/v1/conversations/{conversation_id}/messages" : {
+      "get" : {
+        "description" : "Reactions are nested under their target messages. URL previews can be folded into the preceding text message.",
+        "operationId" : "listMessages",
+        "parameters" : [
+          {
+            "description" : "Percent-encoded public resource identifier, not a database row ID.",
+            "in" : "path",
+            "name" : "conversation_id",
+            "required" : true,
+            "schema" : {
+              "minLength" : 1,
+              "pattern" : "^[^\\p{Cc}\\p{Cf}]+$",
+              "type" : "string"
+            }
+          },
+          {
+            "description" : "Maximum number of items in this page.",
+            "in" : "query",
+            "name" : "limit",
+            "schema" : {
+              "default" : 50,
+              "maximum" : 200,
+              "minimum" : 1,
+              "type" : "integer"
+            }
+          },
+          {
+            "description" : "Opaque next_cursor from the previous page, bound to the route, query, and database.",
+            "in" : "query",
+            "name" : "cursor",
+            "schema" : {
+              "minLength" : 1,
+              "pattern" : "^[^\\p{Cc}\\p{Cf}]+$",
+              "type" : "string"
+            }
+          },
+          {
+            "description" : "Include attachment metadata in messages and attachment parts. Accepts true, false, 1, or 0. Word spellings are case-insensitive.",
+            "in" : "query",
+            "name" : "include_attachments",
+            "schema" : {
+              "default" : "false",
+              "pattern" : "^([Tt][Rr][Uu][Ee]|[Ff][Aa][Ll][Ss][Ee]|[01])$",
+              "type" : "string"
+            }
+          },
+          {
+            "description" : "Case-insensitive search of decoded message text in this conversation.",
+            "in" : "query",
+            "name" : "q",
+            "schema" : {
+              "type" : "string"
+            }
+          },
+          {
+            "description" : "Text search matching mode.",
+            "in" : "query",
+            "name" : "search_mode",
+            "schema" : {
+              "default" : "contains",
+              "enum" : [
+                "contains",
+                "exact"
+              ],
+              "type" : "string"
+            }
+          }
+        ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PaginatedResponse__Message_response"
+                }
+              }
+            },
+            "description" : "A page of messages.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "Malformed JSON, query parameter, cursor, destination selection, or resource identifier.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "Missing or invalid bearer token.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "The requested resource was not found.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "The request failed.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "503" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "The database, sender, Messages access, or request store is unavailable.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          }
+        },
+        "summary" : "Page through conversation messages.",
+        "tags" : [
+          "Messages"
+        ]
+      }
+    },
+    "/v1/conversations/{conversation_id}/read" : {
+      "put" : {
+        "description" : "No request body. Success follows confirmation in chat.db. Stops active typing before the native action. This confirms local state, not remote read receipt delivery. A 502 result requires a refetch before retrying.",
+        "operationId" : "markConversationRead",
+        "parameters" : [
+          {
+            "description" : "Percent-encoded public resource identifier, not a database row ID.",
+            "in" : "path",
+            "name" : "conversation_id",
+            "required" : true,
+            "schema" : {
+              "minLength" : 1,
+              "pattern" : "^[^\\p{Cc}\\p{Cf}]+$",
+              "type" : "string"
+            }
+          }
+        ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ConversationReadResponse_response"
+                }
+              }
+            },
+            "description" : "The applied or unchanged read state.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "Malformed JSON, query parameter, cursor, destination selection, or resource identifier.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "Missing or invalid bearer token.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "The requested resource was not found.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "A conflicting request, ambiguous conversation, or protected typing draft prevents the operation.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "The request failed.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "501" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "The sender or platform does not support the requested capability.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "502" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "The native operation result is uncertain. Refetch its resource before retrying.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "503" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "The database, sender, Messages access, or request store is unavailable.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          }
+        },
+        "summary" : "Mark a conversation as read.",
+        "tags" : [
+          "Conversations"
+        ]
+      }
+    },
+    "/v1/conversations/{conversation_id}/typing" : {
+      "delete" : {
+        "description" : "No request body. Clears only the relay-owned one-space marker. Does not discard a user's draft.",
+        "operationId" : "stopTyping",
+        "parameters" : [
+          {
+            "description" : "Percent-encoded public resource identifier, not a database row ID.",
+            "in" : "path",
+            "name" : "conversation_id",
+            "required" : true,
+            "schema" : {
+              "minLength" : 1,
+              "pattern" : "^[^\\p{Cc}\\p{Cf}]+$",
+              "type" : "string"
+            }
+          }
+        ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ConversationTypingResponse_response"
+                }
+              }
+            },
+            "description" : "The inactive typing state.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "Malformed JSON, query parameter, cursor, destination selection, or resource identifier.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "Missing or invalid bearer token.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "The requested resource was not found.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "A conflicting request, ambiguous conversation, or protected typing draft prevents the operation.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "The request failed.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "501" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "The sender or platform does not support the requested capability.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "502" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "The native operation result is uncertain. Refetch its resource before retrying.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "503" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "The database, sender, Messages access, or request store is unavailable.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          }
+        },
+        "summary" : "Stop a typing lease.",
+        "tags" : [
+          "Conversations"
+        ]
+      },
+      "put" : {
+        "description" : "No request body. The local lease lasts five seconds. Refresh about every three seconds. Starting a lease stops the previous conversation's lease. A protected draft returns 409 without changing it. Local active status does not prove remote delivery of an indicator.",
+        "operationId" : "startTyping",
+        "parameters" : [
+          {
+            "description" : "Percent-encoded public resource identifier, not a database row ID.",
+            "in" : "path",
+            "name" : "conversation_id",
+            "required" : true,
+            "schema" : {
+              "minLength" : 1,
+              "pattern" : "^[^\\p{Cc}\\p{Cf}]+$",
+              "type" : "string"
+            }
+          }
+        ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ConversationTypingResponse_response"
+                }
+              }
+            },
+            "description" : "The active typing lease.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "Malformed JSON, query parameter, cursor, destination selection, or resource identifier.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "Missing or invalid bearer token.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "The requested resource was not found.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "A conflicting request, ambiguous conversation, or protected typing draft prevents the operation.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "The request failed.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "501" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "The sender or platform does not support the requested capability.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "502" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "The native operation result is uncertain. Refetch its resource before retrying.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "503" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "The database, sender, Messages access, or request store is unavailable.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          }
+        },
+        "summary" : "Start or refresh a typing lease.",
+        "tags" : [
+          "Conversations"
+        ]
+      }
+    },
+    "/v1/events" : {
+      "get" : {
+        "description" : "One authenticated SSE stream. Event data contains stable resource IDs, not complete resources. Reconnect with Last-Event-ID for bounded in-process replay. Replay does not survive a restart. stream.reset can require a REST refetch or provide a safe replay cursor. Replayed events can be duplicated. The stream starts with retry: 3000 and sends keep-alive comments every 15 seconds. Comments are ignored by SSE parsing. Database and authentication failures before streaming starts use the normal JSON error shape.",
+        "operationId" : "streamEvents",
+        "parameters" : [
+          {
+            "description" : "Last received SSE event ID for replay.",
+            "in" : "header",
+            "name" : "Last-Event-ID",
+            "schema" : {
+              "type" : "string"
+            }
+          }
+        ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "text/event-stream" : {
+                "itemSchema" : {
+                  "oneOf" : [
+                    {
+                      "properties" : {
+                        "data" : {
+                          "contentMediaType" : "application/json",
+                          "contentSchema" : {
+                            "$ref" : "#/components/schemas/StreamReadyEvent_response"
+                          },
+                          "type" : "string"
+                        },
+                        "event" : {
+                          "const" : "stream.ready",
+                          "type" : "string"
+                        },
+                        "id" : {
+                          "type" : "string"
+                        }
+                      },
+                      "required" : [
+                        "event",
+                        "data"
+                      ],
+                      "type" : "object"
+                    },
+                    {
+                      "properties" : {
+                        "data" : {
+                          "contentMediaType" : "application/json",
+                          "contentSchema" : {
+                            "$ref" : "#/components/schemas/MessageCreatedEvent_response"
+                          },
+                          "type" : "string"
+                        },
+                        "event" : {
+                          "const" : "message.created",
+                          "type" : "string"
+                        },
+                        "id" : {
+                          "type" : "string"
+                        }
+                      },
+                      "required" : [
+                        "event",
+                        "data"
+                      ],
+                      "type" : "object"
+                    },
+                    {
+                      "properties" : {
+                        "data" : {
+                          "contentMediaType" : "application/json",
+                          "contentSchema" : {
+                            "$ref" : "#/components/schemas/MessageUpdatedEvent_response"
+                          },
+                          "type" : "string"
+                        },
+                        "event" : {
+                          "const" : "message.updated",
+                          "type" : "string"
+                        },
+                        "id" : {
+                          "type" : "string"
+                        }
+                      },
+                      "required" : [
+                        "event",
+                        "data"
+                      ],
+                      "type" : "object"
+                    },
+                    {
+                      "properties" : {
+                        "data" : {
+                          "contentMediaType" : "application/json",
+                          "contentSchema" : {
+                            "$ref" : "#/components/schemas/ReactionChangedEvent_response"
+                          },
+                          "type" : "string"
+                        },
+                        "event" : {
+                          "const" : "reaction.added",
+                          "type" : "string"
+                        },
+                        "id" : {
+                          "type" : "string"
+                        }
+                      },
+                      "required" : [
+                        "event",
+                        "data"
+                      ],
+                      "type" : "object"
+                    },
+                    {
+                      "properties" : {
+                        "data" : {
+                          "contentMediaType" : "application/json",
+                          "contentSchema" : {
+                            "$ref" : "#/components/schemas/ReactionChangedEvent_response"
+                          },
+                          "type" : "string"
+                        },
+                        "event" : {
+                          "const" : "reaction.removed",
+                          "type" : "string"
+                        },
+                        "id" : {
+                          "type" : "string"
+                        }
+                      },
+                      "required" : [
+                        "event",
+                        "data"
+                      ],
+                      "type" : "object"
+                    },
+                    {
+                      "properties" : {
+                        "data" : {
+                          "contentMediaType" : "application/json",
+                          "contentSchema" : {
+                            "$ref" : "#/components/schemas/MediaAvailableEvent_response"
+                          },
+                          "type" : "string"
+                        },
+                        "event" : {
+                          "const" : "media.available",
+                          "type" : "string"
+                        },
+                        "id" : {
+                          "type" : "string"
+                        }
+                      },
+                      "required" : [
+                        "event",
+                        "data"
+                      ],
+                      "type" : "object"
+                    },
+                    {
+                      "properties" : {
+                        "data" : {
+                          "contentMediaType" : "application/json",
+                          "contentSchema" : {
+                            "$ref" : "#/components/schemas/StreamResetEvent_response"
+                          },
+                          "type" : "string"
+                        },
+                        "event" : {
+                          "const" : "stream.reset",
+                          "type" : "string"
+                        },
+                        "id" : {
+                          "type" : "string"
+                        }
+                      },
+                      "required" : [
+                        "event",
+                        "data"
+                      ],
+                      "type" : "object"
+                    },
+                    {
+                      "additionalProperties" : false,
+                      "properties" : {
+                        "retry" : {
+                          "const" : 3000,
+                          "type" : "integer"
+                        }
+                      },
+                      "required" : [
+                        "retry"
+                      ],
+                      "type" : "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description" : "Parsed SSE frames. Each data field is a string containing a JSON payload.",
+            "headers" : {
+              "Cache-Control" : {
+                "required" : true,
+                "schema" : {
+                  "const" : "no-cache",
+                  "type" : "string"
+                }
+              },
+              "X-Accel-Buffering" : {
+                "required" : true,
+                "schema" : {
+                  "const" : "no",
+                  "type" : "string"
+                }
+              },
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "Missing or invalid bearer token.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "The request failed.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "503" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "The database, sender, Messages access, or request store is unavailable.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          }
+        },
+        "summary" : "Stream live message changes with server-sent events.",
+        "tags" : [
+          "Events"
+        ]
+      }
+    },
+    "/v1/media" : {
+      "post" : {
+        "description" : "Stores files outside Messages. The size limit defaults to 25 MiB and can be configured lower. Filenames cannot contain path separators, controls, quotes, or semicolons. MIME types cannot contain parameters. Images must decode within bounded dimensions, frame count, and total pixels. No multipart wrapper or base64 encoding.",
+        "operationId" : "uploadMedia",
+        "parameters" : [
+          {
+            "description" : "Original filename, at most 255 UTF-8 bytes.",
+            "in" : "header",
+            "name" : "X-Filename",
+            "required" : true,
+            "schema" : {
+              "maxLength" : 255,
+              "minLength" : 1,
+              "type" : "string"
+            }
+          }
+        ],
+        "requestBody" : {
+          "content" : {
+            "application/octet-stream" : {
+
+            },
+            "application/pdf" : {
+
+            },
+            "audio/*" : {
+
+            },
+            "image/*" : {
+
+            },
+            "text/*" : {
+
+            },
+            "video/*" : {
+
+            }
+          },
+          "description" : "Nonempty raw file bytes using the file MIME type as Content-Type.",
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/UploadMediaResponse_response"
+                }
+              }
+            },
+            "description" : "Stored upload metadata and download URL.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "Missing or invalid bearer token.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "413" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "The request body or media exceeds its configured size limit.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "422" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "A destination, payload field, filename, or media file failed validation.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "The request failed.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          }
+        },
+        "summary" : "Upload raw media bytes.",
+        "tags" : [
+          "Media"
+        ]
+      }
+    },
+    "/v1/media/{media_id}" : {
+      "get" : {
+        "description" : "Without download=true, returns JSON metadata. With download=true, streams the original file using its MIME type. OpenAPI cannot fully select the response schema from a query value. The JSON metadata schema applies only to metadata mode. A download with a JSON MIME type is still raw file content, not MediaReference. Filesystem paths are never exposed.",
+        "operationId" : "getMedia",
+        "parameters" : [
+          {
+            "description" : "Percent-encoded public resource identifier, not a database row ID.",
+            "in" : "path",
+            "name" : "media_id",
+            "required" : true,
+            "schema" : {
+              "minLength" : 1,
+              "pattern" : "^[^\\p{Cc}\\p{Cf}]+$",
+              "type" : "string"
+            }
+          },
+          {
+            "description" : "Stream the original bytes instead of metadata. Accepts true, false, 1, or 0. Word spellings are case-insensitive.",
+            "in" : "query",
+            "name" : "download",
+            "schema" : {
+              "default" : "false",
+              "pattern" : "^([Tt][Rr][Uu][Ee]|[Ff][Aa][Ll][Ss][Ee]|[01])$",
+              "type" : "string"
+            }
+          }
+        ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+
+              },
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MediaReference_response"
+                }
+              }
+            },
+            "description" : "MediaReference JSON, or raw bytes when download=true.",
+            "headers" : {
+              "Content-Disposition" : {
+                "description" : "Attachment filename, present only for downloads.",
+                "schema" : {
+                  "type" : "string"
+                }
+              },
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "Malformed JSON, query parameter, cursor, destination selection, or resource identifier.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "Missing or invalid bearer token.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "The requested resource was not found.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "The request failed.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "503" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "The database, sender, Messages access, or request store is unavailable.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          }
+        },
+        "summary" : "Read media metadata or download its bytes.",
+        "tags" : [
+          "Media"
+        ]
+      }
+    },
+    "/v1/messages" : {
+      "post" : {
+        "description" : "Provide exactly one non-null destination. Every resolved participant must be allowlisted. Participant sends require text and do not support media or reply_to. Use an existing conversation for native replies. Reuse the same idempotency key for retries. A changed normalized request returns 409. A 202 response is not proof of delivery. Poll poll_url for correlation and lifecycle status.",
+        "operationId" : "sendMessage",
+        "parameters" : [
+          {
+            "description" : "Trimmed before use. Blank means no key. At most 128 UTF-8 bytes without control characters. The same key and normalized request return the stored result without dispatching again.",
+            "in" : "header",
+            "name" : "Idempotency-Key",
+            "schema" : {
+              "maxLength" : 128,
+              "type" : "string"
+            }
+          }
+        ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "example" : {
+                "text" : "Hello",
+                "to" : "friend@example.com"
+              },
+              "schema" : {
+                "$ref" : "#/components/schemas/SendMessageRequest_request"
+              }
+            }
+          },
+          "description" : "A destination, text or uploaded media, and an optional reply target.",
+          "required" : true
+        },
+        "responses" : {
+          "202" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SendMessageResponse_response"
+                }
+              }
+            },
+            "description" : "Accepted send with a durable poll URL and correlation state.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "Malformed JSON, query parameter, cursor, destination selection, or resource identifier.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "Missing or invalid bearer token.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "One or more destination recipients are not allowlisted.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "The requested resource was not found.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "A conflicting request, ambiguous conversation, or protected typing draft prevents the operation.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "413" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "The request body or media exceeds its configured size limit.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "422" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "A destination, payload field, filename, or media file failed validation.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "The request failed.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "501" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "The sender or platform does not support the requested capability.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "502" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "The native operation result is uncertain. Refetch its resource before retrying.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "503" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "The database, sender, Messages access, or request store is unavailable.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          }
+        },
+        "summary" : "Submit a message send.",
+        "tags" : [
+          "Messages"
+        ]
+      }
+    },
+    "/v1/messages/{message_id}" : {
+      "get" : {
+        "operationId" : "getMessage",
+        "parameters" : [
+          {
+            "description" : "Percent-encoded public resource identifier, not a database row ID.",
+            "in" : "path",
+            "name" : "message_id",
+            "required" : true,
+            "schema" : {
+              "minLength" : 1,
+              "pattern" : "^[^\\p{Cc}\\p{Cf}]+$",
+              "type" : "string"
+            }
+          }
+        ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Message_response"
+                }
+              }
+            },
+            "description" : "The message and its provider metadata.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "Malformed JSON, query parameter, cursor, destination selection, or resource identifier.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "Missing or invalid bearer token.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "The requested resource was not found.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "The request failed.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "503" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "The database, sender, Messages access, or request store is unavailable.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          }
+        },
+        "summary" : "Read one message.",
+        "tags" : [
+          "Messages"
+        ]
+      }
+    },
+    "/v1/messages/{message_id}/reaction" : {
+      "delete" : {
+        "description" : "No request body. Clearing an absent reaction returns unchanged. A successful result contains reaction: null.",
+        "operationId" : "clearReaction",
+        "parameters" : [
+          {
+            "description" : "Percent-encoded public resource identifier, not a database row ID.",
+            "in" : "path",
+            "name" : "message_id",
+            "required" : true,
+            "schema" : {
+              "minLength" : 1,
+              "pattern" : "^[^\\p{Cc}\\p{Cf}]+$",
+              "type" : "string"
+            }
+          }
+        ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReactionWriteResponse_response"
+                }
+              }
+            },
+            "description" : "The resulting local reaction state.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "Malformed JSON, query parameter, cursor, destination selection, or resource identifier.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "Missing or invalid bearer token.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "The requested resource was not found.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "A conflicting request, ambiguous conversation, or protected typing draft prevents the operation.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "The request failed.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "501" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "The sender or platform does not support the requested capability.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "502" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "The native operation result is uncertain. Refetch its resource before retrying.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "503" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "The database, sender, Messages access, or request store is unavailable.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          }
+        },
+        "summary" : "Clear the local sender's reaction.",
+        "tags" : [
+          "Messages"
+        ]
+      },
+      "put" : {
+        "description" : "Uses the provider's default message part. Repeating the same reaction returns unchanged. Success follows observation of the resulting outgoing reaction row. Refetch after a 502 result.",
+        "operationId" : "setReaction",
+        "parameters" : [
+          {
+            "description" : "Percent-encoded public resource identifier, not a database row ID.",
+            "in" : "path",
+            "name" : "message_id",
+            "required" : true,
+            "schema" : {
+              "minLength" : 1,
+              "pattern" : "^[^\\p{Cc}\\p{Cf}]+$",
+              "type" : "string"
+            }
+          }
+        ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "example" : {
+                "reaction" : "love"
+              },
+              "schema" : {
+                "$ref" : "#/components/schemas/SetReactionRequest_request"
+              }
+            }
+          },
+          "description" : "The reaction to set.",
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReactionWriteResponse_response"
+                }
+              }
+            },
+            "description" : "The resulting local reaction state.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "Malformed JSON, query parameter, cursor, destination selection, or resource identifier.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "Missing or invalid bearer token.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "The requested resource was not found.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "A conflicting request, ambiguous conversation, or protected typing draft prevents the operation.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "413" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "The request body or media exceeds its configured size limit.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "422" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "A destination, payload field, filename, or media file failed validation.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "The request failed.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "501" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "The sender or platform does not support the requested capability.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "502" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "The native operation result is uncertain. Refetch its resource before retrying.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "503" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "The database, sender, Messages access, or request store is unavailable.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          }
+        },
+        "summary" : "Set the local sender's reaction.",
+        "tags" : [
+          "Messages"
+        ]
+      }
+    },
+    "/v1/requests/{request_id}" : {
+      "get" : {
+        "description" : "Retries provider-message identification for pending or partial correlation, then refreshes identified message lifecycle states. Durable request state survives relay restarts. Polling never sends the message again.",
+        "operationId" : "getSendRequest",
+        "parameters" : [
+          {
+            "description" : "Percent-encoded public resource identifier, not a database row ID.",
+            "in" : "path",
+            "name" : "request_id",
+            "required" : true,
+            "schema" : {
+              "minLength" : 1,
+              "pattern" : "^[^\\p{Cc}\\p{Cf}]+$",
+              "type" : "string"
+            }
+          }
+        ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SendMessageResponse_response"
+                }
+              }
+            },
+            "description" : "The current durable send result.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "Malformed JSON, query parameter, cursor, destination selection, or resource identifier.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "Missing or invalid bearer token.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "The requested resource was not found.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "The request failed.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "503" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "The database, sender, Messages access, or request store is unavailable.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          }
+        },
+        "summary" : "Read durable send request status.",
+        "tags" : [
+          "Messages"
+        ]
+      }
+    },
+    "/v1/sender" : {
+      "get" : {
+        "operationId" : "getSender",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Sender_response"
+                }
+              }
+            },
+            "description" : "Current sender status.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "Missing or invalid bearer token.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "The request failed.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          }
+        },
+        "summary" : "Read sender identity and capabilities.",
+        "tags" : [
+          "Status"
+        ]
+      }
+    },
+    "/v1/status" : {
+      "get" : {
+        "description" : "Reports readiness and sender permissions without running AppleScript or requesting permissions. A database that is not ready is represented in the 200 response, not as an HTTP failure.",
+        "operationId" : "getStatus",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ServiceStatus_response"
+                }
+              }
+            },
+            "description" : "Service, database, and sender status.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "Missing or invalid bearer token.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/APIError_response"
+                }
+              }
+            },
+            "description" : "The request failed.",
+            "headers" : {
+              "X-Request-ID" : {
+                "description" : "Request correlation identifier.",
+                "required" : true,
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          }
+        },
+        "summary" : "Read service, database, and sender status.",
+        "tags" : [
+          "Status"
+        ]
+      }
+    }
+  },
+  "security" : [
+    {
+      "relayToken" : [
+
+      ]
+    }
+  ],
+  "servers" : [
+    {
+      "url" : "http://127.0.0.1:8080"
+    }
+  ],
+  "tags" : [
+    {
+      "name" : "Conversations"
+    },
+    {
+      "name" : "Events"
+    },
+    {
+      "name" : "Media"
+    },
+    {
+      "name" : "Messages"
+    },
+    {
+      "name" : "Status"
+    }
+  ]
+}
