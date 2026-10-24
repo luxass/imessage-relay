@@ -79,6 +79,8 @@ jobs:
         run: just lint
       - name: Test OpenAPI package
         run: just test-openapi
+      - name: Verify generated OpenAPI
+        run: just check-openapi
       - name: Test
         run: just test
       - name: Build

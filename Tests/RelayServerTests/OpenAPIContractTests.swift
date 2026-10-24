@@ -32,6 +32,13 @@ func openAPIExportsAValidDeterministicCompleteDocument() throws {
 }
 
 @Test
+func openAPICommittedArtifactMatchesTheCode() throws {
+    let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    let committed = try Data(contentsOf: root.appendingPathComponent("docs/public/openapi.json"))
+    #expect(committed == (try relayOpenAPIDocumentData()))
+}
+
+@Test
 func openAPISenderMigrationPreservesTheJSONContract() async throws {
     let harness = ServerTestHarness()
     let router = harness.router()

@@ -29,6 +29,14 @@ default: build
 @test-openapi:
     swift test --package-path Packages/HummingbirdOpenAPI
 
+# Regenerate the API artifact from Swift declarations.
+@openapi:
+    swift run imessage-relay-openapi --output docs/public/openapi.json
+
+# Fail if the committed API artifact differs, without overwriting it.
+@check-openapi:
+    swift run imessage-relay-openapi --check docs/public/openapi.json
+
 # Lint with SwiftLint.
 @lint:
     swiftlint lint --quiet
