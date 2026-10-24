@@ -16,7 +16,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-    uses: luxass/shared-workflows/.github/workflows/reusable-homebrew-tap.yaml@7be4a924607be148a2093d4651d920cfcc9a264f # v0.13.0
+    uses: luxass/shared-workflows/.github/workflows/reusable-homebrew-tap.yaml@9770f7268daf358179c45895de8becc2e8525984 # v0.14.0
     with:
       tap-repository: luxass/homebrew-tap
       formula-path: Formula/imessage-relay-cli.rb
