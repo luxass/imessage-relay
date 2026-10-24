@@ -1,0 +1,23 @@
+---
+interface Props {
+  method: string;
+}
+
+const { method } = Astro.props;
+const colors: Record<string, string> = {
+  GET: 'bg-sky-500/10 text-sky-700 dark:text-sky-300',
+  POST: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
+  PUT: 'bg-amber-500/10 text-amber-700 dark:text-amber-300',
+  PATCH: 'bg-amber-500/10 text-amber-700 dark:text-amber-300',
+  DELETE: 'bg-rose-500/10 text-rose-700 dark:text-rose-300',
+};
+---
+
+<span
+  class:list={[
+    'inline-flex min-w-14 shrink-0 items-center justify-center rounded px-2 py-1 font-mono text-[0.6875rem] font-semibold tracking-wide',
+    colors[method] ?? 'bg-(--sl-color-gray-6) text-(--sl-color-gray-2)',
+  ]}
+>
+  {method}
+</span>

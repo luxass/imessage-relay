@@ -1,0 +1,78 @@
+---
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
+import OpenAPISchema from '../../components/OpenAPISchema.astro';
+import { reference } from '../../lib/api-document';
+
+const definitions = [...reference.schemas].sort((a, b) => a.name.localeCompare(b.name));
+---
+
+<StarlightPage
+  frontmatter={{
+    title: 'Model schemas',
+    description: 'Generated definitions for API request and response bodies.',
+    tableOfContents: false,
+  }}
+>
+  <div class="api-reference not-content space-y-6">
+    <p class="max-w-2xl text-base leading-relaxed">
+      These {definitions.length} definitions describe the JSON used by the API.
+      Request and response models can differ. References link to definitions without expanding recursive models.
+    </p>
+    <div class="space-y-2">
+      <label for="schema-filter" class="block text-sm font-medium text-(--sl-color-white)">Find a model</label>
+      <input
+        id="schema-filter"
+        type="search"
+        placeholder="Filter by model name…"
+        class="w-full max-w-lg rounded-lg border border-(--sl-color-gray-5) bg-(--sl-color-gray-6) px-4 py-3 text-sm text-(--sl-color-white) placeholder:text-(--sl-color-gray-3)"
+        aria-controls="schema-list"
+      />
+      <p id="schema-count" aria-live="polite" class="text-xs text-(--sl-color-gray-3)">{definitions.length} models</p>
+    </div>
+    <div id="schema-list" class="space-y-3">
+      {definitions.map((definition) => (
+        <details
+          id={definition.anchor}
+          data-schema-name={definition.name.toLowerCase()}
+          class="scroll-mt-24 overflow-hidden rounded-xl border border-(--sl-color-gray-5) target:border-(--sl-color-text-accent)"
+        >
+          <summary class="cursor-pointer px-5 py-4 font-mono text-sm font-medium wrap-anywhere text-(--sl-color-white)">
+            {definition.name}
+          </summary>
+          <div class="border-t border-(--sl-color-gray-5) p-5">
+            <OpenAPISchema schema={definition.schema} />
+          </div>
+        </details>
+      ))}
+    </div>
+  </div>
+</StarlightPage>
+
+<script>
+  const filter = document.querySelector<HTMLInputElement>('#schema-filter')!;
+  const count = document.querySelector<HTMLElement>('#schema-count')!;
+  const models = [...document.querySelectorAll<HTMLDetailsElement>('[data-schema-name]')];
+
+  filter.addEventListener('input', () => {
+    const query = filter.value.trim().toLowerCase();
+    let visible = 0;
+    for (const model of models) {
+      model.hidden = !model.dataset.schemaName!.includes(query);
+      if (!model.hidden) visible++;
+    }
+    count.textContent = visible + ' models';
+  });
+
+  function revealLinkedModel() {
+    const model = document.getElementById(decodeURIComponent(window.location.hash.slice(1)));
+    if (model instanceof HTMLDetailsElement) {
+      filter.value = '';
+      filter.dispatchEvent(new Event('input'));
+      model.open = true;
+      model.scrollIntoView({ block: 'start' });
+    }
+  }
+
+  window.addEventListener('hashchange', revealLinkedModel);
+  revealLinkedModel();
+</script>

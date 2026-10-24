@@ -12,6 +12,48 @@ Use `pnpm check` to check the project, `pnpm build` to build the static site, an
 
 Edit pages in `docs/src/content/docs/`. The Swift relay does not depend on this project.
 
+## Styling
+
+Use Tailwind utility classes in Astro components. `src/styles/global.css` loads the theme and utilities.
+It skips Tailwind's global reset (Preflight), so Starlight keeps its existing styles.
+Use Starlight's `--sl-*` color variables to match the light and dark themes.
+
+## Generated API reference
+
+The API page renders `docs/public/openapi.json`. Swift models and endpoint declarations generate that file.
+Do not edit its fields or maintain a second schema in Markdown. `.gitattributes` marks it as generated for GitHub reviews.
+
+After a model, endpoint, or API version changes, run these commands on the development Mac:
+
+```sh
+just openapi
+just check-openapi
+pnpm check
+pnpm build
+```
+
+The exporter does not start the server or read Relay configuration. It needs no Messages permissions or database files.
+The artifact check compares bytes and never overwrites the file.
+
+Swift package and contract tests cover the generated API description and HTTP behavior.
+`pnpm check` checks the Astro components and TypeScript types. `pnpm build` builds the static reference.
+There is no separate documentation test suite.
+
+`docs/src/content/docs/api-guide.mdx` introduces the API. Task guides live in `docs/src/content/docs/guides/`.
+The sidebar separates setup, guides, API reference, support, and development. Existing setup and guide entry URLs remain available.
+
+`src/lib/api-document.ts` groups operations from the artifact. The sidebar, overview, and resource pages use those same groups.
+`src/pages/api/[resource].astro` generates a page for each resource. `src/pages/api/schemas.astro` provides model filtering and linked definitions.
+The reference prepares indexed display data once at build time and links to schema definitions instead of expanding references recursively.
+Identical response bodies share a section. Common headers appear once per operation, with every status code and description retained.
+The templates do not repeatedly resolve references or interpret the source JSON.
+
+The standard OpenAPI 3.2 types are vendored from `openapi3-ts`, the package also used by Hono's `@hono/zod-openapi`.
+The pinned revision and MIT license live in `src/vendor/openapi3-ts/`. No runtime dependency was added.
+Read [the design notes](./openapi-design.md) for the specification basis, helpers, tests, and route-local declaration option.
+
+Cloudflare consumes the committed JSON and does not need Swift. The build publishes the same file at `/openapi.json`.
+
 ## Cloudflare Workers
 
 Connect this repository to the `imsg-relay-docs` Worker using these build settings:

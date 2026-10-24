@@ -1,0 +1,32 @@
+@layer theme, base, starlight, components, utilities;
+
+/* Keep Starlight's reset instead of loading Tailwind Preflight. */
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+:root {
+  --sl-color-accent-low: #1e1b4b;
+  --sl-color-accent: #6366f1;
+  --sl-color-accent-high: #c7d2fe;
+  --sl-sidebar-width: 17rem;
+  --sl-text-h1: 2rem;
+  --sl-text-h2: 1.5rem;
+  --sl-text-h3: 1.125rem;
+}
+
+:root:not([data-theme="light"]) {
+  --sl-color-gray-3: hsl(224, 6%, 65%);
+}
+
+:root[data-theme="light"] {
+  --sl-color-accent-low: #e0e7ff;
+  --sl-color-accent: #4f46e5;
+  --sl-color-accent-high: #3730a3;
+}
+
+/* Reference pages need more room than prose guides. */
+:root:has(.api-reference) {
+  --sl-content-width: 76rem;
+}
