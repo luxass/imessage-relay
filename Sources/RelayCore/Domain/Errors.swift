@@ -1,3 +1,6 @@
+import HummingbirdOpenAPIModels
+
+@OpenAPISchema
 public enum APIErrorCode: String, Codable, Equatable, Sendable {
     case malformedJSON = "malformed_json"
     case invalidAuthentication = "invalid_authentication"
@@ -28,6 +31,7 @@ public enum APIErrorCode: String, Codable, Equatable, Sendable {
     case notFound = "not_found"
 }
 
+@OpenAPISchema
 public struct APIFieldError: Codable, Equatable, Sendable {
     public let field: String
     public let message: String
@@ -38,6 +42,7 @@ public struct APIFieldError: Codable, Equatable, Sendable {
     }
 }
 
+@OpenAPISchema
 public struct APIError: Error, Codable, Equatable, Sendable {
     public let code: APIErrorCode
     public let message: String

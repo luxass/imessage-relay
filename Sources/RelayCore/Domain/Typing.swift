@@ -1,8 +1,12 @@
+import HummingbirdOpenAPIModels
+
+@OpenAPISchema
 public enum ConversationTypingStatus: String, Codable, Equatable, Sendable {
     case active
     case inactive
 }
 
+@OpenAPISchema
 public struct ConversationTypingResponse: Codable, Equatable, Sendable {
     public let requestID: RequestID
     public let conversationID: ConversationID

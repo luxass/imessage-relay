@@ -1,5 +1,6 @@
 import Foundation
 import Hummingbird
+import HummingbirdOpenAPI
 import NIOCore
 import RelayCore
 
@@ -17,6 +18,19 @@ func jsonResponse<Value: Encodable>(
         ],
         body: ResponseBody(byteBuffer: ByteBuffer(bytes: data))
     )
+}
+
+/// Keeps the model type available to JSONEndpoint while preserving Relay's existing response bytes.
+/// Rendering delegates to jsonResponse, so RelayJSON, the status, and X-Request-ID stay unchanged.
+/// This helper connects typed endpoint registration to the existing renderer. It adds no schema validation.
+func relayJSONResponse<Value: Encodable & Sendable>(
+    _ value: Value,
+    status: HTTPResponse.Status = .ok,
+    requestID: RelayCore.RequestID
+) -> JSONResponse<Value> {
+    JSONResponse(value, status: status) { value, status in
+        try jsonResponse(value, status: status, requestID: requestID)
+    }
 }
 
 enum V1Query {

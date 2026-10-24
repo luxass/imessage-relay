@@ -1,14 +1,19 @@
+import HummingbirdOpenAPIModels
+
+@OpenAPISchema
 public enum MediaSource: String, Codable, Equatable, Sendable {
     case messages
     case upload
 }
 
+@OpenAPISchema(customCoding: .explicitPropertyRules)
 public struct MediaReference: Codable, Equatable, Sendable {
     public let mediaID: MediaID
     public let filename: String?
     public let mimeType: String?
     public let byteSize: Int64?
     public let source: MediaSource
+    @OpenAPIProperty(request: .optionalNullable)
     public let isSticker: Bool
 
     private enum CodingKeys: String, CodingKey {
@@ -49,6 +54,7 @@ public struct MediaReference: Codable, Equatable, Sendable {
     }
 }
 
+@OpenAPISchema
 public struct UploadMediaResponse: Codable, Equatable, Sendable {
     public let media: MediaReference
     public let downloadURL: String

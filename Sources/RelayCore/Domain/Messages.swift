@@ -1,3 +1,6 @@
+import HummingbirdOpenAPIModels
+
+@OpenAPISchema
 public enum DeliveryState: String, Codable, Equatable, Sendable {
     case unknown
     case notSent = "not_sent"
@@ -6,12 +9,14 @@ public enum DeliveryState: String, Codable, Equatable, Sendable {
     case failed
 }
 
+@OpenAPISchema
 public enum ReadState: String, Codable, Equatable, Sendable {
     case unknown
     case unread
     case read
 }
 
+@OpenAPISchema
 public enum MessageStatus: String, Codable, Equatable, Sendable {
     case accepted
     case queued
@@ -24,6 +29,7 @@ public enum MessageStatus: String, Codable, Equatable, Sendable {
     case resultUnknown = "result_unknown"
 }
 
+@OpenAPISchema
 public struct ThreadReference: Codable, Equatable, Sendable {
     public let replyToMessageID: MessageID?
     public let threadOriginatorMessageID: MessageID?
@@ -46,6 +52,7 @@ public struct ThreadReference: Codable, Equatable, Sendable {
     }
 }
 
+@OpenAPISchema
 public struct ReplyTarget: Codable, Equatable, Sendable {
     public let messageID: MessageID
 
@@ -114,6 +121,7 @@ extension MessagePart: Codable {
     }
 }
 
+@OpenAPISchema
 public enum ReactionKind: String, Codable, Equatable, Sendable {
     case love
     case like
@@ -125,11 +133,13 @@ public enum ReactionKind: String, Codable, Equatable, Sendable {
     case unknown
 }
 
+@OpenAPISchema
 public enum ReactionAction: String, Codable, Equatable, Sendable {
     case added
     case removed
 }
 
+@OpenAPISchema
 public struct Reaction: Codable, Equatable, Sendable {
     public let id: MessageID
     public let targetPartIndex: Int?
@@ -168,6 +178,7 @@ public struct Reaction: Codable, Equatable, Sendable {
     }
 }
 
+@OpenAPISchema
 public struct URLPreview: Codable, Equatable, Sendable {
     public let messageID: MessageID
     public let providerGUID: String
@@ -189,11 +200,13 @@ public struct URLPreview: Codable, Equatable, Sendable {
     }
 }
 
+@OpenAPISchema
 public enum NativePollKind: String, Codable, Equatable, Sendable {
     case created
     case vote
 }
 
+@OpenAPISchema
 public struct NativePoll: Codable, Equatable, Sendable {
     public let kind: NativePollKind
     public let originalMessageID: MessageID?
@@ -209,6 +222,7 @@ public struct NativePoll: Codable, Equatable, Sendable {
     }
 }
 
+@OpenAPISchema
 public struct MessageSchedule: Codable, Equatable, Sendable {
     public let scheduledAt: Timestamp?
     public let type: Int64
@@ -226,19 +240,28 @@ public struct MessageSchedule: Codable, Equatable, Sendable {
     }
 }
 
+@OpenAPISchema(customCoding: .explicitPropertyRules)
 public struct Message: Codable, Equatable, Sendable {
     public let id: MessageID
+    @OpenAPIProperty(response: .requiredNullable)
     public let providerGUID: String?
     public let conversationID: ConversationID
+    @OpenAPIProperty(response: .requiredNullable)
     public let text: String?
+    @OpenAPIProperty(response: .requiredNullable)
     public let sender: RecipientHandle?
     public let isFromMe: Bool
+    @OpenAPIProperty(response: .requiredNullable)
     public let createdAt: Timestamp?
     public let deliveryState: DeliveryState
     public let readState: ReadState
+    @OpenAPIProperty(response: .requiredNullable)
     public let deliveredAt: Timestamp?
+    @OpenAPIProperty(response: .requiredNullable)
     public let readAt: Timestamp?
+    @OpenAPIProperty(response: .requiredNullable)
     public let thread: ThreadReference?
+    @OpenAPIProperty(response: .requiredNullable)
     public var parts: [MessagePart]?
     public var reactions: [Reaction]
     public var attachments: [MediaReference]
@@ -344,6 +367,7 @@ public struct MessageContent: Codable, Equatable, Sendable {
     }
 }
 
+@OpenAPISchema
 public struct SendMediaReference: Codable, Equatable, Sendable {
     public let mediaID: MediaID
 
@@ -444,6 +468,7 @@ public struct SendMessageRequest: Codable, Equatable, Sendable {
     }
 }
 
+@OpenAPISchema
 public enum SendCorrelationStatus: String, Codable, Equatable, Sendable {
     case pending
     case partial
@@ -451,6 +476,7 @@ public enum SendCorrelationStatus: String, Codable, Equatable, Sendable {
     case ambiguous
 }
 
+@OpenAPISchema
 public struct MessageReceipt: Codable, Equatable, Sendable {
     public let messageID: MessageID
     public let status: MessageStatus
@@ -466,9 +492,12 @@ public struct MessageReceipt: Codable, Equatable, Sendable {
     }
 }
 
+@OpenAPISchema(customCoding: .explicitPropertyRules)
 public struct MediaReceipt: Codable, Equatable, Sendable {
     public let requestedMediaID: MediaID
+    @OpenAPIProperty(response: .requiredNullable)
     public let mediaID: MediaID?
+    @OpenAPIProperty(response: .requiredNullable)
     public let messageID: MessageID?
 
     private enum CodingKeys: String, CodingKey {
@@ -502,6 +531,7 @@ public struct MediaReceipt: Codable, Equatable, Sendable {
     }
 }
 
+@OpenAPISchema
 public struct SendMessageResponse: Codable, Equatable, Sendable {
     public let requestID: RequestID
     public let status: MessageStatus
