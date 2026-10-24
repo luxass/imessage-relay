@@ -17,7 +17,7 @@ catalogMode: prefer
 catalogs:
   astro:
     "@astrojs/starlight": "0.42.0"
-    "astro": "7.3.1"
+    "astro": "7.3.3"
   tooling:
     "@astrojs/check": "0.9.10"
     "typescript": "6.0.3"
@@ -25,3 +25,6 @@ catalogs:
 
 overrides:
   "chokidar": "5.0.0"
+minimumReleaseAgeExclude:
+  # Renovate security update: astro@7.3.3
+  - astro@7.3.3
