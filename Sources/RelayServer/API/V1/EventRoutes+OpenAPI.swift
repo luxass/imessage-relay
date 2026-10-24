@@ -20,6 +20,8 @@ extension EventRoutes {
             "Cache-Control": .b(.init(schema: .string(allowedValues: "no-cache"), required: true)),
             "X-Accel-Buffering": .b(.init(schema: .string(allowedValues: "no"), required: true)),
         ]) { context in
+            // Pair each event name with its payload type explicitly. The enum macro does not generate this list.
+            // Each named variant exports its name at `itemSchema.oneOf[*].properties.event.const`.
             let events: [JSONSchema] = try [
                 frame(.streamReady, payload: StreamReadyEvent.self, in: context),
                 frame(.messageCreated, payload: MessageCreatedEvent.self, in: context),
