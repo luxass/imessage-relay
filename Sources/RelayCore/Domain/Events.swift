@@ -1,8 +1,8 @@
 import Foundation
 import HummingbirdOpenAPIModels
 
-/// Exported event names appear as event.const values in /v1/events' itemSchema variants.
-/// openAPISSEPayloadsMatchAllEmittedEventShapes compares them with this enum's macro-generated schema.
+/// Names written to the `event:` field of server-sent event (SSE) frames.
+/// The schema macro describes these raw values. It does not generate the frame variants.
 @OpenAPISchema
 public enum RelayEventType: String, Codable, Equatable, Sendable {
     case streamReady = "stream.ready"

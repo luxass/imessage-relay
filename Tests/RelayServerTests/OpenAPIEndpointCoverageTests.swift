@@ -42,6 +42,8 @@ func openAPIMediaUploadAndDownloadUseRawBodiesInsteadOfJSONStringSchemas() throw
     #expect(download.responses[status: 200]?.b?.headers?["Content-Disposition"] != nil)
 }
 
+/// Checks fixture event names and payload keys against the exported SSE variants.
+/// The final assertion compares fixture names with the enum schema built separately below.
 @Test
 func openAPISSEPayloadsMatchAllEmittedEventShapes() throws {
     let document = try #require(JSONSerialization.jsonObject(with: relayOpenAPIDocumentData()) as? [String: Any])
