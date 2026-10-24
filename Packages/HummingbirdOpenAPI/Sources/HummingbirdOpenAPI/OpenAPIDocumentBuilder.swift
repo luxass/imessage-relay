@@ -29,9 +29,17 @@ public final class OpenAPIDocumentBuilder {
     public func add(_ endpoint: RawEndpoint) { entries.append(endpoint.definition) }
     public func add(_ definition: EndpointDefinition) { entries.append(definition) }
 
-    /// Canonical export, including JSON Schema keywords not yet modeled natively by OpenAPIKit.
+    /// Produces the canonical JSON bytes for schema files, downloads, or other tools.
+    /// Restores standard keywords such as `contentSchema` that OpenAPIKit 7 cannot
+    /// represent directly, checks their references, and writes deterministic JSON.
+    /// Use this method for export instead of encoding `buildValidated()` with JSONEncoder.
     public func encodedJSON() throws -> Data { try OpenAPIDocumentEncoding.encode(buildValidated()) }
 
+    /// Builds and structurally validates the OpenAPIKit object model for inspection.
+    /// This model can still contain the private `contentSchema` compatibility marker.
+    /// Direct JSONEncoder output does not restore the standard keyword. For exchange,
+    /// use `encodedJSON()`, or `OpenAPIDocumentEncoding.encode(_:)` after modifying the model.
+    /// These checks describe the API; they do not validate live request or response values.
     public func buildValidated() throws -> OpenAPI.Document {
         let context = SchemaContext()
         let paths = try buildPaths(in: context)

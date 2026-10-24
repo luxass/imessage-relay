@@ -1,5 +1,10 @@
 import OpenAPIKit
 
+// Built-in schema mappings for Swift scalars and containers. For example, String
+// describes an OpenAPI string, Int an integer, and [Value] an array of Value's schema.
+// These conformances describe JSON shapes. They do not convert values or change Codable.
+// Optional treats nullable values separately from fields that can be absent.
+
 extension String: OpenAPISchemaProviding {
     public static func openAPISchema(in context: SchemaContext, direction: SchemaDirection) -> SchemaValue { .string }
 }
