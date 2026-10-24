@@ -95,6 +95,9 @@ public struct JSONEndpoint<Output: Encodable & Sendable & OpenAPISchemaProviding
         Self(definition: definition.prefixed(by: prefix), responses: responses)
     }
 
+    /// Registers the handler and rejects a returned status absent from its declared successes.
+    /// The JSONResponse renderer owns encoding and headers. Request-body and parameter
+    /// metadata do not parse or validate incoming values; handlers and middleware still do that.
     public func register<Routes: RouterMethods>(
         on router: Routes,
         use handler: @escaping @Sendable (Request, Routes.Context) async throws -> JSONResponse<Output>
@@ -117,6 +120,8 @@ public struct RawEndpoint: Sendable {
 
     public func prefixed(by prefix: String) -> Self { Self(definition.prefixed(by: prefix)) }
 
+    /// Registers the handler and rejects response statuses absent from its metadata.
+    /// The response body passes through unchanged, without buffering or schema validation.
     public func register<Routes: RouterMethods>(
         on router: Routes,
         use handler: @escaping @Sendable (Request, Routes.Context) async throws -> Response

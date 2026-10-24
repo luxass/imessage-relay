@@ -12,7 +12,17 @@ public protocol OpenAPISchemaProviding: SendableMetatype {
     static var openAPIComponentName: String? { get }
     static var openAPITypeName: String { get }
 
+    /// Describes a value, including an array element or dictionary value.
+    /// For example, `[String?]` can encode `["hello", null]`. Its item schema must
+    /// allow null even in a response, because an array element cannot be omitted.
+    /// This hook does not decide whether a named object field can be absent.
     static func openAPISchema(in context: SchemaContext, direction: SchemaDirection) throws -> SchemaValue
+
+    /// Describes a value as a named object field, including its presence rules.
+    /// For example, a response's `let nickname: String?` is absent when nil:
+    /// `{}` rather than `{"nickname": null}`. In a request, the inferred optional
+    /// field accepts both forms. `Optional` overrides this hook to describe that
+    /// difference; other providers use their value schema by default.
     static func openAPIPropertySchema(in context: SchemaContext, direction: SchemaDirection) throws -> SchemaValue
 }
 
@@ -31,7 +41,13 @@ public enum SchemaError: Error, Equatable {
     case duplicateProperty(String)
 }
 
-/// A document-scoped registry. Do not share it across concurrent document builds.
+/// State shared by schema providers while building one OpenAPI document.
+///
+/// The component registry is one part of this context. Providers also use it to
+/// resolve nested schemas, apply request/response field rules, and build objects
+/// or JSON-encoded string schemas. Reusing it within a build keeps references
+/// consistent and lets recursive models refer to components during expansion.
+/// Create a separate context for each document. Do not share it concurrently.
 public final class SchemaContext {
     public private(set) var components: OpenAPI.ComponentDictionary<JSONSchema> = [:]
     private var owners: [OpenAPI.ComponentKey: ObjectIdentifier] = [:]
@@ -118,16 +134,28 @@ public final class SchemaContext {
     }
 }
 
+/// Lets `@OpenAPISchema` derive a schema for a type with custom Codable methods.
+/// The macro cannot infer a wire format from arbitrary encoder or decoder code.
+/// This is an author opt-in, not a change to encoding or decoding behavior.
 public enum CustomCodingStrategy {
-    /// The author guarantees that CodingKeys and property types describe the wire shape.
+    /// Derive from stored properties, CodingKeys, and `@OpenAPIProperty` rules.
+    /// The author guarantees that those declarations match the custom wire format.
     case explicitPropertyRules
 }
 
+/// Schema-only field presence and nullability rules for `@OpenAPIProperty`.
+/// Use these when a custom codec differs from synthesized Codable behavior.
+/// They affect the generated description, not the codec or runtime validation.
 public enum SchemaPropertyRule {
+    /// Use the property's ordinary inferred schema for the selected direction.
     case inferred
+    /// Require the field, using its response schema's nullability.
     case required
+    /// Require the field but allow an explicit null value.
     case requiredNullable
+    /// Allow omission, using the response field shape without adding null.
     case omittedWhenNil
+    /// Allow both omission and null, such as when a decoder supplies a default.
     case optionalNullable
 }
 
