@@ -45,7 +45,10 @@ jobs:
             .build/artifacts
             .build/checkouts
             .build/repositories
-          key: swiftpm-${{ runner.os }}-${{ runner.arch }}-macos-26-${{ hashFiles('Package.swift', 'Package.resolved') }}
+            Packages/HummingbirdOpenAPI/.build/artifacts
+            Packages/HummingbirdOpenAPI/.build/checkouts
+            Packages/HummingbirdOpenAPI/.build/repositories
+          key: swiftpm-${{ runner.os }}-${{ runner.arch }}-macos-26-${{ hashFiles('Package.swift', 'Package.resolved', 'Packages/HummingbirdOpenAPI/Package.swift', 'Packages/HummingbirdOpenAPI/Package.resolved') }}
           restore-keys: |
             swiftpm-${{ runner.os }}-${{ runner.arch }}-macos-26-
 
@@ -59,7 +62,8 @@ jobs:
       - name: Verify resolved dependencies
         run: |
           swift package resolve
-          git diff --exit-code -- Package.resolved
+          swift package --package-path Packages/HummingbirdOpenAPI resolve
+          git diff --exit-code -- Package.resolved Packages/HummingbirdOpenAPI/Package.resolved
 
       - name: Install SwiftLint
         run: |
@@ -73,6 +77,8 @@ jobs:
 
       - name: Lint
         run: just lint
+      - name: Test OpenAPI package
+        run: just test-openapi
       - name: Test
         run: just test
       - name: Build
