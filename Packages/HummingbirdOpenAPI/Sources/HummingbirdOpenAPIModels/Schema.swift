@@ -19,10 +19,11 @@ public protocol OpenAPISchemaProviding: SendableMetatype {
     static func openAPISchema(in context: SchemaContext, direction: SchemaDirection) throws -> SchemaValue
 
     /// Describes a value as a named object field, including its presence rules.
-    /// For example, a response's `let nickname: String?` is absent when nil:
-    /// `{}` rather than `{"nickname": null}`. In a request, the inferred optional
-    /// field accepts both forms. `Optional` overrides this hook to describe that
-    /// difference; other providers use their value schema by default.
+    /// With synthesized Codable, `let nickname: String?` encodes as `{}` when nil,
+    /// rather than `{"nickname": null}`. Synthesized decoding accepts both forms.
+    /// Custom codecs can differ and need explicit field rules or a schema provider.
+    /// `Optional` overrides this hook to describe the synthesized behavior.
+    /// Other providers use their value schema by default.
     static func openAPIPropertySchema(in context: SchemaContext, direction: SchemaDirection) throws -> SchemaValue
 }
 
@@ -134,7 +135,8 @@ public final class SchemaContext {
     }
 }
 
-/// Lets `@OpenAPISchema` derive a schema for a type with custom Codable methods.
+/// Lets `@OpenAPISchema` derive a schema for a struct with custom Codable methods.
+/// Enums with custom Codable methods require an explicit schema provider.
 /// The macro cannot infer a wire format from arbitrary encoder or decoder code.
 /// This is an author opt-in, not a change to encoding or decoding behavior.
 public enum CustomCodingStrategy {
