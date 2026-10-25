@@ -67,7 +67,17 @@ Build and verify the universal archive locally:
 just package-release
 ```
 
-The command writes these files to `dist/`:
+The release build compiles Apple silicon and Intel executables separately with native SwiftPM.
+It uses Apple’s `lipo` tool to combine each pair into one universal executable.
+This avoids an Xcode build failure when resolving the Swift macro target.
+
+To build only the executables and resource bundles in `.build/universal/release`, run:
+
+```sh
+just build-release
+```
+
+`just package-release` writes these files to `dist/`:
 
 `imessage-relay-<version>-macos-universal.zip` contains the menu bar app, CLI,
 resource bundles, and license. `SHA256SUMS` contains its SHA-256 checksum.

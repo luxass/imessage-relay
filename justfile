@@ -9,9 +9,9 @@ default: build
 @build output_dir="dist/dev":
     ./scripts/build-dev-app.sh "{{output_dir}}"
 
-# Build a universal release binary (arm64 + x86_64) in .build/release.
+# Build universal CLI and app executables in .build/universal/release.
 @build-release:
-    swift build -c release --arch arm64 --arch x86_64
+    ./scripts/build-release.sh
 
 # Build and verify the combined app and CLI release ZIP in dist/.
 @package-release version="" output_dir="dist":
