@@ -1,0 +1,23 @@
+name: Cache cleanup
+
+# A pull request's caches are only readable by that pull request, so they are dead weight once it closes.
+# Delete them right away instead of letting them fill the repository cache limit until GitHub evicts them.
+on:
+  pull_request:
+    types: [closed]
+
+permissions: {}
+
+jobs:
+  purge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      # delete this pull request's caches
+      actions: write
+    steps:
+      - uses: luxass/purge-action-cache@8203fbc1edd23369505f170a1d54074195a59c58 # v0.3.0
+        with:
+          mode: normal
+          max-age: "0"
+          ref-key: refs/pull/${{ github.event.pull_request.number }}/merge
