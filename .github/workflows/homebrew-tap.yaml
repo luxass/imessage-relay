@@ -12,7 +12,6 @@ concurrency:
 
 jobs:
   update-cask:
-    if: ${{ !github.event.release.prerelease }}
     permissions:
       contents: write
       pull-requests: write
@@ -20,7 +19,7 @@ jobs:
     with:
       tap-repository: luxass/homebrew-tap
       environment: homebrew-tap
-      cask-path: Casks/imessage-relay.rb
+      cask-path: ${{ github.event.release.prerelease && 'Casks/imessage-relay@rc.rb' || 'Casks/imessage-relay.rb' }}
       cask-name: imessage-relay
       cask-target: macos-universal
     secrets:

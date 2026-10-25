@@ -108,12 +108,13 @@ just package-release 0.1.0
    upload the combined ZIP and `SHA256SUMS` as workflow artifacts.
 3. **Publish:** verify that `SHA256SUMS` matches the ZIP, upload both assets to a draft
    GitHub release, then publish it with generated release notes.
-4. **Homebrew:** a stable published release calls
+4. **Homebrew:** a published release calls
    [the shared Homebrew workflow](https://github.com/luxass/shared-workflows/blob/v0.13.0/.github/workflows/reusable-homebrew-tap.yaml)
-   to open one PR updating `Casks/imessage-relay.rb` in `luxass/homebrew-tap`.
+   to open one PR in `luxass/homebrew-tap`. Stable releases update
+   `Casks/imessage-relay.rb`. Prereleases update `Casks/imessage-relay@rc.rb`.
 
-Tags such as `v0.2.0-rc.1` produce GitHub prereleases. They do not become the
-latest release or update Homebrew. The tag version must match `packageVersion`.
+Tags such as `v0.5.0-rc.2` produce GitHub prereleases. They update only the RC cask,
+not the stable cask, and do not become the latest release. The tag version must match `packageVersion`.
 Run the Release workflow manually on an existing `v*` tag to package that tag
 without publishing a release or updating Homebrew. The `release-signing`
 environment does not permit branch refs.
@@ -184,10 +185,17 @@ the reusable workflow reads the release tag from that event.
 
 ### Tap file formats
 
-`Casks/imessage-relay.rb` must exist in `luxass/homebrew-tap`. Its `version` line
-and `sha256` line marked `sha-update-id: imessage-relay-macos-universal` are updated
-from `imessage-relay-<version>-macos-universal.zip`. Review the checksum in the
-generated tap PR before merging it.
+Both `Casks/imessage-relay.rb` and `Casks/imessage-relay@rc.rb` must exist in
+`luxass/homebrew-tap`. The release workflow selects one file based on the
+GitHub release prerelease flag. The shared workflow updates its `version` line
+and `sha256` line marked `sha-update-id: imessage-relay-macos-universal` from
+`imessage-relay-<version>-macos-universal.zip`. The archive prefix and checksum
+marker stay the same for both casks. Review the checksum in the generated PR before merging it.
+
+The casks declare mutual conflicts because they install the same app and CLI.
+The tap CI checks syntax and formulae on macOS and Linux. Separate macOS jobs
+install each changed relay cask, check the app exists, run CLI `--version` and
+`--help`, then uninstall the cask. These checks do not launch the relay or access Messages.
 
 The ZIP contains `iMessage Relay.app`, `imessage-relay`, `LICENSE`, and the CLI
 SwiftPM resource bundles at its root. The app also contains its own resource
