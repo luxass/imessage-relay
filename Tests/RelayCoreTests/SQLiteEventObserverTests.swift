@@ -6,6 +6,10 @@ import Testing
 @Test
 func sqliteObserverEmitsCreatedUpdatedReactionAndMediaEvents() async throws {
     let fixture = try MessageDatabaseFixture()
+    // Apple's rollback-journal locking can reuse a read-only connection's
+    // descriptor for writer locks. Initialize WAL before opening the observer.
+    try fixture.execute("PRAGMA journal_mode=WAL")
+    try fixture.execute("UPDATE message SET text = text WHERE ROWID = 100")
     let observer = SQLiteMessageChangeObserver(
         path: fixture.path,
         attachmentDirectory: fixture.attachmentDirectory.path,
@@ -340,8 +344,7 @@ func sqliteObserverRunsPeriodicReconciliationWithoutDatabaseWrites() async throw
         return
     }
 
-    try await Task.sleep(for: .milliseconds(100))
-    #expect(observer.diagnostics.reconciliations >= 1)
+    try await waitForCondition { observer.diagnostics.reconciliations >= 1 }
     #expect(observer.diagnostics.incrementalBatches == 0)
     try await observer.shutdown()
 }

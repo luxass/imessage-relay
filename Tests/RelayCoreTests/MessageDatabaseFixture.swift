@@ -76,12 +76,16 @@ final class MessageDatabaseFixture: @unchecked Sendable {
         MessagesStorage(path: path, attachmentDirectory: attachmentDirectory.path)
     }
 
-    func execute(_ sql: String) throws {
+    func execute(_ sql: String, file: StaticString = #fileID, line: UInt = #line) throws {
         var error: UnsafeMutablePointer<CChar>?
         guard sqlite3_exec(database, sql, nil, nil, &error) == SQLITE_OK else {
             let detail = error.map { String(cString: $0) } ?? "unknown"
+            let code = sqlite3_extended_errcode(database)
+            let systemError = sqlite3_system_errno(database)
             sqlite3_free(error)
-            throw FixtureError.cannotExecute(detail)
+            throw FixtureError.cannotExecute(
+                "\(detail) (SQLite code \(code), system errno \(systemError), \(file):\(line))"
+            )
         }
     }
 
