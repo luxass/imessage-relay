@@ -63,6 +63,25 @@ brew uninstall --formula imessage-relay-cli
 brew install --cask luxass/tap/imessage-relay
 ```
 
+## Try a release candidate
+
+A release candidate is a preview build for testing before a stable release.
+Quit the relay before switching versions. If the stable cask is installed,
+uninstall it with `brew uninstall --cask luxass/tap/imessage-relay`.
+If the standalone CLI formula is installed, uninstall it with
+`brew uninstall --formula luxass/tap/imessage-relay-cli`. Then run:
+
+```sh
+brew install --cask luxass/tap/imessage-relay@rc
+imessage-relay --version
+imessage-relay --help
+```
+
+The RC cask installs both the app and CLI. It cannot be installed alongside the
+stable cask because they install the same app and command. Both use the same configuration.
+To return to stable, uninstall `imessage-relay@rc` and install `imessage-relay`.
+Do not use `--zap` when switching if you want to keep the app configuration.
+
 ## Grant access and start the relay
 
 For the app, choose an API token during setup and review the macOS permissions.

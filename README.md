@@ -39,6 +39,28 @@ as a login item when launched from `/Applications`. The relay binds to
 `127.0.0.1:8080` by default.
 
 <details>
+<summary>Try a release candidate</summary><br/>
+
+A release candidate is a preview build for testing before a stable release.
+Quit the relay before switching versions. If the stable cask is installed,
+uninstall it with `brew uninstall --cask luxass/tap/imessage-relay`.
+If the standalone CLI formula is installed, uninstall it with
+`brew uninstall --formula luxass/tap/imessage-relay-cli`. Then install the RC cask:
+
+```sh
+brew install --cask luxass/tap/imessage-relay@rc
+imessage-relay --version
+imessage-relay --help
+```
+
+The RC cask includes the app and CLI. It conflicts with the stable cask because
+both install the same app and command. They also use the same configuration.
+To return to stable, uninstall `imessage-relay@rc` and install `imessage-relay`.
+Do not use `--zap` when switching if you want to keep the app configuration.
+
+<br/></details>
+
+<details>
 <summary>Use the CLI</summary><br/>
 
 The Homebrew cask installs the `imessage-relay` command alongside the app.
@@ -275,8 +297,8 @@ Release Please opens a release PR from conventional commits. Merging it creates
 a matching tag, such as `v0.1.0`, which runs validation, packages the binary,
 and publishes a GitHub release. Stable releases then use the shared Homebrew
 workflow to open one PR updating the combined app and CLI cask in
-`luxass/homebrew-tap`. Prereleases, such as
-`v0.2.0-rc.1`, do not update Homebrew or the latest release.
+`luxass/homebrew-tap`. Prereleases, such as `v0.5.0-rc.2`, update only
+the `imessage-relay@rc` cask. They do not update the stable cask or become the latest release.
 
 Run the Release workflow manually to build artifacts without publishing. See
 the [release setup guide](docs/src/content/docs/development.md#release-setup)
