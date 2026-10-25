@@ -2,8 +2,8 @@
 
 ## Scope and Complexity
 
-- Solve the requested problem directly. Keep unrelated refactors and cleanup out of the change.
-- Read the surrounding code and matching tests before editing. Follow local conventions unless the task requires changing them.
+- Keep changes within the requested scope. Cleanup and refactoring are welcome when requested or when they directly simplify the code being changed. Avoid unrelated rewrites.
+- Read the surrounding code and matching tests before editing. Follow local conventions unless the task or a directly related cleanup improves them.
 - Do not extract single-use helpers preemptively. Inline the logic at the call site unless the helper is reused, hides a genuinely complex boundary, or has a clear independent name that improves the caller.
 - Before adding complexity for a speculative or vanishingly unlikely race or security edge case, explain the concrete failure mode, likelihood, and complexity cost to the user and get their buy-in. Do not silently expand scope for theoretical robustness.
 - Routine input validation, authorization checks, and fixes for demonstrated vulnerabilities do not require separate approval under that rule.
@@ -87,7 +87,7 @@ let recipients = try resolveAllowedRecipients(request)
 
 ### Formatting and Comments
 
-- Follow `.swiftlint.yml` and the surrounding Swift formatting. Do not reformat unrelated code.
+- Follow `.swiftlint.yml` and the surrounding Swift formatting. Reformat code within the requested cleanup scope, but avoid unrelated formatting changes.
 - Prefer type inference where the type is clear. Keep annotations that clarify a boundary or resolve ambiguity.
 - Explain non-obvious constraints and surprising behavior in comments. Do not narrate assignments or control flow.
 - Do not add lint suppressions to avoid fixing new violations. Explain any necessary suppression at its use site.
