@@ -9,25 +9,13 @@ tag="${1:?Usage: publish-release.sh TAG [ASSET_DIRECTORY]}"
 version="${tag#v}"
 asset_dir="${2:-dist}"
 cli_archive="imessage-relay-cli-${version}-macos-universal.tar.gz"
-latest_cli_archive="imessage-relay-cli-macos-universal.tar.gz"
 app_archive="imessage-relay-${version}-macos-universal.zip"
-latest_app_archive="imessage-relay-macos-universal.zip"
 
 # Check the complete asset set before creating or modifying a release.
 cd "${asset_dir}"
-for archive in \
-    "${cli_archive}" "${latest_cli_archive}" \
-    "${app_archive}" "${latest_app_archive}"; do
-    shasum -a 256 --check "${archive}.sha256"
-done
-cmp "${cli_archive}" "${latest_cli_archive}"
-cmp "${app_archive}" "${latest_app_archive}"
-assets=(
-    "${cli_archive}" "${cli_archive}.sha256"
-    "${latest_cli_archive}" "${latest_cli_archive}.sha256"
-    "${app_archive}" "${app_archive}.sha256"
-    "${latest_app_archive}" "${latest_app_archive}.sha256"
-)
+# Require both archive checksums, with no missing or extra entries.
+shasum -a 256 "${cli_archive}" "${app_archive}" | diff - SHA256SUMS
+assets=("${cli_archive}" "${app_archive}" SHA256SUMS)
 
 prerelease=false
 latest=true

@@ -16,12 +16,14 @@ Choose one installation method.
 	brew install --cask luxass/tap/imessage-relay
 	```
 
-	Or download the app archive:
+	Or choose a version from the [latest release](https://github.com/luxass/imessage-relay/releases/latest).
+	Replace `X.Y.Z` below with that version, without the leading `v`:
 
 	```sh
-	curl -fsSL -o imessage-relay.zip \
-	  https://github.com/luxass/imessage-relay/releases/latest/download/imessage-relay-macos-universal.zip
-	unzip imessage-relay.zip
+	version="X.Y.Z"
+	curl -fsSLO \
+	  "https://github.com/luxass/imessage-relay/releases/download/v${version}/imessage-relay-${version}-macos-universal.zip"
+	unzip "imessage-relay-${version}-macos-universal.zip"
 	mv "iMessage Relay.app" /Applications/
 	open "/Applications/iMessage Relay.app"
 	```
@@ -38,12 +40,14 @@ Choose one installation method.
 	brew install luxass/tap/imessage-relay-cli
 	```
 
-	Or download its archive:
+	Or choose a version from the [latest release](https://github.com/luxass/imessage-relay/releases/latest).
+	Replace `X.Y.Z` below with that version, without the leading `v`:
 
 	```sh
-	curl -fsSL -o imessage-relay-cli.tgz \
-	  https://github.com/luxass/imessage-relay/releases/latest/download/imessage-relay-cli-macos-universal.tar.gz
-	tar xzf imessage-relay-cli.tgz
+	version="X.Y.Z"
+	curl -fsSLO \
+	  "https://github.com/luxass/imessage-relay/releases/download/v${version}/imessage-relay-cli-${version}-macos-universal.tar.gz"
+	tar xzf "imessage-relay-cli-${version}-macos-universal.tar.gz"
 	```
 	</TabItem>
 	<TabItem label="Build from source">

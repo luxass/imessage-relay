@@ -33,9 +33,7 @@ if [[ "${output_dir}" != /* ]]; then
 fi
 
 cli_archive_name="imessage-relay-cli-${requested_version}-macos-universal.tar.gz"
-latest_cli_archive_name="imessage-relay-cli-macos-universal.tar.gz"
 app_archive_name="imessage-relay-${requested_version}-macos-universal.zip"
-latest_app_archive_name="imessage-relay-macos-universal.zip"
 release_tmp="$(mktemp -d "${TMPDIR:-/tmp}/imessage-relay-release.XXXXXX")"
 codesign_identity="${CODESIGN_IDENTITY:--}"
 notarize_release="${NOTARIZE_RELEASE:-0}"
@@ -44,15 +42,6 @@ cleanup() {
     rm -rf "${release_tmp}"
 }
 trap cleanup EXIT
-
-checksum() {
-    local filename="$1"
-    (
-        cd "${output_dir}"
-        shasum -a 256 "${filename}" > "${filename}.sha256"
-        shasum -a 256 --check "${filename}.sha256"
-    )
-}
 
 copy_resource_bundles() {
     local destination="$1"
@@ -134,11 +123,6 @@ touch -t 198001010000 "${cli_staging}/imessage-relay" "${cli_staging}/LICENSE"
 export COPYFILE_DISABLE=1
 tar -C "${cli_staging}" -cf - imessage-relay LICENSE "${resource_bundle_names[@]}" \
     | gzip -n > "${output_dir}/${cli_archive_name}"
-checksum "${cli_archive_name}"
-install -m 0644 \
-    "${output_dir}/${cli_archive_name}" \
-    "${output_dir}/${latest_cli_archive_name}"
-checksum "${latest_cli_archive_name}"
 
 archive_entries="$(tar -tzf "${output_dir}/${cli_archive_name}" | awk -F/ '{print $1}' | LC_ALL=C sort -u)"
 expected_entries="$(printf '%s\n' imessage-relay LICENSE "${resource_bundle_names[@]}" | LC_ALL=C sort -u)"
@@ -212,11 +196,6 @@ fi
 app_verification="${release_tmp}/app-verification"
 ditto -c -k --sequesterRsrc --keepParent \
     "${app_path}" "${output_dir}/${app_archive_name}"
-checksum "${app_archive_name}"
-install -m 0644 \
-    "${output_dir}/${app_archive_name}" \
-    "${output_dir}/${latest_app_archive_name}"
-checksum "${latest_app_archive_name}"
 mkdir -p "${app_verification}"
 ditto -x -k "${output_dir}/${app_archive_name}" "${app_verification}"
 verified_app="${app_verification}/iMessage Relay.app"
@@ -251,10 +230,12 @@ if [[ "${notarize_release}" == "1" ]]; then
     xcrun stapler validate "${verified_app}"
 fi
 
-for artifact in \
-    "${cli_archive_name}" "${cli_archive_name}.sha256" \
-    "${latest_cli_archive_name}" "${latest_cli_archive_name}.sha256" \
-    "${app_archive_name}" "${app_archive_name}.sha256" \
-    "${latest_app_archive_name}" "${latest_app_archive_name}.sha256"; do
+(
+    cd "${output_dir}"
+    shasum -a 256 "${cli_archive_name}" "${app_archive_name}" > SHA256SUMS
+    shasum -a 256 --check SHA256SUMS
+)
+
+for artifact in "${cli_archive_name}" "${app_archive_name}" SHA256SUMS; do
     printf 'Created %s\n' "${output_dir}/${artifact}"
 done

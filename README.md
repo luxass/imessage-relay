@@ -21,12 +21,15 @@ Install the menu bar app and CLI together with Homebrew:
 brew install --cask luxass/tap/imessage-relay
 ```
 
-Download the signed and notarized universal app for Apple silicon and Intel Macs:
+Download the signed and notarized universal app for Apple silicon and Intel Macs.
+Choose a version from the [latest release](https://github.com/luxass/imessage-relay/releases/latest).
+Replace `X.Y.Z` below with that version, without the leading `v`:
 
 ```sh
-curl -fsSL -o imessage-relay.zip \
-  https://github.com/luxass/imessage-relay/releases/latest/download/imessage-relay-macos-universal.zip
-unzip imessage-relay.zip
+version="X.Y.Z"
+curl -fsSLO \
+  "https://github.com/luxass/imessage-relay/releases/download/v${version}/imessage-relay-${version}-macos-universal.zip"
+unzip "imessage-relay-${version}-macos-universal.zip"
 mv "iMessage Relay.app" /Applications/
 open "/Applications/iMessage Relay.app"
 ```
@@ -39,12 +42,15 @@ as a login item when launched from `/Applications`. The relay binds to
 <summary>Install the CLI</summary><br/>
 
 Install only the CLI with Homebrew using `brew install luxass/tap/imessage-relay-cli`,
-or download its archive:
+or download its archive. Choose a version from the
+[latest release](https://github.com/luxass/imessage-relay/releases/latest).
+Replace `X.Y.Z` below with that version, without the leading `v`:
 
 ```sh
-curl -fsSL -o imessage-relay-cli.tgz \
-  https://github.com/luxass/imessage-relay/releases/latest/download/imessage-relay-cli-macos-universal.tar.gz
-tar xzf imessage-relay-cli.tgz
+version="X.Y.Z"
+curl -fsSLO \
+  "https://github.com/luxass/imessage-relay/releases/download/v${version}/imessage-relay-cli-${version}-macos-universal.tar.gz"
+tar xzf "imessage-relay-cli-${version}-macos-universal.tar.gz"
 ./imessage-relay
 ```
 
@@ -239,10 +245,15 @@ just package-release
 
 The command writes these files to `dist/`:
 
-- `imessage-relay-<version>-macos-universal.zip` and its `.sha256` checksum
-- `imessage-relay-macos-universal.zip` and its `.sha256` checksum
-- `imessage-relay-cli-<version>-macos-universal.tar.gz` and its `.sha256` checksum
-- `imessage-relay-cli-macos-universal.tar.gz` and its `.sha256` checksum
+- `imessage-relay-<version>-macos-universal.zip`: the menu bar app.
+- `imessage-relay-cli-<version>-macos-universal.tar.gz`: the CLI, resource bundles, and license.
+- `SHA256SUMS`: SHA-256 checksums for both archives.
+
+To verify a downloaded release, put all three files in the same directory and run:
+
+```sh
+shasum -a 256 --check SHA256SUMS
+```
 
 Local packages use ad hoc signing. Release CI applies a Developer ID signature,
 submits the app to Apple for notarization, staples the ticket, and verifies the

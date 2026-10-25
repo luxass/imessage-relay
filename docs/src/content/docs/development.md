@@ -69,10 +69,15 @@ just package-release
 
 The command writes these files to `dist/`:
 
-- `imessage-relay-<version>-macos-universal.zip` and its `.sha256` checksum
-- `imessage-relay-macos-universal.zip` and its `.sha256` checksum
-- `imessage-relay-cli-<version>-macos-universal.tar.gz` and its `.sha256` checksum
-- `imessage-relay-cli-macos-universal.tar.gz` and its `.sha256` checksum
+- `imessage-relay-<version>-macos-universal.zip`: the menu bar app.
+- `imessage-relay-cli-<version>-macos-universal.tar.gz`: the CLI, resource bundles, and license.
+- `SHA256SUMS`: SHA-256 checksums for both archives.
+
+To verify a downloaded release, put all three files in the same directory and run:
+
+```sh
+shasum -a 256 --check SHA256SUMS
+```
 
 Local builds are ad hoc signed and are not submitted to Apple. Release CI uses
 Developer ID, hardened runtime, and the Apple Events entitlement. It notarizes
@@ -91,8 +96,8 @@ just package-release 0.1.0
    `v0.1.0` and a draft GitHub release.
 2. **Package:** import the protected Developer ID identity, build universal CLI
    and app executables, sign and notarize both, staple the app, then verify and
-   upload every archive and checksum as workflow artifacts.
-3. **Publish:** verify the downloaded checksums, upload all assets to a draft
+   upload both archives and `SHA256SUMS` as workflow artifacts.
+3. **Publish:** verify that `SHA256SUMS` matches both archives, upload all three assets to a draft
    GitHub release, then publish it with generated release notes.
 4. **Homebrew:** a stable published release calls
    [the shared Homebrew workflow](https://github.com/luxass/shared-workflows/blob/v0.13.0/.github/workflows/reusable-homebrew-tap.yaml)

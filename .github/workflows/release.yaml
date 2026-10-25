@@ -99,7 +99,10 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: imessage-relay-release-assets
-          path: dist/*
+          path: |
+            dist/imessage-relay-*-macos-universal.zip
+            dist/imessage-relay-cli-*-macos-universal.tar.gz
+            dist/SHA256SUMS
           if-no-files-found: error
           retention-days: 7
 
