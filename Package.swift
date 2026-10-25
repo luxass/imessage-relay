@@ -10,6 +10,7 @@ let package = Package(
     products: [
         .executable(name: "imessage-relay", targets: ["RelayCLI"]),
         .executable(name: "imessage-relay-app", targets: ["RelayApp"]),
+        .executable(name: "imessage-relay-openapi", targets: ["RelayOpenAPIExport"]),
         .library(name: "RelayCore", targets: ["RelayCore"]),
     ],
     dependencies: [
@@ -51,6 +52,13 @@ let package = Package(
         ),
         .executableTarget(
             name: "RelayCLI",
+            dependencies: [
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+                "RelayServer",
+            ]
+        ),
+        .executableTarget(
+            name: "RelayOpenAPIExport",
             dependencies: [
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 "RelayServer",

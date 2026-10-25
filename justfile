@@ -25,6 +25,10 @@ default: build
 @test:
     swift test
 
+# Regenerate the API artifact from Swift declarations.
+@openapi:
+    swift run imessage-relay-openapi --output docs/public/openapi.json
+
 # Lint with SwiftLint.
 @lint:
     swiftlint lint --quiet
