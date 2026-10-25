@@ -640,7 +640,7 @@ Every error uses one JSON shape:
 
 The API uses `400` for malformed input and cursor mismatches, `401` for
 authentication, `403` for the allowlist, `404` for unknown resources, `409` for
-an idempotency conflict, `413` for large media, `422` for validation, `501` for
+an idempotency conflict, `413` for large media or a JSON body over 1 MiB, `422` for validation, `501` for
 unsupported operations, `502` for an uncertain send, reaction, read, or typing
 action, and `503` for unavailable Messages access, database, sender, or request
 store. A conflicting idempotency key or protected typing draft returns `409`.

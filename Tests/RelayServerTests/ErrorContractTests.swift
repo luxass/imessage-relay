@@ -143,6 +143,14 @@ func requestValidationErrorsReportTheOffendingFields() async throws {
             let fieldDetails = try #require(error["field_details"] as? [[String: String]])
             #expect(fieldDetails.map { $0["field"] } == [field])
         }
+
+        let oversized = try await client.execute(
+            uri: "/v1/messages",
+            method: .post,
+            headers: authorizationHeaders([.contentType: "application/json"]),
+            body: ByteBuffer(string: #"{"to":"a@example.com","text":"\#(String(repeating: "a", count: 1024 * 1024))"}"#)
+        )
+        try expectError(oversized, status: .contentTooLarge, code: .invalidRequest)
     }
     #expect(harness.sender.requests.isEmpty)
 }

@@ -12,8 +12,20 @@ func jsonResponse<Value: Encodable>(_ value: Value, status: HTTPResponse.Status 
     )
 }
 
+// JSON bodies carry text and media references, never media bytes, so they get a much smaller limit than uploads.
+private let maximumJSONBodyBytes = 1024 * 1024
+
 func decodeJSONBody<Body: Decodable>(_ type: Body.Type, from request: Request) async throws -> Body {
-    let body = try await request.body.collect(upTo: 26 * 1024 * 1024)
+    let body: ByteBuffer
+    do {
+        body = try await request.body.collect(upTo: maximumJSONBodyBytes)
+    } catch is NIOTooManyBytesError {
+        throw APIHTTPError(
+            status: .contentTooLarge,
+            code: .invalidRequest,
+            message: "The JSON request body must not exceed \(maximumJSONBodyBytes) bytes."
+        )
+    }
     return try RelayJSON.decoder.decode(type, from: Data(body.readableBytesView))
 }
 
