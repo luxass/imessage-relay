@@ -18,6 +18,6 @@ struct StatusRoutes {
             database: databaseStatus,
             sender: senderStatus
         )
-        return try jsonResponse(status, requestID: context.requestID)
+        return try jsonResponse(status)
     }
 }

@@ -3,20 +3,18 @@ import Hummingbird
 import NIOCore
 import RelayCore
 
-func jsonResponse<Value: Encodable>(
-    _ value: Value,
-    status: HTTPResponse.Status = .ok,
-    requestID: RelayCore.RequestID
-) throws -> Response {
+func jsonResponse<Value: Encodable>(_ value: Value, status: HTTPResponse.Status = .ok) throws -> Response {
     let data = try RelayJSON.encoder.encode(value)
     return Response(
         status: status,
-        headers: [
-            .contentType: "application/json; charset=utf-8",
-            .init("x-request-id")!: requestID.rawValue,
-        ],
+        headers: [.contentType: "application/json; charset=utf-8"],
         body: ResponseBody(byteBuffer: ByteBuffer(bytes: data))
     )
+}
+
+func decodeJSONBody<Body: Decodable>(_ type: Body.Type, from request: Request) async throws -> Body {
+    let body = try await request.body.collect(upTo: 26 * 1024 * 1024)
+    return try RelayJSON.decoder.decode(type, from: Data(body.readableBytesView))
 }
 
 enum V1Query {
@@ -80,7 +78,7 @@ enum V1Query {
     }
 }
 
-func pathValue(_ name: String, context: RelayRequestContext) throws -> String {
+func pathID<ID: RelayIdentifier>(_ name: String, context: RelayRequestContext) throws -> ID {
     guard let encoded = context.parameters.get(name, as: String.self),
           let value = encoded.removingPercentEncoding,
           !value.isEmpty else {
@@ -90,5 +88,5 @@ func pathValue(_ name: String, context: RelayRequestContext) throws -> String {
             message: "The \(name) path parameter is invalid."
         )
     }
-    return value
+    return try ID(validating: value)
 }

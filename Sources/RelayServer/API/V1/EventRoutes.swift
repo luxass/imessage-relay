@@ -80,7 +80,6 @@ struct EventRoutes {
                 .contentType: "text/event-stream; charset=utf-8",
                 .init("cache-control")!: "no-cache",
                 .init("x-accel-buffering")!: "no",
-                .init("x-request-id")!: context.requestID.rawValue,
             ],
             body: body
         )

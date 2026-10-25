@@ -9,6 +9,6 @@ struct SenderRoutes {
     }
 
     @Sendable private func get(_ request: Request, context: RelayRequestContext) async throws -> Response {
-        try jsonResponse(await sender.status(), requestID: context.requestID)
+        try jsonResponse(await sender.status())
     }
 }

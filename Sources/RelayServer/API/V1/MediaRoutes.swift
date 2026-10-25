@@ -26,15 +26,14 @@ struct MediaRoutes {
             mimeType: mimeType,
             data: Data(buffer.readableBytesView)
         )
-        return try jsonResponse(response, status: .created, requestID: context.requestID)
+        return try jsonResponse(response, status: .created)
     }
 
     @Sendable private func get(_ request: Request, context: RelayRequestContext) async throws -> Response {
-        let raw = try pathValue("media_id", context: context)
-        let id = try MediaID(validating: raw)
+        let id: MediaID = try pathID("media_id", context: context)
         let download = try V1Query.bool(request, "download")
         if !download {
-            return try jsonResponse(try await media.reference(id: id), requestID: context.requestID)
+            return try jsonResponse(try await media.reference(id: id))
         }
         let readable = try await media.readable(id: id)
         let contentLength = Int(exactly: readable.byteCount)
@@ -56,7 +55,6 @@ struct MediaRoutes {
             headers: [
                 .contentType: readable.reference.mimeType ?? "application/octet-stream",
                 .init("content-disposition")!: "attachment; filename=\"\(filename)\"",
-                .init("x-request-id")!: context.requestID.rawValue,
             ],
             body: body
         )

@@ -19,36 +19,24 @@ struct ConversationRoutes {
         _ request: Request,
         context: RelayRequestContext
     ) async throws -> Response {
-        let raw = try pathValue("conversation_id", context: context)
-        let id = try ConversationID(validating: raw)
-        return try jsonResponse(
-            try await typing.start(conversationID: id, requestID: context.requestID),
-            requestID: context.requestID
-        )
+        let id: ConversationID = try pathID("conversation_id", context: context)
+        return try jsonResponse(try await typing.start(conversationID: id, requestID: context.requestID))
     }
 
     @Sendable private func stopTyping(
         _ request: Request,
         context: RelayRequestContext
     ) async throws -> Response {
-        let raw = try pathValue("conversation_id", context: context)
-        let id = try ConversationID(validating: raw)
-        return try jsonResponse(
-            try await typing.stop(conversationID: id, requestID: context.requestID),
-            requestID: context.requestID
-        )
+        let id: ConversationID = try pathID("conversation_id", context: context)
+        return try jsonResponse(try await typing.stop(conversationID: id, requestID: context.requestID))
     }
 
     @Sendable private func markRead(
         _ request: Request,
         context: RelayRequestContext
     ) async throws -> Response {
-        let raw = try pathValue("conversation_id", context: context)
-        let id = try ConversationID(validating: raw)
-        return try jsonResponse(
-            try await conversations.markRead(id: id, requestID: context.requestID),
-            requestID: context.requestID
-        )
+        let id: ConversationID = try pathID("conversation_id", context: context)
+        return try jsonResponse(try await conversations.markRead(id: id, requestID: context.requestID))
     }
 
     @Sendable private func list(_ request: Request, context: RelayRequestContext) async throws -> Response {
@@ -59,18 +47,16 @@ struct ConversationRoutes {
             unreadOnly: V1Query.bool(request, "unread_only"),
             participant: participant
         )
-        return try jsonResponse(page, requestID: context.requestID)
+        return try jsonResponse(page)
     }
 
     @Sendable private func get(_ request: Request, context: RelayRequestContext) async throws -> Response {
-        let raw = try pathValue("conversation_id", context: context)
-        let id = try ConversationID(validating: raw)
-        return try jsonResponse(try await conversations.get(id: id), requestID: context.requestID)
+        let id: ConversationID = try pathID("conversation_id", context: context)
+        return try jsonResponse(try await conversations.get(id: id))
     }
 
     @Sendable private func listMessages(_ request: Request, context: RelayRequestContext) async throws -> Response {
-        let raw = try pathValue("conversation_id", context: context)
-        let conversationID = try ConversationID(validating: raw)
+        let conversationID: ConversationID = try pathID("conversation_id", context: context)
         let rawMode = V1Query.string(request, "search_mode") ?? MessageSearchMode.contains.rawValue
         guard let searchMode = MessageSearchMode(rawValue: rawMode) else {
             throw APIHTTPError(
@@ -90,6 +76,6 @@ struct ConversationRoutes {
                 searchMode: searchMode
             )
         )
-        return try jsonResponse(page, requestID: context.requestID)
+        return try jsonResponse(page)
     }
 }
