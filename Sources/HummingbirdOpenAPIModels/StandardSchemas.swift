@@ -28,7 +28,7 @@ extension Double: OpenAPISchemaProviding {
 }
 
 extension Optional: OpenAPISchemaProviding where Wrapped: OpenAPISchemaProviding {
-    public static var openAPITypeName: String { "Optional_of_" + Wrapped.openAPITypeName }
+    public static var openAPITypeName: String { "OptionalOf" + Wrapped.openAPITypeName }
     public static func openAPISchema(in context: SchemaContext, direction: SchemaDirection) throws -> SchemaValue {
         try context.schema(for: Wrapped.self, direction: direction).nullableSchemaObject()
     }
@@ -41,14 +41,14 @@ extension Optional: OpenAPISchemaProviding where Wrapped: OpenAPISchemaProviding
 }
 
 extension Array: OpenAPISchemaProviding where Element: OpenAPISchemaProviding {
-    public static var openAPITypeName: String { "Array_of_" + Element.openAPITypeName }
+    public static var openAPITypeName: String { "ArrayOf" + Element.openAPITypeName }
     public static func openAPISchema(in context: SchemaContext, direction: SchemaDirection) throws -> SchemaValue {
         .array(items: try context.schema(for: Element.self, direction: direction))
     }
 }
 
 extension Dictionary: OpenAPISchemaProviding where Key == String, Value: OpenAPISchemaProviding {
-    public static var openAPITypeName: String { "Dictionary_of_String_" + Value.openAPITypeName }
+    public static var openAPITypeName: String { "DictionaryOf" + Value.openAPITypeName }
     public static func openAPISchema(in context: SchemaContext, direction: SchemaDirection) throws -> SchemaValue {
         .object(additionalProperties: .b(try context.schema(for: Value.self, direction: direction)))
     }

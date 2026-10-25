@@ -20,7 +20,12 @@ public struct SchemaMacro: ExtensionMacro {
         } else {
             throw MacroExpansionErrorMessage("@OpenAPISchema supports structs and String/Int raw-value enums.")
         }
-        let name = try componentName(attribute: node, type: type.trimmedDescription, parameters: parameters)
+        // Generic specializations append their arguments, such as `PageOfString` or `PairOfIntAndString`.
+        let suffix = parameters.enumerated().map {
+            " + \"\($0.offset == 0 ? "Of" : "And")\" + \($0.element).openAPITypeName"
+        }.joined()
+        let defaultName = StringLiteralExprSyntax(content: type.trimmedDescription).description
+        let name = (try customName(attribute: node, label: "name") ?? defaultName) + suffix
         let constraints = parameters.isEmpty ? "" : " where " + parameters.map {
             "\($0): HummingbirdOpenAPIModels.OpenAPISchemaProviding"
         }.joined(separator: ", ")
@@ -47,8 +52,10 @@ public struct SchemaMacro: ExtensionMacro {
             throw MacroExpansionErrorMessage("Conditional members require an explicit schema provider.")
         }
         let acknowledgesCustomCoding: Bool
-        if case .argumentList(let arguments) = attribute.arguments {
-            acknowledgesCustomCoding = arguments.contains { $0.label?.text == "customCoding" }
+        if case .argumentList(let arguments) = attribute.arguments,
+           let strategy = arguments.first(where: { $0.label?.text == "customCoding" }) {
+            // Only the literal opt-in counts. `customCoding: nil` must not silence the check.
+            acknowledgesCustomCoding = strategy.expression.trimmedDescription == ".explicitPropertyRules"
         } else {
             acknowledgesCustomCoding = false
         }
@@ -78,7 +85,7 @@ public struct SchemaMacro: ExtensionMacro {
     private struct Field {
         let name: String
         let type: String
-        var rules: String = ""
+        let rules: String
     }
 
     private static func storedFields(in members: MemberBlockItemListSyntax) throws -> [Field] {
@@ -88,8 +95,7 @@ public struct SchemaMacro: ExtensionMacro {
                   !variable.modifiers.contains(where: { ["static", "class"].contains($0.name.text) }) else { continue }
             let rules = try propertyRules(variable.attributes)
             for binding in variable.bindings {
-                if var field = try storedField(binding, specifier: variable.bindingSpecifier.text) {
-                    field.rules = rules
+                if let field = try storedField(binding, specifier: variable.bindingSpecifier.text, rules: rules) {
                     fields.append(field)
                 }
             }
@@ -97,7 +103,7 @@ public struct SchemaMacro: ExtensionMacro {
         return fields
     }
 
-    private static func storedField(_ binding: PatternBindingSyntax, specifier: String) throws -> Field? {
+    private static func storedField(_ binding: PatternBindingSyntax, specifier: String, rules: String) throws -> Field? {
         // Computed properties do not participate in synthesized Codable.
         if let accessors = binding.accessorBlock {
             if case .getter = accessors.accessors { return nil }
@@ -111,7 +117,7 @@ public struct SchemaMacro: ExtensionMacro {
         guard !(specifier == "let" && binding.initializer != nil) else {
             throw MacroExpansionErrorMessage("Initialized let properties require an explicit schema provider.")
         }
-        return Field(name: name, type: type.trimmedDescription)
+        return Field(name: name, type: type.trimmedDescription, rules: rules)
     }
 
     private static func codingNames(
@@ -137,16 +143,13 @@ public struct SchemaMacro: ExtensionMacro {
         return names
     }
 
-    private static func componentName(attribute: AttributeSyntax, type: String, parameters: [String]) throws -> String {
-        var name = StringLiteralExprSyntax(content: type).description
-        if case .argumentList(let arguments) = attribute.arguments,
-           let customName = arguments.first(where: { $0.label?.text == "name" }) {
-            guard customName.expression.is(StringLiteralExprSyntax.self) else {
-                throw MacroExpansionErrorMessage("Schema names must be string literals.")
-            }
-            name = customName.expression.trimmedDescription
+    private static func customName(attribute: AttributeSyntax, label: String) throws -> String? {
+        guard case .argumentList(let arguments) = attribute.arguments,
+              let argument = arguments.first(where: { $0.label?.text == label }) else { return nil }
+        guard argument.expression.is(StringLiteralExprSyntax.self) else {
+            throw MacroExpansionErrorMessage("Schema names must be string literals.")
         }
-        return name + parameters.map { " + \"__\" + \($0).openAPITypeName" }.joined()
+        return argument.expression.trimmedDescription
     }
 
     private static func propertyRules(_ attributes: AttributeListSyntax) throws -> String {
@@ -180,9 +183,7 @@ public struct SchemaMacro: ExtensionMacro {
         guard inherited.contains("String") || inherited.contains("Int") else {
             throw MacroExpansionErrorMessage("Enum schemas require a String or Int raw value, or an explicit schema provider.")
         }
-        if declaration.memberBlock.members.contains(where: {
-            $0.decl.is(InitializerDeclSyntax.self) || $0.decl.as(FunctionDeclSyntax.self)?.name.text == "encode"
-        }) {
+        if declaration.memberBlock.members.contains(where: { hasCustomCoding($0.decl) }) {
             throw MacroExpansionErrorMessage("Custom enum coding requires an explicit schema provider.")
         }
         let isString = inherited.contains("String")
@@ -209,13 +210,14 @@ public struct SchemaMacro: ExtensionMacro {
                     } else { value = nextInteger }
                     values.append(String(value))
                     if value == Int.max {
-                        throw MacroExpansionErrorMessage("Int.max enum raw values require an explicit schema provider in this first slice.")
+                        throw MacroExpansionErrorMessage("Int.max enum raw values require an explicit schema provider.")
                     }
                     nextInteger = value + 1
                 }
             }
         }
         guard !values.isEmpty else { throw MacroExpansionErrorMessage("An enum schema needs at least one case.") }
-        return "return context.\(isString ? "stringEnumeration" : "integerEnumeration")([\(values.joined(separator: ", "))])"
+        let schema = isString ? "string" : "integer"
+        return "return HummingbirdOpenAPIModels.SchemaValue.\(schema)(allowedValues: [\(values.joined(separator: ", "))])"
     }
 }

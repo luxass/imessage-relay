@@ -5,28 +5,19 @@ import OpenAPIKit
 
 /// Collects endpoint metadata without constructing application handlers or services.
 public final class OpenAPIDocumentBuilder {
-    private let version: OpenAPI.Document.Version
     private let title: String
     private let apiVersion: String
     private let servers: [OpenAPI.Server]
     private var entries: [EndpointDefinition] = []
     private var bearerScheme: String?
 
-    public init(
-        version: OpenAPI.Document.Version = .v3_2_1,
-        title: String,
-        apiVersion: String,
-        servers: [OpenAPI.Server] = []
-    ) {
-        self.version = version
+    public init(title: String, apiVersion: String, servers: [OpenAPI.Server] = []) {
         self.title = title
         self.apiVersion = apiVersion
         self.servers = servers
     }
 
     public func requireHTTPBearerAuthentication(named name: String) { bearerScheme = name }
-    public func add<Output>(_ endpoint: JSONEndpoint<Output>) { entries.append(endpoint.definition) }
-    public func add(_ endpoint: RawEndpoint) { entries.append(endpoint.definition) }
     public func add(_ definition: EndpointDefinition) { entries.append(definition) }
 
     /// Produces the canonical JSON bytes for schema files, downloads, or other tools.
@@ -37,8 +28,7 @@ public final class OpenAPIDocumentBuilder {
 
     /// Builds and structurally validates the OpenAPIKit object model for inspection.
     /// This model can still contain the private `contentSchema` compatibility marker.
-    /// Direct JSONEncoder output does not restore the standard keyword. For exchange,
-    /// use `encodedJSON()`, or `OpenAPIDocumentEncoding.encode(_:)` after modifying the model.
+    /// Direct JSONEncoder output does not restore the standard keyword. For exchange, use `encodedJSON()`.
     /// These checks describe the API; they do not validate live request or response values.
     public func buildValidated() throws -> OpenAPI.Document {
         let context = SchemaContext()
@@ -53,7 +43,7 @@ public final class OpenAPIDocumentBuilder {
             security = [[.component(named: bearerScheme): []]]
         }
         let document = OpenAPI.Document(
-            openAPIVersion: version,
+            openAPIVersion: .v3_2_1,
             info: .init(title: title, version: apiVersion),
             servers: servers,
             paths: paths,
@@ -110,7 +100,7 @@ public final class OpenAPIDocumentBuilder {
         }
     }
 
-    public static func normalizedPath(_ path: String) throws -> (path: String, captures: [String]) {
+    private static func normalizedPath(_ path: String) throws -> (path: String, captures: [String]) {
         guard path.hasPrefix("/"), !path.contains("//"), path == "/" || !path.hasSuffix("/"),
               !path.contains(where: { $0.isWhitespace || $0.isNewline || "*{}?#".contains($0) }) else {
             throw EndpointError.invalidDefinition("Unsupported route path: \(path)")

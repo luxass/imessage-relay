@@ -9,12 +9,12 @@ import Testing
 private let octetStream = OpenAPI.ContentType(rawValue: "application/octet-stream")!
 
 @Test
-func prefixedEndpointExportsItsParametersAndBody() throws {
+func endpointExportsItsParametersAndBody() throws {
     let builder = OpenAPIDocumentBuilder(title: "Example", apiVersion: "1.0")
-    builder.add(createThingEndpoint())
+    builder.add(createThingEndpoint().definition)
 
     let document = try builder.buildValidated()
-    let operation = try #require(document.paths["/api/things/{id}"]?.b?.post)
+    let operation = try #require(document.paths["/things/{id}"]?.b?.post)
     let parameters = try operation.parameters.map { try #require($0.b) }
     let identifier = try #require(parameters.first { $0.name == "id" })
 
@@ -22,12 +22,13 @@ func prefixedEndpointExportsItsParametersAndBody() throws {
     #expect(Set(parameters.map(\.name)) == ["id", "mode", "X-Key"])
     #expect(identifier.required == true)
     #expect(operation.requestBody?.b?.required == true)
-    #expect(document.components.schemas["Hello_request"] != nil)
-    #expect(document.components.schemas["Hello_response"] != nil)
+    // Hello has the same request and response schema, so both directions share one component.
+    #expect(document.components.schemas.count == 1)
+    #expect(document.components.schemas["Hello"] != nil)
 }
 
 @Test
-func prefixedEndpointRegistersItsLiveRoute() async throws {
+func endpointRegistersItsLiveRoute() async throws {
     let router = Router()
     createThingEndpoint().register(on: router) { _, _ in
         JSONResponse(Hello(message: "Created"), status: .created) { _, status in
@@ -36,7 +37,7 @@ func prefixedEndpointRegistersItsLiveRoute() async throws {
     }
 
     try await Application(router: router).test(.router) { client in
-        let response = try await client.execute(uri: "/api/things/example", method: .post)
+        let response = try await client.execute(uri: "/things/example", method: .post)
         #expect(response.status == .created)
     }
 }
@@ -54,7 +55,7 @@ func binaryRequestAndResponseDescribeRawBytes() throws {
         }]
     ))
     let builder = OpenAPIDocumentBuilder(title: "Example", apiVersion: "1.0")
-    builder.add(endpoint)
+    builder.add(endpoint.definition)
 
     let document = try builder.buildValidated()
     let operation = try #require(document.paths["/bytes"]?.b?.post)
@@ -81,7 +82,7 @@ func sseFramesDescribeJSONEncodedPayloads() throws {
         }]
     ))
     let builder = OpenAPIDocumentBuilder(title: "Example", apiVersion: "1.0")
-    builder.add(endpoint)
+    builder.add(endpoint.definition)
 
     let data = try builder.encodedJSON()
     let json = try #require(String(data: data, encoding: .utf8))
@@ -149,7 +150,7 @@ private func createThingEndpoint() -> JSONEndpoint<Hello> {
         ],
         requestBody: .json(Hello.self, description: "The greeting.", example: AnyCodable(["message": "Hello"])),
         responses: [.success(.created, description: "Created.")]
-    ).prefixed(by: "/api")
+    )
 }
 
 private func readItemEndpoint(

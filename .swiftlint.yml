@@ -1,8 +1,6 @@
 included:
   - Sources
   - Tests
-  - Packages/HummingbirdOpenAPI/Sources
-  - Packages/HummingbirdOpenAPI/Tests
 
 line_length:
   warning: 140

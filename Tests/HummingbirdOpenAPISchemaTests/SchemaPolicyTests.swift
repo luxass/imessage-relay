@@ -66,19 +66,15 @@ func genericSpecializationsHaveStableSeparateComponents() throws {
     _ = try context.schema(for: Page<String>.self, direction: .response)
     _ = try context.schema(for: Page<Int>.self, direction: .response)
     _ = try context.schema(for: Page<[String]>.self, direction: .response)
-    #expect(context.components["Page__String_response"] != nil)
-    #expect(context.components["Page__Int_response"] != nil)
-    #expect(context.components["Page__Array_of_String_response"] != nil)
+    #expect(context.components["PageOfString"] != nil)
+    #expect(context.components["PageOfInt"] != nil)
+    #expect(context.components["PageOfArrayOfString"] != nil)
 }
 
 @Test
 func customPropertyRulesPreserveNullAndInputDefaults() throws {
-    let context = SchemaContext()
-    _ = try context.schema(for: ExplicitNull.self, direction: .request)
-    _ = try context.schema(for: ExplicitNull.self, direction: .response)
-    let object = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(context.components)) as? [String: [String: Any]])
-    let output = try #require(object["ExplicitNull_response"])
-    let input = try #require(object["ExplicitNull_request"])
+    let input = try component(ExplicitNull.self, direction: .request)
+    let output = try component(ExplicitNull.self, direction: .response)
     #expect(Set(output["required"] as? [String] ?? []) == ["value", "enabled"])
     #expect((input["required"] as? [String] ?? []).isEmpty)
     let properties = try #require(output["properties"] as? [String: [String: Any]])
@@ -93,7 +89,7 @@ func customPropertyRulesPreserveNullAndInputDefaults() throws {
 func componentCollisionsAndFailedExpansionsCannotPoisonTheRegistry() throws {
     let context = SchemaContext()
     _ = try context.schema(for: FirstCollision.self, direction: .response)
-    #expect(throws: SchemaError.componentCollision("Collision_response")) {
+    #expect(throws: SchemaError.componentCollision("Collision")) {
         try context.schema(for: SecondCollision.self, direction: .response)
     }
     #expect(throws: SchemaError.duplicateProperty("injected")) {
@@ -101,6 +97,13 @@ func componentCollisionsAndFailedExpansionsCannotPoisonTheRegistry() throws {
     }
     #expect(context.components.count == 1)
     _ = try context.schema(for: Renamed.self, direction: .request)
-    #expect(context.components["NamedExample_request"] != nil)
+    #expect(context.components["NamedExample"] != nil)
     #expect(context.components.count == 2)
+}
+
+private func component<Value: OpenAPISchemaProviding>(_ type: Value.Type, direction: SchemaDirection) throws -> [String: Any] {
+    let context = SchemaContext()
+    _ = try context.schema(for: type, direction: direction)
+    let object = try JSONSerialization.jsonObject(with: JSONEncoder().encode(context.components)) as? [String: [String: Any]]
+    return try #require(object?[Value.openAPITypeName])
 }

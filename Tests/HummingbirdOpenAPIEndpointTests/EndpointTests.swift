@@ -32,7 +32,7 @@ func documentRegistersTheResponseModel() throws {
     let document = try greetingDocumentBuilder().buildValidated()
 
     #expect(document.components.schemas.count == 1)
-    #expect(document.components.schemas["Hello_response"] != nil)
+    #expect(document.components.schemas["Hello"] != nil)
 }
 
 @Test
@@ -83,7 +83,7 @@ func registeredEndpointReturnsItsDeclaredPayload() async throws {
 @Test
 func duplicateOperationsAreRejected() throws {
     let builder = greetingDocumentBuilder()
-    builder.add(greetingEndpoint())
+    builder.add(greetingEndpoint().definition)
 
     #expect(throws: EndpointError.duplicateOperation("GET /hello")) {
         try builder.buildValidated()
@@ -96,7 +96,7 @@ func duplicateResponseCodesAreRejected() throws {
     builder.add(greetingEndpoint(responses: [
         .success(.ok, description: "One"),
         .success(.ok, description: "Two"),
-    ]))
+    ]).definition)
 
     #expect(throws: EndpointError.invalidDefinition("Duplicate response status 200 for hello.")) {
         try builder.buildValidated()
@@ -106,7 +106,7 @@ func duplicateResponseCodesAreRejected() throws {
 @Test
 func missingSuccessResponseIsRejected() throws {
     let builder = OpenAPIDocumentBuilder(title: "Example", apiVersion: "1.0")
-    builder.add(greetingEndpoint(responses: []))
+    builder.add(greetingEndpoint(responses: []).definition)
 
     #expect(throws: EndpointError.invalidDefinition("An endpoint needs an operation ID, summary, and success response.")) {
         try builder.buildValidated()
@@ -137,6 +137,6 @@ func greetingEndpoint(
 
 private func greetingDocumentBuilder() -> OpenAPIDocumentBuilder {
     let builder = OpenAPIDocumentBuilder(title: "Example", apiVersion: "1.0")
-    builder.add(greetingEndpoint())
+    builder.add(greetingEndpoint().definition)
     return builder
 }

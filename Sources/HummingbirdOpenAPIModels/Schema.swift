@@ -1,5 +1,6 @@
 import OpenAPIKit
 
+/// Macro-generated conformances name this alias, so annotated models only need to import this module.
 public typealias SchemaValue = JSONSchema
 
 public enum SchemaDirection: String, Sendable {
@@ -9,6 +10,7 @@ public enum SchemaDirection: String, Sendable {
 
 public protocol OpenAPISchemaProviding: SendableMetatype {
     /// Nil keeps scalar schemas inline. Named schemas become reusable components.
+    /// Both directions share this name, so their schemas must be identical.
     static var openAPIComponentName: String? { get }
     static var openAPITypeName: String { get }
 
@@ -39,6 +41,8 @@ extension OpenAPISchemaProviding {
 public enum SchemaError: Error, Equatable {
     case invalidComponentName(String)
     case componentCollision(String)
+    /// The request and response schemas differ but share one component name.
+    case directionalSchemaMismatch(String)
     case duplicateProperty(String)
 }
 
@@ -48,10 +52,12 @@ public enum SchemaError: Error, Equatable {
 /// resolve nested schemas, apply request/response field rules, and build objects
 /// or JSON-encoded string schemas. Reusing it within a build keeps references
 /// consistent and lets recursive models refer to components during expansion.
+/// A type used in both directions gets one component when both schemas match.
+/// Different schemas throw `directionalSchemaMismatch` rather than silently renaming.
 /// Create a separate context for each document. Do not share it concurrently.
 public final class SchemaContext {
     public private(set) var components: OpenAPI.ComponentDictionary<JSONSchema> = [:]
-    private var owners: [OpenAPI.ComponentKey: ObjectIdentifier] = [:]
+    private var owners: [OpenAPI.ComponentKey: (type: ObjectIdentifier, directions: Set<SchemaDirection>)] = [:]
 
     public init() {}
 
@@ -62,21 +68,27 @@ public final class SchemaContext {
         guard let name = type.openAPIComponentName else {
             return try type.openAPISchema(in: self, direction: direction)
         }
-        let componentName = name + "_" + direction.rawValue
-        guard let key = OpenAPI.ComponentKey(rawValue: componentName) else {
-            throw SchemaError.invalidComponentName(componentName)
+        guard let key = OpenAPI.ComponentKey(rawValue: name) else {
+            throw SchemaError.invalidComponentName(name)
         }
-        let reference = JSONSchema.reference(.component(named: componentName))
-        if let owner = owners[key] {
-            guard owner == ObjectIdentifier(type) else { throw SchemaError.componentCollision(componentName) }
-            return reference
+        let reference = JSONSchema.reference(.component(named: name))
+        let existing = owners[key]
+        if let existing {
+            guard existing.type == ObjectIdentifier(type) else { throw SchemaError.componentCollision(name) }
+            if existing.directions.contains(direction) { return reference }
         }
         // Reserve the identity before expansion so recursive fields can refer to it.
+        // A shared component assumes the directions match until the comparison below.
         let previousComponents = components
         let previousOwners = owners
-        owners[key] = ObjectIdentifier(type)
+        owners[key] = (ObjectIdentifier(type), (existing?.directions ?? []).union([direction]))
         do {
-            components[key] = try type.openAPISchema(in: self, direction: direction)
+            let schema = try type.openAPISchema(in: self, direction: direction)
+            if let stored = components[key] {
+                guard stored == schema else { throw SchemaError.directionalSchemaMismatch(name) }
+            } else {
+                components[key] = schema
+            }
             return reference
         } catch {
             components = previousComponents
@@ -94,12 +106,8 @@ public final class SchemaContext {
         switch direction == .request ? request : response {
         case .inferred:
             return try type.openAPIPropertySchema(in: self, direction: direction)
-        case .required:
-            return try type.openAPIPropertySchema(in: self, direction: .response).requiredSchemaObject()
         case .requiredNullable:
             return try schema(for: type, direction: direction).nullableSchemaObject().requiredSchemaObject()
-        case .omittedWhenNil:
-            return try type.openAPIPropertySchema(in: self, direction: .response).optionalSchemaObject()
         case .optionalNullable:
             return try schema(for: type, direction: direction).nullableSchemaObject().optionalSchemaObject()
         }
@@ -125,14 +133,6 @@ public final class SchemaContext {
             Self.contentSchemaMarker: AnyCodable(try schema(for: type, direction: direction)),
         ])
     }
-
-    public func stringEnumeration(_ values: [String]) -> SchemaValue {
-        .string(allowedValues: values.map { AnyCodable($0) })
-    }
-
-    public func integerEnumeration(_ values: [Int]) -> SchemaValue {
-        .integer(allowedValues: values.map { AnyCodable($0) })
-    }
 }
 
 /// Lets `@OpenAPISchema` derive a schema for a struct with custom Codable methods.
@@ -151,17 +151,16 @@ public enum CustomCodingStrategy {
 public enum SchemaPropertyRule {
     /// Use the property's ordinary inferred schema for the selected direction.
     case inferred
-    /// Require the field, using its response schema's nullability.
-    case required
     /// Require the field but allow an explicit null value.
     case requiredNullable
-    /// Allow omission, using the response field shape without adding null.
-    case omittedWhenNil
     /// Allow both omission and null, such as when a decoder supplies a default.
     case optionalNullable
 }
 
-@attached(extension, conformances: OpenAPISchemaProviding, names: named(openAPISchema), named(openAPIComponentName))
+@attached(
+    extension, conformances: OpenAPISchemaProviding,
+    names: named(openAPISchema), named(openAPIComponentName)
+)
 public macro OpenAPISchema(name: String? = nil, customCoding: CustomCodingStrategy? = nil) = #externalMacro(
     module: "HummingbirdOpenAPIMacros", type: "SchemaMacro"
 )

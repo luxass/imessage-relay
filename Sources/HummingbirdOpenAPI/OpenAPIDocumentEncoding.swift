@@ -3,8 +3,8 @@ import HummingbirdOpenAPIModels
 import OpenAPIKit
 
 /// A narrow encoding adapter for the standard contentSchema keyword absent from OpenAPIKit 7.
-public enum OpenAPIDocumentEncoding {
-    public static func encode(_ document: OpenAPI.Document) throws -> Data {
+enum OpenAPIDocumentEncoding {
+    static func encode(_ document: OpenAPI.Document) throws -> Data {
         let data = try JSONEncoder().encode(document)
         let source = try JSONSerialization.jsonObject(with: data)
         let normalized = documentValue(source)

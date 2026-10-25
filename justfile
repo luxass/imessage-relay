@@ -25,10 +25,6 @@ default: build
 @test:
     swift test
 
-# Test the standalone code-first OpenAPI package.
-@test-openapi:
-    swift test --package-path Packages/HummingbirdOpenAPI
-
 # Lint with SwiftLint.
 @lint:
     swiftlint lint --quiet

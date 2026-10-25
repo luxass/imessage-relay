@@ -21,6 +21,11 @@ enum GreetingKind: String, Codable {
 }
 
 @OpenAPISchema
+struct Farewell: Codable {
+    let note: String?
+}
+
+@OpenAPISchema
 struct Tree: Codable {
     let children: [Tree]
 }
@@ -32,12 +37,13 @@ struct CollectionModel: Codable {
 
 @Test
 func schemasPreserveCodingKeysAndDirectionalOptionals() throws {
-    let context = SchemaContext()
-    _ = try context.schema(for: Greeting.self, direction: .request)
-    _ = try context.schema(for: Greeting.self, direction: .response)
-    let components = try object(context.components)
-    let input = try #require(components["Greeting_request"] as? [String: Any])
-    let output = try #require(components["Greeting_response"] as? [String: Any])
+    // The directions differ, so each one needs its own document context.
+    let requestContext = SchemaContext()
+    _ = try requestContext.schema(for: Greeting.self, direction: .request)
+    let responseContext = SchemaContext()
+    _ = try responseContext.schema(for: Greeting.self, direction: .response)
+    let input = try #require(try object(requestContext.components)["Greeting"] as? [String: Any])
+    let output = try #require(try object(responseContext.components)["Greeting"] as? [String: Any])
     #expect(input["required"] as? [String] == ["message"])
     #expect(output["required"] as? [String] == ["message"])
     let inputProperties = try #require(input["properties"] as? [String: [String: Any]])
@@ -57,8 +63,31 @@ func rawEnumsUseWireValues() throws {
     let context = SchemaContext()
     _ = try context.schema(for: GreetingKind.self, direction: .response)
     let components = try object(context.components)
-    let schema = try #require(components["GreetingKind_response"] as? [String: Any])
+    let schema = try #require(components["GreetingKind"] as? [String: Any])
     #expect(schema["enum"] as? [String] == ["normal", "very_friendly"])
+}
+
+@Test
+func matchingDirectionsShareOneComponent() throws {
+    let context = SchemaContext()
+    _ = try context.schema(for: GreetingKind.self, direction: .request)
+    _ = try context.schema(for: Tree.self, direction: .response)
+    _ = try context.schema(for: Tree.self, direction: .request)
+    _ = try context.schema(for: GreetingKind.self, direction: .response)
+    #expect(Set(context.components.keys.map(\.rawValue)) == ["GreetingKind", "Tree"])
+}
+
+@Test
+func differingDirectionsAreRejected() throws {
+    let context = SchemaContext()
+    _ = try context.schema(for: Farewell.self, direction: .response)
+    #expect(throws: SchemaError.directionalSchemaMismatch("Farewell")) {
+        try context.schema(for: Farewell.self, direction: .request)
+    }
+    // The rejected request expansion leaves the response component in place.
+    #expect(context.components.count == 1)
+    _ = try context.schema(for: Farewell.self, direction: .response)
+    #expect(context.components.count == 1)
 }
 
 @Test

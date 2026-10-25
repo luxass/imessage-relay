@@ -16,8 +16,8 @@ public enum EndpointError: Error, Equatable {
 /// The supplied renderer owns JSON encoding and headers. This wrapper calls that renderer
 /// and rejects a response whose status differs from the status declared by the handler.
 public struct JSONResponse<Value: Encodable & Sendable>: ResponseGenerator, Sendable {
-    public let value: Value
-    public let status: HTTPResponse.Status
+    let value: Value
+    let status: HTTPResponse.Status
     private let render: @Sendable (Value, HTTPResponse.Status) throws -> Response
 
     public init(
@@ -60,17 +60,12 @@ public struct JSONEndpoint<Output: Encodable & Sendable & OpenAPISchemaProviding
     }
 
     public let definition: EndpointDefinition
-    private let responses: [ResponseDefinition]
-    public var method: HTTPRequest.Method { definition.method }
-    public var path: String { definition.path }
-    public var operationID: String { definition.operationID }
 
     public init(
         method: HTTPRequest.Method, path: String, operationID: String, summary: String,
         description: String? = nil, tags: [String] = [], parameters: [EndpointParameter] = [],
         requestBody: EndpointBody? = nil, responses: [ResponseDefinition], responseHeaders: OpenAPI.Header.Map = [:]
     ) {
-        self.responses = responses
         self.definition = EndpointDefinition(
             method: method, path: path, operationID: operationID, summary: summary,
             description: description, tags: tags, parameters: parameters, requestBody: requestBody,
@@ -86,15 +81,6 @@ public struct JSONEndpoint<Output: Encodable & Sendable & OpenAPISchemaProviding
         )
     }
 
-    private init(definition: EndpointDefinition, responses: [ResponseDefinition]) {
-        self.definition = definition
-        self.responses = responses
-    }
-
-    public func prefixed(by prefix: String) -> Self {
-        Self(definition: definition.prefixed(by: prefix), responses: responses)
-    }
-
     /// Registers the handler and rejects a returned status absent from its declared successes.
     /// The JSONResponse renderer owns encoding and headers. Request-body and parameter
     /// metadata do not parse or validate incoming values; handlers and middleware still do that.
@@ -102,9 +88,12 @@ public struct JSONEndpoint<Output: Encodable & Sendable & OpenAPISchemaProviding
         on router: Routes,
         use handler: @escaping @Sendable (Request, Routes.Context) async throws -> JSONResponse<Output>
     ) {
-        router.on(RouterPath(path), method: method) { request, context in
+        router.on(RouterPath(definition.path), method: definition.method) { request, context in
             let response = try await handler(request, context)
-            guard responses.contains(where: { $0.isSuccess && $0.status == response.status }) else {
+            // The document build rejects success declarations outside 2xx, so the range identifies them here.
+            guard definition.responses.contains(where: {
+                $0.status == response.status && (200...299).contains($0.status.code)
+            }) else {
                 throw EndpointError.undeclaredResponseStatus(response.status.code)
             }
             return response
@@ -117,8 +106,6 @@ public struct RawEndpoint: Sendable {
     public let definition: EndpointDefinition
 
     public init(_ definition: EndpointDefinition) { self.definition = definition }
-
-    public func prefixed(by prefix: String) -> Self { Self(definition.prefixed(by: prefix)) }
 
     /// Registers the handler and rejects response statuses absent from its metadata.
     /// The response body passes through unchanged, without buffering or schema validation.

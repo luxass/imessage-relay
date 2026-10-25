@@ -4,7 +4,7 @@ import HummingbirdOpenAPIModels
 import OpenAPIKit
 
 public struct EndpointParameter: Sendable {
-    public enum Location: String, Sendable { case path, query, header, cookie }
+    public enum Location: String, Sendable { case path, query, header }
     public let name: String
     public let location: Location
     private let description: String
@@ -42,7 +42,6 @@ public struct EndpointParameter: Sendable {
         case .path: context = .path(schema: schema)
         case .query: context = .query(required: required, schema: schema)
         case .header: context = .header(required: required, schema: schema)
-        case .cookie: context = .cookie(required: required, schema: schema)
         }
         return OpenAPI.Parameter(name: name, context: context, description: description)
     }
@@ -50,22 +49,12 @@ public struct EndpointParameter: Sendable {
 
 public struct EndpointBody: Sendable {
     let description: String
-    let required: Bool
     let content: @Sendable (SchemaContext) throws -> OpenAPI.Content.Map
 
-    public init(
-        description: String, required: Bool = true,
-        content: @escaping @Sendable (SchemaContext) throws -> OpenAPI.Content.Map
-    ) {
-        self.description = description
-        self.required = required
-        self.content = content
-    }
-
     public static func json<Value: OpenAPISchemaProviding>(
-        _ type: Value.Type, description: String, required: Bool = true, example: AnyCodable? = nil
+        _ type: Value.Type, description: String, example: AnyCodable? = nil
     ) -> Self {
-        Self(description: description, required: required) { context in
+        Self(description: description) { context in
             [.json: .b(.init(schema: try context.schema(for: Value.self, direction: .request), example: example))]
         }
     }
@@ -83,7 +72,7 @@ public struct EndpointBody: Sendable {
         guard !content.isEmpty, !description.isEmpty else {
             throw EndpointError.invalidDefinition("A request body needs content and a description.")
         }
-        return OpenAPI.Request(description: description, content: content, required: required)
+        return OpenAPI.Request(description: description, content: content, required: true)
     }
 }
 
@@ -139,12 +128,6 @@ public struct EndpointDefinition: Sendable {
         self.requestBody = requestBody
         self.responses = responses
         self.responseHeaders = responseHeaders
-    }
-
-    public func prefixed(by prefix: String) -> Self {
-        Self(method: method, path: prefix + path, operationID: operationID, summary: summary,
-             description: description, tags: tags, parameters: parameters, requestBody: requestBody,
-             responses: responses, responseHeaders: responseHeaders)
     }
 
     func operation(in context: SchemaContext) throws -> OpenAPI.Operation {

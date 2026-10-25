@@ -24,10 +24,14 @@ struct Greeting: Codable, Sendable {
 
 The macro adds `OpenAPISchemaProviding` conformance. It does not generate or replace JSON codecs. It reads stored properties and `CodingKeys` rather than a second field list.
 
-Request and response schemas are separate. A synthesized optional property accepts absence or null in a request. A nil optional property is omitted from the encoded response. An optional value inside an array can still be null.
+Request and response schemas are derived separately. A synthesized optional property accepts absence or null in a request. A nil optional property is omitted from the encoded response. An optional value inside an array can still be null.
+
+Component names carry no direction suffix. A model used in both directions shares one component when both schemas match.
+When they differ, export fails with `SchemaError.directionalSchemaMismatch` instead of renaming either schema.
+Use separate request and response types when their wire shapes differ.
 
 Supported models include String/Int raw-value enums, structs, generic structs, String, Bool, Int, Int64, Double, arrays, string-keyed dictionaries, and optionals.
-Recursive models use references. Generic specializations have separate stable component names.
+Recursive models use references. Generic specializations append their arguments, such as `PageOfString` or `PairOfIntAndString`.
 The registry rejects name collisions and rolls back failed expansions. Use `@OpenAPISchema(name: "UniqueName")` to select a name.
 
 Automatic derivation rejects custom codecs unless the author selects `customCoding: .explicitPropertyRules`. This selection asserts that property types and CodingKeys describe the custom wire shape. It does not inspect arbitrary codec bodies or infer business validation.
@@ -56,7 +60,7 @@ let enabled: Bool
 ```
 
 The second rule describes a custom decoder that accepts missing or null input and supplies a default.
-Markers do not add runtime property wrappers or change Codable. Available rules are `inferred`, `required`, `requiredNullable`, `omittedWhenNil`, and `optionalNullable`.
+Markers do not add runtime property wrappers or change Codable. Available rules are `inferred`, `requiredNullable`, and `optionalNullable`.
 
 Conditional fields, initialized immutable properties, arbitrary property wrappers, flattened requests, and associated-value enums need explicit providers.
 Codec implementations in other extensions or files are not visible to the macro. Their authors must select an explicit strategy and test the wire format.
@@ -74,7 +78,7 @@ let greeting = JSONEndpoint<Greeting>(
 )
 
 let builder = OpenAPIDocumentBuilder(title: "Example", apiVersion: "1.0")
-builder.add(greeting)
+builder.add(greeting.definition)
 let json = try builder.encodedJSON()
 ```
 
@@ -82,10 +86,9 @@ Live registration uses `greeting.register(on: router, use: handler)`. The handle
 
 The document builder emits OpenAPI 3.2.1 through OpenAPIKit. It rejects duplicate operations, duplicate response codes, incomplete definitions, and unsupported paths. OpenAPIKit checks document structure and references. It does not validate arbitrary JSON instances against Draft 2020-12.
 
-Endpoint definitions support path, query, header, and cookie parameters, typed JSON request bodies, multiple response statuses, headers, tags, and examples.
+Endpoint definitions support path, query, and header parameters, typed JSON request bodies, multiple response statuses, headers, tags, and examples.
 Use `:parameter` for a Hummingbird capture. Every capture needs matching path parameter metadata.
 The exporter writes `{parameter}` and rejects missing parameters, partial captures, wildcards, and conflicting templates.
-Use `endpoint.prefixed(by: "/api")` for a shared prefix in both live registration and export.
 
 `EndpointBody.binary` describes raw media without a JSON string schema.
 `RawEndpoint` accepts an `EndpointDefinition` for handlers with binary, streaming, or mixed response variants.
@@ -103,10 +106,10 @@ The package generates documentation, not runtime request validation or client/se
 
 ## Tests
 
-Run the standalone package tests from the repository root:
+The targets live in the root package, so `just test` runs these tests with the rest of the suite:
 
 ```sh
-swift test --package-path Packages/HummingbirdOpenAPI
+swift test --filter HummingbirdOpenAPI
 ```
 
 Tests cover macro expansions and diagnostics, property presence and nulls, generic models, recursive references, registration, media, and SSE.
