@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 
-@testable import RelayApp
+@testable import RelayAppKit
 
 @Test
 func fullDiskAccessCheckReportsUnknownForAMissingDatabase() {

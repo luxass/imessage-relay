@@ -51,8 +51,8 @@ let package = Package(
                 "RelayServer",
             ]
         ),
-        .executableTarget(
-            name: "RelayApp",
+        .target(
+            name: "RelayAppKit",
             dependencies: ["RelayServer", "RelayCore"],
             linkerSettings: [
                 .linkedFramework("AppKit"),
@@ -84,7 +84,8 @@ let package = Package(
             exclude: ["README.md"]
         ),
         .testTarget(name: "RelayCoreTests", dependencies: ["RelayCore"]),
-        .testTarget(name: "RelayAppTests", dependencies: ["RelayApp"]),
+        .executableTarget(name: "RelayApp", dependencies: ["RelayAppKit"]),
+        .testTarget(name: "RelayAppTests", dependencies: ["RelayAppKit"]),
         .testTarget(
             name: "RelayServerTests",
             dependencies: [
