@@ -42,6 +42,13 @@ as a login item when launched from `/Applications`. The relay binds to
 <summary>Use the CLI</summary><br/>
 
 The Homebrew cask installs the `imessage-relay` command alongside the app.
+Show the version and available options with:
+
+```sh
+imessage-relay --version
+imessage-relay --help
+```
+
 The ZIP also includes the CLI. Run `./imessage-relay` from the extracted directory,
 and keep the `.bundle` resource directories beside the executable.
 You do not need to launch the menu bar app to use the CLI.

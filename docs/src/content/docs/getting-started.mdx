@@ -32,8 +32,15 @@ Choose one installation method.
 	Developer ID and notarized by Apple. To start the app at login, enable
 	**Launch at login** in **Settings** after installing it in `/Applications`.
 
-	The cask also installs the `imessage-relay` command. To use the CLI from the ZIP,
-	run `./imessage-relay` from the extracted directory. Keep the `.bundle` resource
+	The cask also installs the `imessage-relay` command.
+	Show the version and available options with:
+
+	```sh
+	imessage-relay --version
+	imessage-relay --help
+	```
+
+	To use the CLI from the ZIP, run `./imessage-relay` from the extracted directory. Keep the `.bundle` resource
 	directories beside the executable. The CLI does not require the app to be open.
 	</TabItem>
 	<TabItem label="Build from source">
