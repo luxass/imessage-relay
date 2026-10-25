@@ -1,22 +1,45 @@
 import Foundation
 import Hummingbird
+import HummingbirdOpenAPI
 import NIOCore
 import RelayCore
 
-func jsonResponse<Value: Encodable>(
-    _ value: Value,
-    status: HTTPResponse.Status = .ok,
-    requestID: RelayCore.RequestID
-) throws -> Response {
+func jsonResponse<Value: Encodable>(_ value: Value, status: HTTPResponse.Status = .ok) throws -> Response {
     let data = try RelayJSON.encoder.encode(value)
     return Response(
         status: status,
-        headers: [
-            .contentType: "application/json; charset=utf-8",
-            .init("x-request-id")!: requestID.rawValue,
-        ],
+        headers: [.contentType: "application/json; charset=utf-8"],
         body: ResponseBody(byteBuffer: ByteBuffer(bytes: data))
     )
+}
+
+// JSON bodies carry text and media references, never media bytes, so they get a much smaller limit than uploads.
+private let maximumJSONBodyBytes = 1024 * 1024
+
+func decodeJSONBody<Body: Decodable>(_ type: Body.Type, from request: Request) async throws -> Body {
+    let body: ByteBuffer
+    do {
+        body = try await request.body.collect(upTo: maximumJSONBodyBytes)
+    } catch is NIOTooManyBytesError {
+        throw APIHTTPError(
+            status: .contentTooLarge,
+            code: .invalidRequest,
+            message: "The JSON request body must not exceed \(maximumJSONBodyBytes) bytes."
+        )
+    }
+    return try RelayJSON.decoder.decode(type, from: Data(body.readableBytesView))
+}
+
+/// Keeps the model type available to JSONEndpoint while preserving Relay's existing response bytes.
+/// Rendering delegates to jsonResponse, so RelayJSON and the status stay unchanged.
+/// This helper connects typed endpoint registration to the existing renderer. It adds no schema validation.
+func relayJSONResponse<Value: Encodable & Sendable>(
+    _ value: Value,
+    status: HTTPResponse.Status = .ok
+) -> JSONResponse<Value> {
+    JSONResponse(value, status: status) { value, status in
+        try jsonResponse(value, status: status)
+    }
 }
 
 enum V1Query {
@@ -38,14 +61,19 @@ enum V1Query {
         return formValue.removingPercentEncoding ?? formValue
     }
 
+    static let limitRange = 1...200
+
     static func limit(_ request: Request, default fallback: Int) throws -> Int {
         guard let raw = string(request, "limit") else { return fallback }
-        guard let value = Int(raw), (1...200).contains(value) else {
+        guard let value = Int(raw), limitRange.contains(value) else {
             throw APIHTTPError(
                 status: .badRequest,
                 code: .invalidRequest,
-                message: "The limit query parameter must be between 1 and 200.",
-                fieldDetails: [APIFieldError(field: "limit", message: "Enter an integer from 1 through 200.")]
+                message: "The limit query parameter must be between \(limitRange.lowerBound) and \(limitRange.upperBound).",
+                fieldDetails: [APIFieldError(
+                    field: "limit",
+                    message: "Enter an integer from \(limitRange.lowerBound) through \(limitRange.upperBound)."
+                )]
             )
         }
         return value
@@ -80,7 +108,7 @@ enum V1Query {
     }
 }
 
-func pathValue(_ name: String, context: RelayRequestContext) throws -> String {
+func pathID<ID: RelayIdentifier>(_ name: String, context: RelayRequestContext) throws -> ID {
     guard let encoded = context.parameters.get(name, as: String.self),
           let value = encoded.removingPercentEncoding,
           !value.isEmpty else {
@@ -90,5 +118,5 @@ func pathValue(_ name: String, context: RelayRequestContext) throws -> String {
             message: "The \(name) path parameter is invalid."
         )
     }
-    return value
+    return try ID(validating: value)
 }

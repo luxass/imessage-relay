@@ -119,6 +119,43 @@ func destinationErrorsDistinguishMissingAmbiguousInvalidAndDisallowed() async th
 }
 
 @Test
+func requestValidationErrorsReportTheOffendingFields() async throws {
+    let harness = ServerTestHarness(allowedRecipients: ["a@example.com", "b@example.com"])
+    let app = Application(router: harness.router())
+    let cases: [(String, String, String)] = [
+        ("/v1/messages", #"{"text":"hello"}"#, "destination"),
+        ("/v1/messages", #"{"participants":["a@example.com"],"text":"hello"}"#, "participants"),
+        ("/v1/messages", #"{"participants":["a@example.com","A@example.com"],"text":"hello"}"#, "participants[1]"),
+        ("/v1/messages", #"{"to":"a@example.com","text":"hello","subject":"hi"}"#, "subject"),
+        ("/v1/messages/message-root/reaction", #"{"reaction":"wave"}"#, "reaction"),
+    ]
+
+    try await app.test(.router) { client in
+        for (uri, body, field) in cases {
+            let response = try await client.execute(
+                uri: uri,
+                method: uri.hasSuffix("/reaction") ? .put : .post,
+                headers: authorizationHeaders([.contentType: "application/json"]),
+                body: ByteBuffer(string: body)
+            )
+            #expect(response.status == .unprocessableContent)
+            let error = try jsonObject(response.body)
+            let fieldDetails = try #require(error["field_details"] as? [[String: String]])
+            #expect(fieldDetails.map { $0["field"] } == [field])
+        }
+
+        let oversized = try await client.execute(
+            uri: "/v1/messages",
+            method: .post,
+            headers: authorizationHeaders([.contentType: "application/json"]),
+            body: ByteBuffer(string: #"{"to":"a@example.com","text":"\#(String(repeating: "a", count: 1024 * 1024))"}"#)
+        )
+        try expectError(oversized, status: .contentTooLarge, code: .invalidRequest)
+    }
+    #expect(harness.sender.requests.isEmpty)
+}
+
+@Test
 func unknownResourcesAndUnsupportedCapabilitiesHaveDistinctCodes() async throws {
     let sender = FakeMessageSender.available(capabilities: .init(
         text: .available,

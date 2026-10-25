@@ -1,6 +1,52 @@
 import Hummingbird
+import HummingbirdOpenAPIModels
 import NIOCore
 import RelayCore
+
+@OpenAPISchema
+enum APIErrorCode: String, Codable, Equatable, Sendable {
+    case malformedJSON = "malformed_json"
+    case invalidAuthentication = "invalid_authentication"
+    case invalidDestination = "invalid_destination"
+    case ambiguousDestination = "ambiguous_destination"
+    case ambiguousConversation = "ambiguous_conversation"
+    case disallowedRecipient = "disallowed_recipient"
+    case unknownConversation = "unknown_conversation"
+    case unknownMessage = "unknown_message"
+    case unknownMedia = "unknown_media"
+    case unknownRequest = "unknown_request"
+    case unsupportedCapability = "unsupported_capability"
+    case senderUnavailable = "sender_unavailable"
+    case databaseUnavailable = "database_unavailable"
+    case invalidCursor = "invalid_cursor"
+    case unsafeMedia = "unsafe_media"
+    case mediaTooLarge = "media_too_large"
+    case duplicateRequest = "duplicate_request"
+    case sendResultUnknown = "send_result_unknown"
+    case reactionResultUnknown = "reaction_result_unknown"
+    case readResultUnknown = "read_result_unknown"
+    case messagesUnavailable = "messages_unavailable"
+    case typingConflict = "typing_conflict"
+    case typingResultUnknown = "typing_result_unknown"
+    case requestTrackingUnavailable = "request_tracking_unavailable"
+    case invalidRequest = "invalid_request"
+    case internalError = "internal_error"
+    case notFound = "not_found"
+}
+
+@OpenAPISchema
+struct APIError: Codable, Equatable, Sendable {
+    let code: APIErrorCode
+    let message: String
+    let requestID: RelayCore.RequestID
+    let fieldDetails: [APIFieldError]?
+
+    private enum CodingKeys: String, CodingKey {
+        case code, message
+        case requestID = "request_id"
+        case fieldDetails = "field_details"
+    }
+}
 
 struct APIHTTPError: Error, Sendable {
     let status: HTTPResponse.Status
@@ -54,7 +100,13 @@ struct APIErrorMiddleware: RouterMiddleware {
                 code: .invalidRequest,
                 message: "The resource identifier is invalid."
             )
-        } else if error is SendMessageRequest.ValidationError || error is DecodingError {
+        } else if let error = error as? SendMessageRequest.ValidationError {
+            mapped = map(error)
+        } else if error is SetReactionRequest.ValidationError {
+            mapped = map(RelayServiceError.invalidRequest([
+                APIFieldError(field: "reaction", message: "Use love, like, dislike, laugh, emphasis, or question.")
+            ]))
+        } else if error is DecodingError {
             mapped = APIHTTPError(
                 status: .badRequest,
                 code: .malformedJSON,
@@ -110,9 +162,28 @@ struct APIErrorMiddleware: RouterMiddleware {
                 requestID: context.requestID,
                 fieldDetails: error.fieldDetails
             ),
-            status: error.status,
-            requestID: context.requestID
+            status: error.status
         )
+    }
+
+    private func map(_ error: SendMessageRequest.ValidationError) -> APIHTTPError {
+        let serviceError: RelayServiceError = switch error {
+        case .ambiguousDestination:
+            .ambiguousDestination
+        case .missingDestination:
+            .invalidDestination([
+                APIFieldError(field: "destination", message: "Provide conversation_id, to, or participants.")
+            ])
+        case .invalidParticipantCount:
+            .invalidDestination([APIFieldError(field: "participants", message: "Provide at least two participants.")])
+        case .duplicateParticipant(let index):
+            .invalidDestination([
+                APIFieldError(field: "participants[\(index)]", message: "Each normalized participant must be unique.")
+            ])
+        case .unsupportedFields(let fields):
+            .invalidRequest(fields.map { APIFieldError(field: $0, message: "This field is not supported.") })
+        }
+        return map(serviceError)
     }
 
     // An exhaustive transport mapping is clearer than scattering status codes across services.

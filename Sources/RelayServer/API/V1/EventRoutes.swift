@@ -19,7 +19,7 @@ struct EventRoutes {
     }
 
     func register(on router: Router<RelayRequestContext>) {
-        router.get("/v1/events", use: stream)
+        Self.endpoint.register(on: router, use: stream)
     }
 
     @Sendable private func stream(_ request: Request, context: RelayRequestContext) async throws -> Response {
@@ -80,7 +80,6 @@ struct EventRoutes {
                 .contentType: "text/event-stream; charset=utf-8",
                 .init("cache-control")!: "no-cache",
                 .init("x-accel-buffering")!: "no",
-                .init("x-request-id")!: context.requestID.rawValue,
             ],
             body: body
         )

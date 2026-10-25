@@ -210,24 +210,12 @@ func sendReceiptRepresentsEveryProviderMessageAndMediaMapping() throws {
 }
 
 @Test
-func errorAndPaginationContractsUseSnakeCase() throws {
-    let requestID = try RequestID(validating: "request-123")
-    let error = APIError(
-        code: .invalidDestination,
-        message: "Destination is invalid.",
-        requestID: requestID,
-        fieldDetails: [APIFieldError(field: "to.value", message: "Enter a phone number.")]
-    )
+func paginationContractUsesSnakeCase() throws {
     let page = PaginatedResponse(
         items: [try MessageID(validating: "message-1")],
         nextCursor: try Cursor(validating: "opaque"),
         hasMore: true
     )
-
-    let errorObject = try jsonObject(error)
-    #expect(errorObject["code"] as? String == "invalid_destination")
-    #expect(errorObject["request_id"] as? String == "request-123")
-    #expect((errorObject["field_details"] as? [[String: String]])?.first?["field"] == "to.value")
 
     let pageObject = try jsonObject(page)
     #expect(pageObject["items"] as? [String] == ["message-1"])

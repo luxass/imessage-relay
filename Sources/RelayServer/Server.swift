@@ -52,8 +52,9 @@ func buildRouter(
     dependencies: RelayDependencies
 ) -> Router<RelayRequestContext> {
     let router = Router(context: RelayRequestContext.self)
-    router.middlewares.add(APIErrorMiddleware())
+    // RequestIDMiddleware wraps APIErrorMiddleware so that mapped error responses carry the header too.
     router.middlewares.add(RequestIDMiddleware())
+    router.middlewares.add(APIErrorMiddleware())
     router.middlewares.add(AuthenticationMiddleware(token: serverConfig.token))
     StatusRoutes(database: dependencies.database, sender: dependencies.sender).register(on: router)
     SenderRoutes(sender: dependencies.sender).register(on: router)

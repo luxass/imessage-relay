@@ -1,4 +1,5 @@
 import Hummingbird
+import HummingbirdOpenAPI
 import RelayCore
 
 struct ConversationRoutes {
@@ -6,71 +7,64 @@ struct ConversationRoutes {
     let messages: MessageService
     let typing: TypingService
 
+    static let conversationPageLimit = 20
+    static let messagePageLimit = 50
+
     func register(on router: Router<RelayRequestContext>) {
-        router.get("/v1/conversations", use: list)
-        router.get("/v1/conversations/:conversation_id", use: get)
-        router.get("/v1/conversations/:conversation_id/messages", use: listMessages)
-        router.put("/v1/conversations/:conversation_id/read", use: markRead)
-        router.put("/v1/conversations/:conversation_id/typing", use: startTyping)
-        router.delete("/v1/conversations/:conversation_id/typing", use: stopTyping)
+        Self.listEndpoint.register(on: router, use: list)
+        Self.getEndpoint.register(on: router, use: get)
+        Self.messagesEndpoint.register(on: router, use: listMessages)
+        Self.readEndpoint.register(on: router, use: markRead)
+        Self.startTypingEndpoint.register(on: router, use: startTyping)
+        Self.stopTypingEndpoint.register(on: router, use: stopTyping)
     }
 
     @Sendable private func startTyping(
         _ request: Request,
         context: RelayRequestContext
-    ) async throws -> Response {
-        let raw = try pathValue("conversation_id", context: context)
-        let id = try ConversationID(validating: raw)
-        return try jsonResponse(
-            try await typing.start(conversationID: id, requestID: context.requestID),
-            requestID: context.requestID
-        )
+    ) async throws -> JSONResponse<ConversationTypingResponse> {
+        let id: ConversationID = try pathID("conversation_id", context: context)
+        return relayJSONResponse(try await typing.start(conversationID: id, requestID: context.requestID))
     }
 
     @Sendable private func stopTyping(
         _ request: Request,
         context: RelayRequestContext
-    ) async throws -> Response {
-        let raw = try pathValue("conversation_id", context: context)
-        let id = try ConversationID(validating: raw)
-        return try jsonResponse(
-            try await typing.stop(conversationID: id, requestID: context.requestID),
-            requestID: context.requestID
-        )
+    ) async throws -> JSONResponse<ConversationTypingResponse> {
+        let id: ConversationID = try pathID("conversation_id", context: context)
+        return relayJSONResponse(try await typing.stop(conversationID: id, requestID: context.requestID))
     }
 
     @Sendable private func markRead(
         _ request: Request,
         context: RelayRequestContext
-    ) async throws -> Response {
-        let raw = try pathValue("conversation_id", context: context)
-        let id = try ConversationID(validating: raw)
-        return try jsonResponse(
-            try await conversations.markRead(id: id, requestID: context.requestID),
-            requestID: context.requestID
-        )
+    ) async throws -> JSONResponse<ConversationReadResponse> {
+        let id: ConversationID = try pathID("conversation_id", context: context)
+        return relayJSONResponse(try await conversations.markRead(id: id, requestID: context.requestID))
     }
 
-    @Sendable private func list(_ request: Request, context: RelayRequestContext) async throws -> Response {
+    @Sendable private func list(
+        _ request: Request, context: RelayRequestContext
+    ) async throws -> JSONResponse<PaginatedResponse<Conversation>> {
         let participant = try V1Query.string(request, "participant").map(RecipientHandle.direct(value:))
         let page = try await conversations.list(
-            limit: V1Query.limit(request, default: 20),
+            limit: V1Query.limit(request, default: Self.conversationPageLimit),
             cursor: V1Query.cursor(request),
             unreadOnly: V1Query.bool(request, "unread_only"),
             participant: participant
         )
-        return try jsonResponse(page, requestID: context.requestID)
+        return relayJSONResponse(page)
     }
 
-    @Sendable private func get(_ request: Request, context: RelayRequestContext) async throws -> Response {
-        let raw = try pathValue("conversation_id", context: context)
-        let id = try ConversationID(validating: raw)
-        return try jsonResponse(try await conversations.get(id: id), requestID: context.requestID)
+    @Sendable private func get(_ request: Request, context: RelayRequestContext) async throws -> JSONResponse<Conversation> {
+        let id: ConversationID = try pathID("conversation_id", context: context)
+        return relayJSONResponse(try await conversations.get(id: id))
     }
 
-    @Sendable private func listMessages(_ request: Request, context: RelayRequestContext) async throws -> Response {
-        let raw = try pathValue("conversation_id", context: context)
-        let conversationID = try ConversationID(validating: raw)
+    @Sendable private func listMessages(
+        _ request: Request, context: RelayRequestContext
+    ) async throws -> JSONResponse<PaginatedResponse<Message>> {
+        let conversationID: ConversationID = try pathID("conversation_id", context: context)
         let rawMode = V1Query.string(request, "search_mode") ?? MessageSearchMode.contains.rawValue
         guard let searchMode = MessageSearchMode(rawValue: rawMode) else {
             throw APIHTTPError(
@@ -83,13 +77,13 @@ struct ConversationRoutes {
         let page = try await messages.list(
             conversationID: conversationID,
             options: MessageListOptions(
-                limit: V1Query.limit(request, default: 50),
+                limit: V1Query.limit(request, default: Self.messagePageLimit),
                 cursor: V1Query.cursor(request),
                 includeAttachments: V1Query.bool(request, "include_attachments"),
                 search: V1Query.string(request, "q"),
                 searchMode: searchMode
             )
         )
-        return try jsonResponse(page, requestID: context.requestID)
+        return relayJSONResponse(page)
     }
 }
