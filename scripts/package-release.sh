@@ -73,10 +73,8 @@ sign_path() {
 }
 
 cd "${repo_root}"
-./scripts/check-swift-version.sh
-swift build -c release --arch arm64 --arch x86_64 --product imessage-relay
-swift build -c release --arch arm64 --arch x86_64 --product imessage-relay-app
-binary_dir="$(swift build -c release --arch arm64 --arch x86_64 --show-bin-path)"
+binary_dir="${release_tmp}/universal"
+./scripts/build-release.sh "${binary_dir}"
 cli_binary="${binary_dir}/imessage-relay"
 app_binary="${binary_dir}/imessage-relay-app"
 
