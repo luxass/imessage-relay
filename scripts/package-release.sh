@@ -32,8 +32,7 @@ if [[ "${output_dir}" != /* ]]; then
     output_dir="${repo_root}/${output_dir}"
 fi
 
-cli_archive_name="imessage-relay-cli-${requested_version}-macos-universal.tar.gz"
-app_archive_name="imessage-relay-${requested_version}-macos-universal.zip"
+archive_name="imessage-relay-${requested_version}-macos-universal.zip"
 release_tmp="$(mktemp -d "${TMPDIR:-/tmp}/imessage-relay-release.XXXXXX")"
 codesign_identity="${CODESIGN_IDENTITY:--}"
 notarize_release="${NOTARIZE_RELEASE:-0}"
@@ -107,47 +106,18 @@ if [[ "${reported_version}" != "${requested_version}" ]]; then
 fi
 
 mkdir -p "${output_dir}"
-cli_staging="${release_tmp}/cli-staging"
-cli_verification="${release_tmp}/cli-verification"
-mkdir -p "${cli_staging}" "${cli_verification}"
-install -m 0755 "${cli_binary}" "${cli_staging}/imessage-relay"
-install -m 0644 "${repo_root}/LICENSE" "${cli_staging}/LICENSE"
-copy_resource_bundles "${cli_staging}"
+release_staging="${release_tmp}/staging"
+mkdir -p "${release_staging}"
+install -m 0755 "${cli_binary}" "${release_staging}/imessage-relay"
+install -m 0644 "${repo_root}/LICENSE" "${release_staging}/LICENSE"
+copy_resource_bundles "${release_staging}"
 sign_path \
-    "${cli_staging}/imessage-relay" \
+    "${release_staging}/imessage-relay" \
     "dev.luxass.imessage-relay.cli" \
     "${repo_root}/Distribution/iMessageRelay.entitlements"
-codesign --verify --strict --verbose=2 "${cli_staging}/imessage-relay"
-touch -t 198001010000 "${cli_staging}/imessage-relay" "${cli_staging}/LICENSE"
+codesign --verify --strict --verbose=2 "${release_staging}/imessage-relay"
 
-export COPYFILE_DISABLE=1
-tar -C "${cli_staging}" -cf - imessage-relay LICENSE "${resource_bundle_names[@]}" \
-    | gzip -n > "${output_dir}/${cli_archive_name}"
-
-archive_entries="$(tar -tzf "${output_dir}/${cli_archive_name}" | awk -F/ '{print $1}' | LC_ALL=C sort -u)"
-expected_entries="$(printf '%s\n' imessage-relay LICENSE "${resource_bundle_names[@]}" | LC_ALL=C sort -u)"
-if [[ "${archive_entries}" != "${expected_entries}" ]]; then
-    echo "CLI archive contains unexpected entries:" >&2
-    printf '%s\n' "${archive_entries}" >&2
-    exit 1
-fi
-
-tar -xzf "${output_dir}/${cli_archive_name}" -C "${cli_verification}"
-lipo "${cli_verification}/imessage-relay" -verify_arch arm64
-lipo "${cli_verification}/imessage-relay" -verify_arch x86_64
-codesign --verify --strict --verbose=2 "${cli_verification}/imessage-relay"
-for bundle_name in "${resource_bundle_names[@]}"; do
-    [[ -d "${cli_verification}/${bundle_name}" ]] || {
-        echo "CLI archive is missing resource bundle ${bundle_name}." >&2
-        exit 1
-    }
-done
-if [[ "$("${cli_verification}/imessage-relay" --version)" != "${requested_version}" ]]; then
-    echo "Packaged CLI version does not match ${requested_version}." >&2
-    exit 1
-fi
-
-app_path="${release_tmp}/iMessage Relay.app"
+app_path="${release_staging}/iMessage Relay.app"
 mkdir -p "${app_path}/Contents/MacOS" "${app_path}/Contents/Resources"
 install -m 0755 "${app_binary}" "${app_path}/Contents/MacOS/iMessage Relay"
 install -m 0644 "${repo_root}/LICENSE" "${app_path}/Contents/Resources/LICENSE"
@@ -177,12 +147,7 @@ if [[ "${notarize_release}" == "1" ]]; then
     : "${NOTARY_KEY_PATH:?NOTARIZE_RELEASE=1 requires NOTARY_KEY_PATH}"
     : "${NOTARY_KEY_ID:?NOTARIZE_RELEASE=1 requires NOTARY_KEY_ID}"
     : "${NOTARY_ISSUER_ID:?NOTARIZE_RELEASE=1 requires NOTARY_ISSUER_ID}"
-    notary_staging="${release_tmp}/notary-staging"
-    mkdir -p "${notary_staging}"
-    ditto "${app_path}" "${notary_staging}/iMessage Relay.app"
-    install -m 0755 "${cli_staging}/imessage-relay" "${notary_staging}/imessage-relay"
-    copy_resource_bundles "${notary_staging}"
-    ditto -c -k --sequesterRsrc "${notary_staging}" "${notary_submission}"
+    ditto -c -k --sequesterRsrc "${release_staging}" "${notary_submission}"
     xcrun notarytool submit "${notary_submission}" \
         --key "${NOTARY_KEY_PATH}" \
         --key-id "${NOTARY_KEY_ID}" \
@@ -193,12 +158,34 @@ if [[ "${notarize_release}" == "1" ]]; then
     spctl --assess --type execute --verbose=2 "${app_path}"
 fi
 
-app_verification="${release_tmp}/app-verification"
-ditto -c -k --sequesterRsrc --keepParent \
-    "${app_path}" "${output_dir}/${app_archive_name}"
-mkdir -p "${app_verification}"
-ditto -x -k "${output_dir}/${app_archive_name}" "${app_verification}"
-verified_app="${app_verification}/iMessage Relay.app"
+release_verification="${release_tmp}/verification"
+ditto -c -k --sequesterRsrc "${release_staging}" "${output_dir}/${archive_name}"
+mkdir -p "${release_verification}"
+ditto -x -k "${output_dir}/${archive_name}" "${release_verification}"
+
+archive_entries="$(for entry in "${release_verification}"/*; do basename "${entry}"; done | LC_ALL=C sort)"
+expected_entries="$(printf '%s\n' 'iMessage Relay.app' imessage-relay LICENSE "${resource_bundle_names[@]}" | LC_ALL=C sort)"
+if [[ "${archive_entries}" != "${expected_entries}" ]]; then
+    echo "Release archive contains unexpected entries:" >&2
+    printf '%s\n' "${archive_entries}" >&2
+    exit 1
+fi
+
+lipo "${release_verification}/imessage-relay" -verify_arch arm64
+lipo "${release_verification}/imessage-relay" -verify_arch x86_64
+codesign --verify --strict --verbose=2 "${release_verification}/imessage-relay"
+for bundle_name in "${resource_bundle_names[@]}"; do
+    [[ -d "${release_verification}/${bundle_name}" ]] || {
+        echo "Release archive is missing CLI resource bundle ${bundle_name}." >&2
+        exit 1
+    }
+done
+if [[ "$("${release_verification}/imessage-relay" --version)" != "${requested_version}" ]]; then
+    echo "Packaged CLI version does not match ${requested_version}." >&2
+    exit 1
+fi
+
+verified_app="${release_verification}/iMessage Relay.app"
 codesign --verify --deep --strict --verbose=2 "${verified_app}"
 for bundle_name in "${resource_bundle_names[@]}"; do
     [[ -d "${verified_app}/Contents/Resources/${bundle_name}" ]] || {
@@ -232,10 +219,10 @@ fi
 
 (
     cd "${output_dir}"
-    shasum -a 256 "${cli_archive_name}" "${app_archive_name}" > SHA256SUMS
+    shasum -a 256 "${archive_name}" > SHA256SUMS
     shasum -a 256 --check SHA256SUMS
 )
 
-for artifact in "${cli_archive_name}" "${app_archive_name}" SHA256SUMS; do
+for artifact in "${archive_name}" SHA256SUMS; do
     printf 'Created %s\n' "${output_dir}/${artifact}"
 done

@@ -69,11 +69,10 @@ just package-release
 
 The command writes these files to `dist/`:
 
-- `imessage-relay-<version>-macos-universal.zip`: the menu bar app.
-- `imessage-relay-cli-<version>-macos-universal.tar.gz`: the CLI, resource bundles, and license.
-- `SHA256SUMS`: SHA-256 checksums for both archives.
+`imessage-relay-<version>-macos-universal.zip` contains the menu bar app, CLI,
+resource bundles, and license. `SHA256SUMS` contains its SHA-256 checksum.
 
-To verify a downloaded release, put all three files in the same directory and run:
+To verify a downloaded release, put both files in the same directory and run:
 
 ```sh
 shasum -a 256 --check SHA256SUMS
@@ -96,13 +95,12 @@ just package-release 0.1.0
    `v0.1.0` and a draft GitHub release.
 2. **Package:** import the protected Developer ID identity, build universal CLI
    and app executables, sign and notarize both, staple the app, then verify and
-   upload both archives and `SHA256SUMS` as workflow artifacts.
-3. **Publish:** verify that `SHA256SUMS` matches both archives, upload all three assets to a draft
+   upload the combined ZIP and `SHA256SUMS` as workflow artifacts.
+3. **Publish:** verify that `SHA256SUMS` matches the ZIP, upload both assets to a draft
    GitHub release, then publish it with generated release notes.
 4. **Homebrew:** a stable published release calls
    [the shared Homebrew workflow](https://github.com/luxass/shared-workflows/blob/v0.13.0/.github/workflows/reusable-homebrew-tap.yaml)
-   to open one PR updating `Formula/imessage-relay-cli.rb` and
-   `Casks/imessage-relay.rb` in `luxass/homebrew-tap`.
+   to open one PR updating `Casks/imessage-relay.rb` in `luxass/homebrew-tap`.
 
 Tags such as `v0.2.0-rc.1` produce GitHub prereleases. They do not become the
 latest release or update Homebrew. The tag version must match `packageVersion`.
@@ -176,24 +174,24 @@ the reusable workflow reads the release tag from that event.
 
 ### Tap file formats
 
-`Formula/imessage-relay-cli.rb` must already exist in `luxass/homebrew-tap`. The
-shared workflow expects an explicit `version` field, a URL using
-`imessage-relay-cli-#{version}-macos-universal.tar.gz` from the next release,
-and this marker on the `sha256` line:
+`Casks/imessage-relay.rb` must exist in `luxass/homebrew-tap`. Its `version` line
+and `sha256` line marked `sha-update-id: imessage-relay-macos-universal` are updated
+from `imessage-relay-<version>-macos-universal.zip`. Review the checksum in the
+generated tap PR before merging it.
 
-```ruby
-# sha-update-id: imessage-relay-cli-macos-universal
-```
+The ZIP contains `iMessage Relay.app`, `imessage-relay`, `LICENSE`, and the CLI
+SwiftPM resource bundles at its root. The app also contains its own resource
+bundles. Both executables support Apple silicon and Intel Macs running macOS 14 or newer.
 
-The archive contains `imessage-relay`, `LICENSE`, and the SwiftPM resource
-bundles at its root. The universal binary supports Apple silicon and Intel
-Macs running macOS 14 or newer.
+The cask installs the app and links the CLI from its staging directory, where
+the CLI resource bundles remain beside the executable. The existing 0.4.0 cask
+keeps its formula dependency because that published ZIP contains only the app.
+Later releases use the combined ZIP without that dependency.
 
-`Casks/imessage-relay.rb` must also exist in the tap. Its `version` line and
-`sha256` line marked `sha-update-id: imessage-relay-macos-universal` are updated
-from `imessage-relay-<version>-macos-universal.zip`. The ZIP contains
-`iMessage Relay.app` with its SwiftPM resource bundles. Review both checksums
-in the generated tap PR before merging it.
+`Formula/imessage-relay-cli.rb` remains available for existing installations,
+but is deprecated from November 1, 2026. The release workflow no longer updates it.
+Users must uninstall that formula before installing the combined cask to avoid
+a conflicting `imessage-relay` command.
 
 ### Recover a failed release
 

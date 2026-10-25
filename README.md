@@ -21,7 +21,7 @@ Install the menu bar app and CLI together with Homebrew:
 brew install --cask luxass/tap/imessage-relay
 ```
 
-Download the signed and notarized universal app for Apple silicon and Intel Macs.
+Download the signed and notarized universal app and CLI for Apple silicon and Intel Macs.
 Choose a version from the [latest release](https://github.com/luxass/imessage-relay/releases/latest).
 Replace `X.Y.Z` below with that version, without the leading `v`:
 
@@ -39,19 +39,19 @@ as a login item when launched from `/Applications`. The relay binds to
 `127.0.0.1:8080` by default.
 
 <details>
-<summary>Install the CLI</summary><br/>
+<summary>Use the CLI</summary><br/>
 
-Install only the CLI with Homebrew using `brew install luxass/tap/imessage-relay-cli`,
-or download its archive. Choose a version from the
-[latest release](https://github.com/luxass/imessage-relay/releases/latest).
-Replace `X.Y.Z` below with that version, without the leading `v`:
+The Homebrew cask installs the `imessage-relay` command alongside the app.
+The ZIP also includes the CLI. Run `./imessage-relay` from the extracted directory,
+and keep the `.bundle` resource directories beside the executable.
+You do not need to launch the menu bar app to use the CLI.
+
+The standalone `imessage-relay-cli` formula is deprecated from November 1, 2026.
+To switch from that formula to the combined release, run:
 
 ```sh
-version="X.Y.Z"
-curl -fsSLO \
-  "https://github.com/luxass/imessage-relay/releases/download/v${version}/imessage-relay-cli-${version}-macos-universal.tar.gz"
-tar xzf "imessage-relay-cli-${version}-macos-universal.tar.gz"
-./imessage-relay
+brew uninstall --formula imessage-relay-cli
+brew install --cask luxass/tap/imessage-relay
 ```
 
 <br/></details>
@@ -97,7 +97,8 @@ explicitly set to `true`. It does not provide TLS, so terminate TLS in front of
 it whenever traffic leaves the Mac.
 
 When using the CLI instead, grant Full Disk Access to the
-terminal or service and configure it with environment variables:
+terminal or service and configure it with environment variables.
+For a Homebrew installation, use `imessage-relay` instead of `./imessage-relay`:
 
 ```sh
 export RELAY_TOKEN='replace-with-a-long-random-token'
@@ -245,11 +246,10 @@ just package-release
 
 The command writes these files to `dist/`:
 
-- `imessage-relay-<version>-macos-universal.zip`: the menu bar app.
-- `imessage-relay-cli-<version>-macos-universal.tar.gz`: the CLI, resource bundles, and license.
-- `SHA256SUMS`: SHA-256 checksums for both archives.
+`imessage-relay-<version>-macos-universal.zip` contains the menu bar app, CLI,
+resource bundles, and license. `SHA256SUMS` contains its SHA-256 checksum.
 
-To verify a downloaded release, put all three files in the same directory and run:
+To verify a downloaded release, put both files in the same directory and run:
 
 ```sh
 shasum -a 256 --check SHA256SUMS
@@ -267,7 +267,7 @@ just package-release 0.1.0
 Release Please opens a release PR from conventional commits. Merging it creates
 a matching tag, such as `v0.1.0`, which runs validation, packages the binary,
 and publishes a GitHub release. Stable releases then use the shared Homebrew
-workflow to open one PR updating the formula and app Cask in
+workflow to open one PR updating the combined app and CLI cask in
 `luxass/homebrew-tap`. Prereleases, such as
 `v0.2.0-rc.1`, do not update Homebrew or the latest release.
 

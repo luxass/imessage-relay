@@ -8,14 +8,13 @@ set -euo pipefail
 tag="${1:?Usage: publish-release.sh TAG [ASSET_DIRECTORY]}"
 version="${tag#v}"
 asset_dir="${2:-dist}"
-cli_archive="imessage-relay-cli-${version}-macos-universal.tar.gz"
-app_archive="imessage-relay-${version}-macos-universal.zip"
+archive="imessage-relay-${version}-macos-universal.zip"
 
 # Check the complete asset set before creating or modifying a release.
 cd "${asset_dir}"
-# Require both archive checksums, with no missing or extra entries.
-shasum -a 256 "${cli_archive}" "${app_archive}" | diff - SHA256SUMS
-assets=("${cli_archive}" "${app_archive}" SHA256SUMS)
+# Require the archive checksum, with no missing or extra entries.
+shasum -a 256 "${archive}" | diff - SHA256SUMS
+assets=("${archive}" SHA256SUMS)
 
 prerelease=false
 latest=true

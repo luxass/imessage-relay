@@ -8,7 +8,7 @@ import { Aside, TabItem, Tabs } from '@astrojs/starlight/components';
 Choose one installation method.
 
 <Tabs>
-	<TabItem label="macOS app">
+	<TabItem label="App and CLI release">
 
 	Install the app and CLI together with Homebrew:
 
@@ -31,24 +31,10 @@ Choose one installation method.
 	The universal app requires macOS 14 or newer. Releases are signed with
 	Developer ID and notarized by Apple. To start the app at login, enable
 	**Launch at login** in **Settings** after installing it in `/Applications`.
-	</TabItem>
-	<TabItem label="CLI release">
 
-	Install only the CLI with Homebrew:
-
-	```sh
-	brew install luxass/tap/imessage-relay-cli
-	```
-
-	Or choose a version from the [latest release](https://github.com/luxass/imessage-relay/releases/latest).
-	Replace `X.Y.Z` below with that version, without the leading `v`:
-
-	```sh
-	version="X.Y.Z"
-	curl -fsSLO \
-	  "https://github.com/luxass/imessage-relay/releases/download/v${version}/imessage-relay-cli-${version}-macos-universal.tar.gz"
-	tar xzf "imessage-relay-cli-${version}-macos-universal.tar.gz"
-	```
+	The cask also installs the `imessage-relay` command. To use the CLI from the ZIP,
+	run `./imessage-relay` from the extracted directory. Keep the `.bundle` resource
+	directories beside the executable. The CLI does not require the app to be open.
 	</TabItem>
 	<TabItem label="Build from source">
 
@@ -61,6 +47,14 @@ Choose one installation method.
 	```
 	</TabItem>
 </Tabs>
+
+The standalone `imessage-relay-cli` formula is deprecated from November 1, 2026.
+To switch from that formula to the combined release, run:
+
+```sh
+brew uninstall --formula imessage-relay-cli
+brew install --cask luxass/tap/imessage-relay
+```
 
 ## Grant access and start the relay
 
@@ -93,7 +87,8 @@ account ID and send allowlist there, then choose **Reload** under
 ```
 
 If you use the CLI, grant Full Disk Access to its terminal or
-service and start it with environment variables:
+service and start it with environment variables. For a Homebrew installation,
+use `imessage-relay` instead of `./imessage-relay`:
 
 ```sh
 export RELAY_TOKEN='replace-with-a-long-random-token'
