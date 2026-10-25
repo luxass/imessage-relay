@@ -98,7 +98,7 @@ private func modelSchema<Value: OpenAPISchemaProviding>(_ type: Value.Type, dire
     _ = try context.schema(for: type, direction: direction)
     let object = try jsonValue(context.components)
     let name = try #require(type.openAPIComponentName)
-    return try #require(object[name + "_" + direction.rawValue] as? [String: Any])
+    return try #require(object[name] as? [String: Any])
 }
 
 private func jsonValue<Value: Encodable>(_ value: Value) throws -> [String: Any] {

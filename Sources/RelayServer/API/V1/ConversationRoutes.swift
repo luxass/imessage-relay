@@ -7,6 +7,9 @@ struct ConversationRoutes {
     let messages: MessageService
     let typing: TypingService
 
+    static let conversationPageLimit = 20
+    static let messagePageLimit = 50
+
     func register(on router: Router<RelayRequestContext>) {
         Self.listEndpoint.register(on: router, use: list)
         Self.getEndpoint.register(on: router, use: get)
@@ -45,7 +48,7 @@ struct ConversationRoutes {
     ) async throws -> JSONResponse<PaginatedResponse<Conversation>> {
         let participant = try V1Query.string(request, "participant").map(RecipientHandle.direct(value:))
         let page = try await conversations.list(
-            limit: V1Query.limit(request, default: 20),
+            limit: V1Query.limit(request, default: Self.conversationPageLimit),
             cursor: V1Query.cursor(request),
             unreadOnly: V1Query.bool(request, "unread_only"),
             participant: participant
@@ -74,7 +77,7 @@ struct ConversationRoutes {
         let page = try await messages.list(
             conversationID: conversationID,
             options: MessageListOptions(
-                limit: V1Query.limit(request, default: 50),
+                limit: V1Query.limit(request, default: Self.messagePageLimit),
                 cursor: V1Query.cursor(request),
                 includeAttachments: V1Query.bool(request, "include_attachments"),
                 search: V1Query.string(request, "q"),

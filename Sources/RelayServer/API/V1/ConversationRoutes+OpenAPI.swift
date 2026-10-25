@@ -9,7 +9,7 @@ extension ConversationRoutes {
         description: "Newest messages sort first. Cursor values are opaque and bound to this exact filter and database.",
         tags: ["Conversations"],
         parameters: [
-            V1OpenAPI.limit(default: 20), V1OpenAPI.cursor,
+            V1OpenAPI.limit(default: conversationPageLimit), V1OpenAPI.cursor,
             V1OpenAPI.boolean("unread_only", description: "Return only conversations with unread messages."),
             .init(name: "participant", location: .query,
                   description: "Exact normalized phone number or email address. Email matching is case-insensitive.", schema: .string),
@@ -32,12 +32,16 @@ extension ConversationRoutes {
         description: "Reactions are nested under their target messages. URL previews can be folded into the preceding text message.",
         tags: ["Messages"],
         parameters: [
-            V1OpenAPI.identifier("conversation_id", type: ConversationID.self), V1OpenAPI.limit(default: 50), V1OpenAPI.cursor,
+            V1OpenAPI.identifier("conversation_id", type: ConversationID.self),
+            V1OpenAPI.limit(default: messagePageLimit), V1OpenAPI.cursor,
             V1OpenAPI.boolean("include_attachments", description: "Include attachment metadata in messages and attachment parts."),
             .init(name: "q", location: .query,
             description: "Case-insensitive search of decoded message text in this conversation.", schema: .string),
             .init(name: "search_mode", location: .query, description: "Text search matching mode.",
-                  schema: .string(allowedValues: MessageSearchMode.allCases.map { AnyCodable($0.rawValue) }, defaultValue: "contains")),
+                  schema: .string(
+                    allowedValues: MessageSearchMode.allCases.map { AnyCodable($0.rawValue) },
+                    defaultValue: AnyCodable(MessageSearchMode.contains.rawValue)
+                  )),
         ],
         responses: V1OpenAPI.responses(description: "A page of messages.", errors: [.badRequest, .notFound, .serviceUnavailable]),
         responseHeaders: V1OpenAPI.responseHeaders

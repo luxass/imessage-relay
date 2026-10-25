@@ -61,14 +61,19 @@ enum V1Query {
         return formValue.removingPercentEncoding ?? formValue
     }
 
+    static let limitRange = 1...200
+
     static func limit(_ request: Request, default fallback: Int) throws -> Int {
         guard let raw = string(request, "limit") else { return fallback }
-        guard let value = Int(raw), (1...200).contains(value) else {
+        guard let value = Int(raw), limitRange.contains(value) else {
             throw APIHTTPError(
                 status: .badRequest,
                 code: .invalidRequest,
-                message: "The limit query parameter must be between 1 and 200.",
-                fieldDetails: [APIFieldError(field: "limit", message: "Enter an integer from 1 through 200.")]
+                message: "The limit query parameter must be between \(limitRange.lowerBound) and \(limitRange.upperBound).",
+                fieldDetails: [APIFieldError(
+                    field: "limit",
+                    message: "Enter an integer from \(limitRange.lowerBound) through \(limitRange.upperBound)."
+                )]
             )
         }
         return value

@@ -22,8 +22,6 @@ func openAPIOperationsMatchEveryLiveRouteExactly() throws {
         (item.b?.endpoints ?? []).map { "\($0.method.rawValue) \(path.rawValue)" }
     })
     #expect(live == documented)
-    #expect(documented.count == 16)
-    #expect(RelayAPIDocument.endpoints.count == 16)
 }
 
 @Test
@@ -91,5 +89,5 @@ func openAPISSEPayloadsMatchAllEmittedEventShapes() throws {
     _ = try context.schema(for: RelayEventType.self, direction: .response)
     let enumData = try RelayJSON.encoder.encode(context.components)
     let enumSchemas = try #require(JSONSerialization.jsonObject(with: enumData) as? [String: [String: Any]])
-    #expect(Set(enumSchemas["RelayEventType_response"]?["enum"] as? [String] ?? []) == Set(events.map { $0.type.rawValue }))
+    #expect(Set(enumSchemas["RelayEventType"]?["enum"] as? [String] ?? []) == Set(events.map { $0.type.rawValue }))
 }

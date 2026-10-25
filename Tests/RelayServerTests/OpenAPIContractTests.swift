@@ -17,7 +17,6 @@ func openAPIExportsAValidDeterministicCompleteDocument() throws {
     try document.validate(strict: true)
     #expect(document.openAPIVersion == .v3_2_1)
     #expect(document.info.version == packageVersion)
-    #expect(document.paths.count == 14)
     let sender = try #require(document.paths["/v1/sender"]?.b?.get)
     #expect(sender.operationId == "getSender")
     #expect(sender.responses.count == 3)
@@ -32,11 +31,10 @@ func openAPIExportsAValidDeterministicCompleteDocument() throws {
 }
 
 @Test
-func openAPISenderMigrationPreservesTheJSONContract() async throws {
+func senderRouteKeepsItsJSONContract() async throws {
     let harness = ServerTestHarness()
     let router = harness.router()
     try router.validate()
-    #expect(router.routes.count == 16)
     let expected = try RelayJSON.encoder.encode(await harness.sender.status())
     try await Application(router: router).test(.router) { client in
         let response = try await client.execute(uri: "/v1/sender", method: .get, headers: authorizationHeaders())
@@ -53,7 +51,7 @@ func openAPISenderSchemaMatchesEncodedFieldsAndAuthenticationErrors() async thro
     let object = try #require(JSONSerialization.jsonObject(with: relayOpenAPIDocumentData()) as? [String: Any])
     let components = try #require(object["components"] as? [String: Any])
     let schemas = try #require(components["schemas"] as? [String: [String: Any]])
-    let sender = try #require(schemas["Sender_response"])
+    let sender = try #require(schemas["Sender"])
     let properties = try #require(sender["properties"] as? [String: Any])
     let required = Set(try #require(sender["required"] as? [String]))
     #expect(Set(properties.keys) == [

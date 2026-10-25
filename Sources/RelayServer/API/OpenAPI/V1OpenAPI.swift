@@ -27,7 +27,11 @@ enum V1OpenAPI {
 
     static func limit(default value: Int) -> EndpointParameter {
         .init(name: "limit", location: .query, description: "Maximum number of items in this page.",
-              schema: .integer(maximum: (200, exclusive: false), minimum: (1, exclusive: false), defaultValue: AnyCodable(value)))
+              schema: .integer(
+                maximum: (V1Query.limitRange.upperBound, exclusive: false),
+                minimum: (V1Query.limitRange.lowerBound, exclusive: false),
+                defaultValue: AnyCodable(value)
+              ))
     }
 
     static let cursor = EndpointParameter(

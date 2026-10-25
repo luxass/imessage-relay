@@ -1,4 +1,5 @@
 import HummingbirdOpenAPIModels
+import OpenAPIKit
 
 @OpenAPISchema
 public enum DeliveryState: String, Codable, Equatable, Sendable {
@@ -466,6 +467,48 @@ public struct SendMessageRequest: Codable, Equatable, Sendable {
         if !content.media.isEmpty { try container.encode(content.media, forKey: .media) }
         try container.encodeIfPresent(replyTo, forKey: .replyTo)
     }
+}
+
+// The wire keys come from CodingKeys so the hand-written flattened schema cannot drift from the decoder.
+extension SendMessageRequest: OpenAPISchemaProviding {
+    public static var openAPIComponentName: String? { "SendMessageRequest" }
+
+    public static func openAPISchema(in context: SchemaContext, direction: SchemaDirection) throws -> SchemaValue {
+        let destinations: OrderedDictionary<String, JSONSchema> = [
+            CodingKeys.conversationID.stringValue: try context.schema(for: ConversationID.self, direction: direction),
+            CodingKeys.to.stringValue: .string(minLength: 1),
+            CodingKeys.participants.stringValue: .array(minItems: 2, items: .string(minLength: 1)),
+        ]
+        var properties: OrderedDictionary<String, JSONSchema> = [:]
+        for (name, schema) in destinations { properties[name] = optionalWireValue(schema, direction: direction) }
+        properties[CodingKeys.text.stringValue] = optionalWireValue(.string, direction: direction)
+        properties[CodingKeys.media.stringValue] = optionalWireValue(
+            .array(items: try context.schema(for: SendMediaReference.self, direction: direction)), direction: direction
+        )
+        properties[CodingKeys.replyTo.stringValue] = optionalWireValue(
+            try context.schema(for: ReplyTarget.self, direction: direction), direction: direction
+        )
+        let destinationChoices = destinations.map { selected, _ -> JSONSchema in
+            var branch: OrderedDictionary<String, JSONSchema> = [:]
+            for (name, schema) in destinations {
+                branch[name] = name == selected ? schema : .null().optionalSchemaObject()
+            }
+            return .object(properties: branch)
+        }
+        return .all(of: [
+            .object(
+                description: "Exactly one non-null destination. The service requires text or uploaded media. "
+                    + "Participant sends require text and do not support media or reply_to. Normalized participants must be unique.",
+                properties: properties,
+                additionalProperties: .a(false)
+            ),
+            .one(of: destinationChoices),
+        ])
+    }
+}
+
+private func optionalWireValue(_ schema: JSONSchema, direction: SchemaDirection) -> JSONSchema {
+    (direction == .request ? schema.nullableSchemaObject() : schema).optionalSchemaObject()
 }
 
 @OpenAPISchema
