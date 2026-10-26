@@ -22,7 +22,7 @@ catalogs:
     "@astrojs/check": "0.9.10"
     "@tailwindcss/vite": "4.3.3"
     "tailwindcss": "4.3.3"
-    "typescript": "6.0.3"
+    "typescript": "7.0.2"
     "wrangler": "4.129.0"
 
 overrides:
