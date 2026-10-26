@@ -19,7 +19,7 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.8.2"),
         .package(url: "https://github.com/PhoneNumberKit/PhoneNumberKit.git", from: "5.0.9"),
         .package(url: "https://github.com/mattpolzin/OpenAPIKit.git", from: "7.0.0"),
-        .package(url: "https://github.com/swiftlang/swift-syntax.git", exact: "603.0.0"),
+        .package(url: "https://github.com/swiftlang/swift-syntax.git", exact: "604.0.0"),
     ],
     targets: [
         .target(
