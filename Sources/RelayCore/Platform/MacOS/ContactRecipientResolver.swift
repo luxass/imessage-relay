@@ -10,7 +10,9 @@ public actor ContactRecipientResolver: RecipientResolving {
 
     private let region: String
     private let refreshInterval: TimeInterval
-    private let phoneNumberUtility = PhoneNumberUtility()
+    private let phoneNumberUtility = PhoneNumberUtility(metadataCallback: {
+        try ContactRecipientResolver.loadPhoneNumberMetadata()
+    })
     private var contacts: [Contact] = []
     private var loadedAt: Date?
 
@@ -126,7 +128,9 @@ public actor ContactRecipientResolver: RecipientResolving {
                 CNContactEmailAddressesKey as CNKeyDescriptor,
             ]
             let request = CNContactFetchRequest(keysToFetch: keys)
-            let phoneNumberUtility = PhoneNumberUtility()
+            let phoneNumberUtility = PhoneNumberUtility(metadataCallback: {
+                try loadPhoneNumberMetadata()
+            })
             var contacts: [Contact] = []
             try store.enumerateContacts(with: request) { contact, _ in
                 let fullName = [contact.givenName, contact.familyName]
@@ -152,5 +156,19 @@ public actor ContactRecipientResolver: RecipientResolving {
             }
             return contacts
         }.value
+    }
+
+    static func loadPhoneNumberMetadata(in mainBundle: Bundle = .main) throws -> Data? {
+        guard mainBundle.bundleURL.pathExtension == "app" else {
+            return try PhoneNumberUtility.defaultMetadataCallback()
+        }
+        // Native SwiftPM looks beside Bundle.main.bundleURL, not inside an
+        // app's Contents/Resources. Do not fall back to the build-machine path.
+        guard let bundleURL = mainBundle.url(forResource: "PhoneNumberKit_PhoneNumberKit", withExtension: "bundle"),
+              let resourceBundle = Bundle(url: bundleURL),
+              let metadataURL = resourceBundle.url(forResource: "PhoneNumberMetadata", withExtension: "json") else {
+            throw PhoneNumberError.metadataNotFound
+        }
+        return try Data(contentsOf: metadataURL)
     }
 }
