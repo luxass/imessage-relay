@@ -78,10 +78,10 @@ extension MacOSAccessibilityMessagesDriver {
             guard let messageCell = try elementsAttribute("AXChildren", of: container).first else {
                 continue
             }
-            if accessibilityAction(
-                namedOneOf: Self.directReactionActionTitles
-                    .union(Self.reactionPickerActionTitles),
-                in: try actionNames(of: messageCell)
+            let actions = try actionNames(of: messageCell)
+            if Self.reactionPickerAction(in: actions) != nil || accessibilityAction(
+                namedOneOf: Self.directReactionActionTitles,
+                in: actions
             ) != nil {
                 return messageCell
             }
@@ -105,11 +105,12 @@ extension MacOSAccessibilityMessagesDriver {
             try perform(directAction, on: messageCell, failure: "The reaction action failed.")
             return nil
         }
-        guard let pickerAction = accessibilityAction(
-            namedOneOf: Self.reactionPickerActionTitles,
-            in: actions
-        ) else {
+        guard let pickerAction = Self.reactionPickerAction(in: actions) else {
             throw AccessibilityDriverFailure("The selected message has no reaction action.")
+        }
+        if pickerAction == kAXShowMenuAction {
+            try await applyMenuReaction(reaction, to: messageCell, in: window, beforePress: beforePress)
+            return nil
         }
         try perform(
             pickerAction,
@@ -132,6 +133,61 @@ extension MacOSAccessibilityMessagesDriver {
             }
         }
         return pickerAction
+    }
+
+    static func reactionPickerAction(in actions: [String]) -> String? {
+        if let action = accessibilityAction(namedOneOf: reactionPickerActionTitles, in: actions) {
+            return action
+        }
+        // AXShowMenu also appears on timestamps and other non-message elements.
+        guard actions.contains(kAXShowMenuAction),
+              accessibilityAction(namedOneOf: replyActionTitles, in: actions) != nil else {
+            return nil
+        }
+        return kAXShowMenuAction
+    }
+
+    @MainActor private func applyMenuReaction(
+        _ reaction: WritableReaction,
+        to messageCell: AXUIElement,
+        in window: AXUIElement,
+        beforePress: @MainActor () -> Void
+    ) async throws {
+        try perform(kAXShowMenuAction, on: messageCell, failure: "The message context menu did not open.")
+        let tapbackItem = try await waitUntilValue("The message context menu has no Tapback item.") {
+            try self.descendants(of: window).first {
+                guard try self.stringAttribute("AXRole", of: $0) == kAXMenuItemRole else { return false }
+                return try Self.reactionPickerActionTitles.contains(self.stringAttribute("AXTitle", of: $0) ?? "")
+                    && self.boolAttribute("AXEnabled", of: $0)
+            }
+        }
+        defer {
+            try? perform(kAXCancelAction, on: tapbackItem, failure: "The reaction menu did not close.")
+        }
+        try perform(kAXPressAction, on: tapbackItem, failure: "The Tapback submenu did not open.")
+        let identifier = Self.reactionMenuIdentifier(reaction)
+        let item = try await waitUntilValue("The requested reaction menu item was not found.") {
+            try self.descendants(of: window).first {
+                guard try self.stringAttribute("AXRole", of: $0) == kAXMenuItemRole else { return false }
+                return try self.stringAttribute("AXIdentifier", of: $0) == identifier
+                    && self.boolAttribute("AXEnabled", of: $0)
+            }
+        }
+        // Menu items toggle the reaction and disappear after selection. ReactionService
+        // checks the current state before dispatch and confirms the resulting database row.
+        beforePress()
+        try perform(kAXPressAction, on: item, failure: "The reaction menu item failed.")
+    }
+
+    static func reactionMenuIdentifier(_ reaction: WritableReaction) -> String {
+        switch reaction {
+        case .love: "heart"
+        case .like: "thumbs_up"
+        case .dislike: "thumbs_down"
+        case .laugh: "ha_ha!"
+        case .emphasis: "exclamation_mark"
+        case .question: "question_mark"
+        }
     }
 
     private func reactionActionTitles(_ reaction: WritableReaction) -> Set<String> {
