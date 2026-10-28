@@ -19,6 +19,7 @@ export default defineConfig({
             { label: 'Overview', slug: 'index' },
             { label: 'Install and run', slug: 'getting-started' },
             { label: 'Configuration', slug: 'configuration' },
+            { label: 'Feature support', slug: 'feature-support' },
           ],
         },
         {
