@@ -111,6 +111,10 @@ private final class ReadServiceStore: ConversationStoring, MessageStoring, @unch
         PaginatedResponse(items: [], nextCursor: nil, hasMore: false)
     }
 
+    func countMessages(conversationID: ConversationID, range: MessageCountRange) async throws -> MessageCounts {
+        MessageCounts(conversationID: conversationID, range: range, sent: 0, received: 0)
+    }
+
     func message(id: MessageID) async throws -> Message? {
         id == storedMessage.id ? storedMessage : nil
     }

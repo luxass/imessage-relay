@@ -38,6 +38,24 @@ extension ConversationRoutes {
         responseHeaders: V1OpenAPI.responseHeaders
     )
 
+    static let countsEndpoint = JSONEndpoint<MessageCounts>(
+        method: .get, path: "/v1/conversations/:conversation_id/message-counts", operationID: "countConversationMessages",
+        summary: "Count outgoing and incoming messages in a date range.",
+        description: "from is inclusive; to is exclusive. Both require an ISO 8601 timestamp with an explicit time zone. "
+            + "Counts use message direction, not delivery confirmation. Reactions, duplicate memberships, folded previews, "
+            + "and recognized pending Send Later rows do not add messages. Retained unsent messages count once. "
+            + "The operation reads conversation rows and current text for preview classification, without attachment-file scans.",
+        tags: ["Messages"], parameters: [
+            V1OpenAPI.identifier("conversation_id", type: ConversationID.self),
+            .init(name: "from", location: .query, description: "Inclusive start timestamp.", required: true, type: Timestamp.self),
+            .init(name: "to", location: .query, description: "Exclusive end timestamp, later than from.",
+                  required: true, type: Timestamp.self),
+        ],
+        responses: V1OpenAPI.responses(description: "Sent and received counts for the requested conversation and range.",
+            errors: [.badRequest, .notFound, .serviceUnavailable]),
+        responseHeaders: V1OpenAPI.responseHeaders
+    )
+
     static let readEndpoint = JSONEndpoint<ConversationReadResponse>(
         method: .put, path: "/v1/conversations/:conversation_id/read", operationID: "markConversationRead",
             summary: "Mark a conversation as read.",
@@ -71,7 +89,7 @@ extension ConversationRoutes {
     )
 
     static var endpoints: [EndpointDefinition] {
-        [listEndpoint.definition, getEndpoint.definition, messagesEndpoint.definition, readEndpoint.definition,
+        [listEndpoint.definition, getEndpoint.definition, messagesEndpoint.definition, countsEndpoint.definition, readEndpoint.definition,
          startTypingEndpoint.definition, stopTypingEndpoint.definition]
     }
 }

@@ -166,6 +166,10 @@ private final class TypingStore: ConversationStoring, MessageStoring, @unchecked
         PaginatedResponse(items: [], nextCursor: nil, hasMore: false)
     }
 
+    func countMessages(conversationID: ConversationID, range: MessageCountRange) async throws -> MessageCounts {
+        MessageCounts(conversationID: conversationID, range: range, sent: 0, received: 0)
+    }
+
     func message(id: MessageID) async throws -> Message? {
         messagesByConversation.values.first { $0.id == id }
     }

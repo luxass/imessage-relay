@@ -45,6 +45,30 @@ macOS version exposes the same queue.
 
 This endpoint cannot schedule, cancel, or reschedule messages.
 
+## Count messages in a conversation
+
+```http
+GET /v1/conversations/{conversation_id}/message-counts?from=2026-01-01T00:00:00Z&to=2026-02-01T00:00:00Z
+```
+
+Both timestamps are required. `from` is inclusive and `to` is exclusive. Include
+`Z` for UTC or an explicit offset. Encode `+` as `%2B` in a query string. The
+response includes `conversation_id`, the normalized range, `sent`, and `received`.
+The host's time zone does not change the interval.
+
+Counts follow message direction, not confirmed delivery. Attachment-only
+messages and retained unsent messages each count once. Reactions, duplicate
+conversation links, folded URL-preview rows, and recognized pending Send Later
+messages do not add to the count. Rows without a known message timestamp are
+outside the interval. Each requested conversation includes its own visible
+memberships; these per-conversation counts are not a deduplicated global total.
+
+The relay streams conversation rows and reads current text to classify previews.
+It can read an older preview parent outside the range to avoid counting a
+supplemental preview as another message. Large ranges or long preview runs can
+take longer. The operation does not read attachment files or create a statistics
+cache. It reports current database state, not a historical activity archive.
+
 ## List messages
 
 ```http

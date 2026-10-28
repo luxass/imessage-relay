@@ -67,6 +67,7 @@ public protocol MessageStoring: Sendable {
     ) async throws -> PaginatedResponse<Message>
     func message(id: MessageID) async throws -> Message?
     func listScheduledMessages(options: ScheduledMessageListOptions) async throws -> PaginatedResponse<Message>
+    func countMessages(conversationID: ConversationID, range: MessageCountRange) async throws -> MessageCounts
 }
 
 struct OpenFileIdentity: Equatable, Sendable {

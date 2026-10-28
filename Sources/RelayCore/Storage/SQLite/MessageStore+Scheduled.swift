@@ -7,7 +7,7 @@ extension SQLiteMessageStore {
         asOf: Date
     ) throws -> PaginatedResponse<Message> {
         let schema = database.schema
-        guard ["schedule_type", "schedule_state", "is_sent"].allSatisfy({ schema.hasColumn($0, in: "message") }) else {
+        guard let pending = pendingSchedulePredicate(schema) else {
             throw RelayServiceError.unsupportedCapability("Scheduled messages require schedule and sent-state columns.")
         }
         let identity = try database.identity()
@@ -21,11 +21,7 @@ extension SQLiteMessageStore {
         let limit = max(1, min(options.limit, 200))
         let date = timestampSecondsSQL("m.date")
         var sql = collectionSQL(schema: schema, conversationID: nil)
-        // Recognize the known Send Later shape, not every nonzero schedule marker.
-        sql += " AND m.is_from_me = 1 AND m.schedule_type = 2 AND m.schedule_state = 1"
-        for column in ["is_sent", "is_delivered", "date_delivered", "error", "date_retracted"] {
-            sql += " AND COALESCE(\(schema.expression(column, table: "message", alias: "m", fallback: "0")), 0) = 0"
-        }
+        sql += " AND \(pending)"
         sql += " AND \(date) >= ?"
         if cursor != nil { sql += " AND (\(date) > ? OR (\(date) = ? AND m.ROWID > ?))" }
         sql += " ORDER BY \(date), m.ROWID LIMIT ?"
@@ -59,7 +55,13 @@ extension SQLiteMessageStore {
         return PaginatedResponse(items: records.map(\.message), nextCursor: next, hasMore: hasMore)
     }
 
-    static func timestampSecondsSQL(_ column: String) -> String {
-        "(CASE WHEN ABS(\(column)) > 10000000000 THEN CAST(\(column) AS REAL) / 1000000000 ELSE \(column) END)"
+    static func pendingSchedulePredicate(_ schema: SchemaInspector) -> String? {
+        guard ["schedule_type", "schedule_state", "is_sent"].allSatisfy({ schema.hasColumn($0, in: "message") }) else { return nil }
+        // Recognize the known Send Later shape, not every nonzero schedule marker.
+        var predicate = "m.is_from_me = 1 AND COALESCE(m.schedule_type, 0) = 2 AND COALESCE(m.schedule_state, 0) = 1"
+        for column in ["is_sent", "is_delivered", "date_delivered", "error", "date_retracted"] {
+            predicate += " AND COALESCE(\(schema.expression(column, table: "message", alias: "m", fallback: "0")), 0) = 0"
+        }
+        return predicate
     }
 }
