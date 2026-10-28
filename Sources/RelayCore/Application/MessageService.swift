@@ -78,7 +78,7 @@ public struct MessageService: Sendable {
     }
 
     public func list(
-        conversationID: ConversationID,
+        conversationID: ConversationID?,
         options: MessageListOptions
     ) async throws -> PaginatedResponse<Message> {
         let page = try await messages.listMessages(conversationID: conversationID, options: options)

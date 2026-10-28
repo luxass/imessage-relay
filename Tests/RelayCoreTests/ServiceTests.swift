@@ -832,11 +832,11 @@ final class StubStores: ConversationStoring, MessageStoring, @unchecked Sendable
     }
 
     func listMessages(
-        conversationID: ConversationID,
+        conversationID: ConversationID?,
         options: MessageListOptions
     ) async throws -> PaginatedResponse<Message> {
         PaginatedResponse(
-            items: messageValues.filter { $0.conversationID == conversationID },
+            items: messageValues.filter { conversationID == nil || $0.conversationID == conversationID },
             nextCursor: nil,
             hasMore: false
         )

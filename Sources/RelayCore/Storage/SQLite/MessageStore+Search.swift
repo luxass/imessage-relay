@@ -4,7 +4,7 @@ extension SQLiteMessageStore {
     private typealias SearchPosition = SearchPreviewCursor.Position
 
     private struct SearchContext {
-        let conversationID: ConversationID
+        let conversationID: ConversationID?
         let options: MessageListOptions
         let search: String
         let identity: String
@@ -15,7 +15,7 @@ extension SQLiteMessageStore {
 
     static func searchPage(
         database: SQLiteDatabase,
-        conversationID: ConversationID,
+        conversationID: ConversationID?,
         options: MessageListOptions,
         search: String,
         cursor: StorageCursor?,
@@ -216,7 +216,7 @@ extension SQLiteMessageStore {
     ) throws -> [Record] {
         try records(
             database: database,
-            sql: listSQL(schema: database.schema, cursor: cursor),
+            sql: listSQL(schema: database.schema, cursor: cursor, conversationID: context.conversationID),
             query: RecordQuery(conversationID: context.conversationID, cursor: cursor, limit: limit)
         )
     }
@@ -238,7 +238,7 @@ extension SQLiteMessageStore {
         )
         let nextCursor = try hasMore ? continuation.map {
             try CursorCodec.encode(
-                route: "conversation_messages",
+                route: context.conversationID == nil ? "global_messages" : "conversation_messages",
                 databaseIdentity: context.identity,
                 querySignature: context.signature,
                 date: $0.date,

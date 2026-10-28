@@ -12,7 +12,7 @@ public final class SQLiteMessageStore: MessageStoring, SendCorrelating, Sendable
     }
 
     struct RecordQuery {
-        let conversationID: ConversationID
+        let conversationID: ConversationID?
         let cursor: StorageCursor?
         let limit: Int
     }
@@ -24,7 +24,7 @@ public final class SQLiteMessageStore: MessageStoring, SendCorrelating, Sendable
     }
 
     public func listMessages(
-        conversationID: ConversationID,
+        conversationID: ConversationID?,
         options: MessageListOptions
     ) async throws -> PaginatedResponse<Message> {
         try await executor.run { database in
@@ -69,10 +69,10 @@ public final class SQLiteMessageStore: MessageStoring, SendCorrelating, Sendable
 
     private static func list(
         database: SQLiteDatabase,
-        conversationID: ConversationID,
+        conversationID: ConversationID?,
         options: MessageListOptions
     ) throws -> PaginatedResponse<Message> {
-        guard try conversationExists(database: database, id: conversationID) else {
+        if let conversationID, try !conversationExists(database: database, id: conversationID) {
             throw RelayServiceError.unknownConversation
         }
         let limit = max(1, min(options.limit, 200))
@@ -81,7 +81,7 @@ public final class SQLiteMessageStore: MessageStoring, SendCorrelating, Sendable
         let signature = querySignature(conversationID: conversationID, options: options, search: search)
         let cursor = try CursorCodec.decode(
             options.cursor,
-            route: "conversation_messages",
+            route: conversationID == nil ? "global_messages" : "conversation_messages",
             databaseIdentity: identity,
             querySignature: signature
         )
@@ -100,7 +100,7 @@ public final class SQLiteMessageStore: MessageStoring, SendCorrelating, Sendable
         guard cursor?.searchPreview == nil else { throw SQLiteStorageError.invalidCursor }
         var records = try records(
             database: database,
-            sql: listSQL(schema: database.schema, cursor: cursor),
+            sql: listSQL(schema: database.schema, cursor: cursor, conversationID: conversationID),
             query: RecordQuery(
                 conversationID: conversationID,
                 cursor: cursor,
@@ -118,7 +118,7 @@ public final class SQLiteMessageStore: MessageStoring, SendCorrelating, Sendable
         )
         let nextCursor = try hasMore ? records.last.map {
             try CursorCodec.encode(
-                route: "conversation_messages",
+                route: conversationID == nil ? "global_messages" : "conversation_messages",
                 databaseIdentity: identity,
                 querySignature: signature,
                 date: $0.row.date,
@@ -139,8 +139,10 @@ public final class SQLiteMessageStore: MessageStoring, SendCorrelating, Sendable
     ) throws -> [Record] {
         try database.withStatement(sql) { statement in
             var binding: Int32 = 1
-            try statement.bind(query.conversationID.rawValue, at: binding)
-            binding += 1
+            if let conversationID = query.conversationID {
+                try statement.bind(conversationID.rawValue, at: binding)
+                binding += 1
+            }
             if let cursor = query.cursor {
                 if let date = cursor.date {
                     try date.bind(to: statement, at: binding)
@@ -169,13 +171,13 @@ public final class SQLiteMessageStore: MessageStoring, SendCorrelating, Sendable
     }
 
     private static func querySignature(
-        conversationID: ConversationID,
+        conversationID: ConversationID?,
         options: MessageListOptions,
         search: String?
     ) -> String {
         CursorCodec.signature([
             "messages",
-            conversationID.rawValue,
+            conversationID?.rawValue ?? "<global>",
             String(options.includeAttachments),
             options.searchMode.rawValue,
             search ?? "<none>",
@@ -184,23 +186,10 @@ public final class SQLiteMessageStore: MessageStoring, SendCorrelating, Sendable
 
     static func listSQL(
         schema: SchemaInspector,
-        cursor: StorageCursor?
+        cursor: StorageCursor?,
+        conversationID: ConversationID?
     ) -> String {
-        var sql = """
-            SELECT \(projection(schema))
-            FROM message m
-            JOIN chat_message_join cmj ON cmj.message_id = m.ROWID
-            JOIN chat c ON c.ROWID = cmj.chat_id
-            LEFT JOIN handle h ON h.ROWID = m.handle_id
-            WHERE c.guid = ?
-            """
-        if schema.hasColumn("associated_message_type", in: "message") {
-            sql += " AND NOT (COALESCE(m.associated_message_type, 0) BETWEEN 2000 AND 2006)"
-            sql += " AND NOT (COALESCE(m.associated_message_type, 0) BETWEEN 3000 AND 3006)"
-        }
-        if schema.hasColumn("filter_action", in: "chat_message_join") {
-            sql += " AND cmj.filter_action = 0"
-        }
+        var sql = collectionSQL(schema: schema, conversationID: conversationID)
         if cursor != nil {
             sql += cursor?.date == nil
                 ? " AND m.date IS NULL AND m.ROWID < ?"
@@ -213,27 +202,18 @@ public final class SQLiteMessageStore: MessageStoring, SendCorrelating, Sendable
     static func record(
         database: SQLiteDatabase,
         rowID: Int64,
-        conversationID: ConversationID
+        conversationID: ConversationID?
     ) throws -> Record? {
-        var sql = """
-            SELECT \(projection(database.schema))
-            FROM message m
-            JOIN chat_message_join cmj ON cmj.message_id = m.ROWID
-            JOIN chat c ON c.ROWID = cmj.chat_id
-            LEFT JOIN handle h ON h.ROWID = m.handle_id
-            WHERE c.guid = ? AND m.ROWID = ?
-            """
-        if database.schema.hasColumn("associated_message_type", in: "message") {
-            sql += " AND NOT (COALESCE(m.associated_message_type, 0) BETWEEN 2000 AND 2006)"
-            sql += " AND NOT (COALESCE(m.associated_message_type, 0) BETWEEN 3000 AND 3006)"
-        }
-        if database.schema.hasColumn("filter_action", in: "chat_message_join") {
-            sql += " AND cmj.filter_action = 0"
-        }
+        var sql = collectionSQL(schema: database.schema, conversationID: conversationID)
+        sql += " AND m.ROWID = ?"
         sql += " LIMIT 1"
         return try database.withStatement(sql) { statement in
-            try statement.bind(conversationID.rawValue, at: 1)
-            try statement.bind(rowID, at: 2)
+            var binding: Int32 = 1
+            if let conversationID {
+                try statement.bind(conversationID.rawValue, at: binding)
+                binding += 1
+            }
+            try statement.bind(rowID, at: binding)
             guard try statement.step() == .row else { return nil }
             let row = try decode(statement)
             return Record(row: row, message: try SQLiteRows.message(row))

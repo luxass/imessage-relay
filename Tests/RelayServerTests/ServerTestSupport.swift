@@ -192,13 +192,13 @@ final class APIStore: ConversationStoring, MessageStoring, MessageMediaStoring,
     }
 
     func listMessages(
-        conversationID: ConversationID,
+        conversationID: ConversationID?,
         options: MessageListOptions
     ) async throws -> PaginatedResponse<Message> {
         lock.withLock { storedMessageListOptions = options }
         if let readError { throw readError }
         if options.cursor != nil { throw SQLiteStorageError.invalidCursor }
-        guard conversationID == conversation.id else { throw RelayServiceError.unknownConversation }
+        guard conversationID == nil || conversationID == conversation.id else { throw RelayServiceError.unknownConversation }
         return PaginatedResponse(
             items: Array(messages.prefix(options.limit)),
             nextCursor: nil,
