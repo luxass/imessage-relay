@@ -4,6 +4,16 @@ import OpenAPIKit
 import RelayCore
 
 extension MessageRoutes {
+    static let searchEndpoint = JSONEndpoint<PaginatedResponse<Message>>(
+        method: .get, path: "/v1/messages", operationID: "searchMessages", summary: "Search text across conversations.",
+        description: "Requires nonblank q. Uses current decoded text with case- and diacritic-insensitive matching. "
+            + "Each result includes one visible conversation. Newest candidates sort first, with bounded continuation pages "
+            + "that can be empty while has_more is true. Cursors are bound to the database, scope, and search options.",
+        tags: ["Messages"], parameters: V1OpenAPI.messageOptions(requiresSearch: true),
+        responses: V1OpenAPI.responses(description: "A page of matching messages.", errors: [.badRequest, .serviceUnavailable]),
+        responseHeaders: V1OpenAPI.responseHeaders
+    )
+
     static let getEndpoint = JSONEndpoint<Message>(
         method: .get, path: "/v1/messages/:message_id", operationID: "getMessage", summary: "Read one message.",
         tags: ["Messages"], parameters: [V1OpenAPI.identifier("message_id", type: MessageID.self)],
@@ -65,7 +75,7 @@ extension MessageRoutes {
     )
 
     static var endpoints: [EndpointDefinition] {
-        [getEndpoint.definition, requestEndpoint.definition, sendEndpoint.definition,
+        [searchEndpoint.definition, getEndpoint.definition, requestEndpoint.definition, sendEndpoint.definition,
          setReactionEndpoint.definition, clearReactionEndpoint.definition]
     }
 }

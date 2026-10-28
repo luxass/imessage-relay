@@ -94,6 +94,27 @@ enum V1Query {
         }
     }
 
+    static func messageOptions(_ request: Request, requiresSearch: Bool = false) throws -> MessageListOptions {
+        let search = string(request, "q")
+        if requiresSearch, search?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false {
+            throw APIHTTPError(
+                status: .badRequest, code: .invalidRequest, message: "The q query parameter must contain text.",
+                fieldDetails: [APIFieldError(field: "q", message: "Enter search text.")]
+            )
+        }
+        let rawMode = string(request, "search_mode") ?? MessageSearchMode.contains.rawValue
+        guard let mode = MessageSearchMode(rawValue: rawMode) else {
+            throw APIHTTPError(
+                status: .badRequest, code: .invalidRequest, message: "search_mode must be contains or exact.",
+                fieldDetails: [APIFieldError(field: "search_mode", message: "Use contains or exact.")]
+            )
+        }
+        return try MessageListOptions(
+            limit: limit(request, default: ConversationRoutes.messagePageLimit), cursor: cursor(request),
+            includeAttachments: bool(request, "include_attachments"), search: search, searchMode: mode
+        )
+    }
+
     static func cursor(_ request: Request) throws -> Cursor? {
         guard let raw = string(request, "cursor") else { return nil }
         do {

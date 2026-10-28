@@ -34,6 +34,21 @@ enum V1OpenAPI {
               ))
     }
 
+    static func messageOptions(requiresSearch: Bool = false) -> [EndpointParameter] {
+        [
+            limit(default: ConversationRoutes.messagePageLimit), cursor,
+            boolean("include_attachments", description: "Include attachment metadata in messages and attachment parts."),
+            .init(name: "q", location: .query,
+                  description: "Case- and diacritic-insensitive search of current decoded message text.",
+                  required: requiresSearch, schema: .string(minLength: requiresSearch ? 1 : nil)),
+            .init(name: "search_mode", location: .query, description: "Text search matching mode.",
+                  schema: .string(
+                    allowedValues: MessageSearchMode.allCases.map { AnyCodable($0.rawValue) },
+                    defaultValue: AnyCodable(MessageSearchMode.contains.rawValue)
+                  )),
+        ]
+    }
+
     static let cursor = EndpointParameter(
         name: "cursor", location: .query,
         description: "Opaque next_cursor from the previous page, bound to the route, query, and database.", type: Cursor.self

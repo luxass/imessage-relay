@@ -5,6 +5,26 @@ description: Read and send messages, update reactions, and handle retries.
 
 Read the [messages reference](/api/messages/) for parameters and schemas.
 
+## Search across conversations
+
+```http
+GET /v1/messages?q=invoice&search_mode=contains&limit=50
+```
+
+`q` must contain text. Use `contains` (the default) or `exact` to match current
+message text, ignoring case and accents. Results include `conversation_id`, so
+the caller does not need to search each conversation separately.
+
+Use `next_cursor` with the same search options while `has_more` is true. A page
+can be empty while the bounded scan continues. Each message appears under one
+visible conversation, even if the database links it to several conversations.
+Preview runs only combine candidates from the same conversation. Optional
+`include_attachments=true` includes attachment metadata, not filename search.
+
+Search uses edited text and excludes the former text of unsent messages. It does
+not search revision history, attachment filenames, or stored voice transcripts.
+Cursors do not provide restart catch-up or replay of missed changes.
+
 ## List messages
 
 ```http

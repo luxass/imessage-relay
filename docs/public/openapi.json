@@ -1651,7 +1651,7 @@
             }
           },
           {
-            "description": "Case-insensitive search of decoded message text in this conversation.",
+            "description": "Case- and diacritic-insensitive search of current decoded message text.",
             "in": "query",
             "name": "q",
             "schema": {
@@ -2956,6 +2956,167 @@
       }
     },
     "/v1/messages": {
+      "get": {
+        "description": "Requires nonblank q. Uses current decoded text with case- and diacritic-insensitive matching. Each result includes one visible conversation. Newest candidates sort first, with bounded continuation pages that can be empty while has_more is true. Cursors are bound to the database, scope, and search options.",
+        "operationId": "searchMessages",
+        "parameters": [
+          {
+            "description": "Maximum number of items in this page.",
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque next_cursor from the previous page, bound to the route, query, and database.",
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "minLength": 1,
+              "pattern": "^[^\\p{Cc}\\p{Cf}]+$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Include attachment metadata in messages and attachment parts. Accepts true, false, 1, or 0. Word spellings are case-insensitive.",
+            "in": "query",
+            "name": "include_attachments",
+            "schema": {
+              "default": "false",
+              "pattern": "^([Tt][Rr][Uu][Ee]|[Ff][Aa][Ll][Ss][Ee]|[01])$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Case- and diacritic-insensitive search of current decoded message text.",
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Text search matching mode.",
+            "in": "query",
+            "name": "search_mode",
+            "schema": {
+              "default": "contains",
+              "enum": [
+                "contains",
+                "exact"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedResponseOfMessage"
+                }
+              }
+            },
+            "description": "A page of matching messages.",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier.",
+                "required": true,
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Malformed JSON, query parameter, cursor, destination selection, or resource identifier.",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier.",
+                "required": true,
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token.",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier.",
+                "required": true,
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "The request failed.",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier.",
+                "required": true,
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "The database, sender, Messages access, or request store is unavailable.",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier.",
+                "required": true,
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Search text across conversations.",
+        "tags": [
+          "Messages"
+        ]
+      },
       "post": {
         "description": "Provide exactly one non-null destination. Every resolved participant must be allowlisted. Participant sends require text and do not support media or reply_to. Use an existing conversation for native replies. Reuse the same idempotency key for retries. A changed normalized request returns 409. A 202 response is not proof of delivery. Poll poll_url for correlation and lifecycle status.",
         "operationId": "sendMessage",
