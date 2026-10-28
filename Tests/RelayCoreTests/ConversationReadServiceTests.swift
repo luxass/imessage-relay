@@ -107,6 +107,10 @@ private final class ReadServiceStore: ConversationStoring, MessageStoring, @unch
         return PaginatedResponse(items: [storedMessage], nextCursor: nil, hasMore: false)
     }
 
+    func listScheduledMessages(options: ScheduledMessageListOptions) async throws -> PaginatedResponse<Message> {
+        PaginatedResponse(items: [], nextCursor: nil, hasMore: false)
+    }
+
     func message(id: MessageID) async throws -> Message? {
         id == storedMessage.id ? storedMessage : nil
     }

@@ -82,9 +82,12 @@ public struct MessageService: Sendable {
         options: MessageListOptions
     ) async throws -> PaginatedResponse<Message> {
         let page = try await messages.listMessages(conversationID: conversationID, options: options)
-        var items: [Message] = []
-        for message in page.items { items.append(await addingContactNames(to: message)) }
-        return PaginatedResponse(items: items, nextCursor: page.nextCursor, hasMore: page.hasMore)
+        return await addingContactNames(to: page)
+    }
+
+    public func scheduled(options: ScheduledMessageListOptions) async throws -> PaginatedResponse<Message> {
+        let page = try await messages.listScheduledMessages(options: options)
+        return await addingContactNames(to: page)
     }
 
     public func get(id: MessageID) async throws -> Message {
@@ -164,6 +167,12 @@ public struct MessageService: Sendable {
             }
             throw error
         }
+    }
+
+    private func addingContactNames(to page: PaginatedResponse<Message>) async -> PaginatedResponse<Message> {
+        var items: [Message] = []
+        for message in page.items { items.append(await addingContactNames(to: message)) }
+        return PaginatedResponse(items: items, nextCursor: page.nextCursor, hasMore: page.hasMore)
     }
 
     private func addingContactNames(to message: Message) async -> Message {

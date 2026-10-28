@@ -162,6 +162,10 @@ private final class TypingStore: ConversationStoring, MessageStoring, @unchecked
         )
     }
 
+    func listScheduledMessages(options: ScheduledMessageListOptions) async throws -> PaginatedResponse<Message> {
+        PaginatedResponse(items: [], nextCursor: nil, hasMore: false)
+    }
+
     func message(id: MessageID) async throws -> Message? {
         messagesByConversation.values.first { $0.id == id }
     }

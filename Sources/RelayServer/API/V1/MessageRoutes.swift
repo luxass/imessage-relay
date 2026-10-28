@@ -8,6 +8,7 @@ struct MessageRoutes {
 
     func register(on router: Router<RelayRequestContext>) {
         Self.searchEndpoint.register(on: router, use: search)
+        Self.scheduledEndpoint.register(on: router, use: scheduled)
         Self.getEndpoint.register(on: router, use: get)
         Self.requestEndpoint.register(on: router, use: getRequest)
         Self.sendEndpoint.register(on: router, use: send)
@@ -44,6 +45,15 @@ struct MessageRoutes {
     ) async throws -> JSONResponse<SendMessageResponse> {
         let id: RelayCore.RequestID = try pathID("request_id", context: context)
         return relayJSONResponse(try await messages.request(id: id))
+    }
+
+    @Sendable private func scheduled(
+        _ request: Request, context: RelayRequestContext
+    ) async throws -> JSONResponse<PaginatedResponse<Message>> {
+        relayJSONResponse(try await messages.scheduled(options: ScheduledMessageListOptions(
+            limit: V1Query.limit(request, default: ConversationRoutes.messagePageLimit),
+            cursor: V1Query.cursor(request), includeAttachments: V1Query.bool(request, "include_attachments")
+        )))
     }
 
     @Sendable private func search(

@@ -842,6 +842,10 @@ final class StubStores: ConversationStoring, MessageStoring, @unchecked Sendable
         )
     }
 
+    func listScheduledMessages(options: ScheduledMessageListOptions) async throws -> PaginatedResponse<Message> {
+        PaginatedResponse(items: [], nextCursor: nil, hasMore: false)
+    }
+
     func message(id: MessageID) async throws -> Message? {
         messageValues.first { $0.id == id }
     }
