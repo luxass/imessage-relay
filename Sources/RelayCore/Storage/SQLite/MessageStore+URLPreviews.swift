@@ -71,7 +71,8 @@ extension SQLiteMessageStore {
     }
 
     static func sameSender(_ lhs: Record, _ rhs: Record) -> Bool {
-        lhs.row.isFromMe == rhs.row.isFromMe && lhs.row.handle == rhs.row.handle
+        lhs.row.conversationGUID == rhs.row.conversationGUID
+            && lhs.row.isFromMe == rhs.row.isFromMe && lhs.row.handle == rhs.row.handle
     }
 
     static func attachURLPreview(_ preview: Record, to message: inout Record) {

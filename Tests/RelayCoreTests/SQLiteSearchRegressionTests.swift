@@ -130,10 +130,11 @@ func boundedSearchResolvesPreviewRunsLongerThanItsCandidateBudget() async throws
     try await storage.shutdown()
 }
 
-private func collectPreviewSearch(
+func collectPreviewSearch(
     _ storage: MessagesStorage,
     limit: Int,
-    search: String = "boundary"
+    search: String = "boundary",
+    global: Bool = false
 ) async throws -> [Message] {
     let conversationID = try ConversationID(validating: MessageDatabaseFixture.oneToOneID)
     var cursor: Cursor?
@@ -141,7 +142,7 @@ private func collectPreviewSearch(
     var result: [Message] = []
     for _ in 0..<100 {
         let page = try await storage.messages.listMessages(
-            conversationID: conversationID,
+            conversationID: global ? nil : conversationID,
             options: MessageListOptions(limit: limit, cursor: cursor, search: search)
         )
         result.append(contentsOf: page.items)
@@ -154,7 +155,7 @@ private func collectPreviewSearch(
     return result
 }
 
-private func insertPreviewSearchHistory(
+func insertPreviewSearchHistory(
     into fixture: MessageDatabaseFixture,
     count: Int
 ) throws {
@@ -182,7 +183,7 @@ private func insertPreviewSearchHistory(
     try fixture.execute("COMMIT")
 }
 
-private func insertPreviewBoundaryHistory(
+func insertPreviewBoundaryHistory(
     into fixture: MessageDatabaseFixture,
     count: Int
 ) throws {

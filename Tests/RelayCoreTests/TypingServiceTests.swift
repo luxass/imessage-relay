@@ -152,11 +152,11 @@ private final class TypingStore: ConversationStoring, MessageStoring, @unchecked
     ) async throws -> [ConversationSendContext] { [] }
 
     func listMessages(
-        conversationID: ConversationID,
+        conversationID: ConversationID?,
         options _: MessageListOptions
     ) async throws -> PaginatedResponse<Message> {
         PaginatedResponse(
-            items: messagesByConversation[conversationID].map { [$0] } ?? [],
+            items: messagesByConversation.values.filter { conversationID == nil || $0.conversationID == conversationID },
             nextCursor: nil,
             hasMore: false
         )

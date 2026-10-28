@@ -60,8 +60,9 @@ public protocol ConversationStoring: Sendable {
 }
 
 public protocol MessageStoring: Sendable {
+    /// A nil conversation selects the global collection with one visible conversation per message.
     func listMessages(
-        conversationID: ConversationID,
+        conversationID: ConversationID?,
         options: MessageListOptions
     ) async throws -> PaginatedResponse<Message>
     func message(id: MessageID) async throws -> Message?

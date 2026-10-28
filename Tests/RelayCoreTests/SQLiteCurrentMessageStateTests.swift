@@ -3,8 +3,8 @@ import Testing
 
 @testable import RelayCore
 
-@Test(arguments: [false, true])
-func currentEditsNeverReturnStalePlainText(validBody: Bool) async throws {
+@Test(arguments: [false, true], [false, true])
+func currentEditsNeverReturnStalePlainText(validBody: Bool, global: Bool) async throws {
     let fixture = try MessageDatabaseFixture()
     try fixture.execute("ALTER TABLE message ADD COLUMN date_edited INTEGER;")
     try fixture.execute("UPDATE message SET text = 'stale original', date_edited = 700000010000000000 WHERE ROWID = 100;")
@@ -19,7 +19,7 @@ func currentEditsNeverReturnStalePlainText(validBody: Bool) async throws {
     #expect(message.editedAt != nil)
     #expect(message.unsentAt == nil)
     let page = try await storage.messages.listMessages(
-        conversationID: ConversationID(validating: MessageDatabaseFixture.oneToOneID),
+        conversationID: global ? nil : ConversationID(validating: MessageDatabaseFixture.oneToOneID),
         options: MessageListOptions(search: validBody ? "corrected cafe" : "stale original", searchMode: .exact)
     )
     #expect(page.items.contains { $0.id == id } == validBody)

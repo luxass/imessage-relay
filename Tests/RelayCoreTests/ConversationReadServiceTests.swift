@@ -98,10 +98,10 @@ private final class ReadServiceStore: ConversationStoring, MessageStoring, @unch
     ) async throws -> [ConversationSendContext] { [] }
 
     func listMessages(
-        conversationID: ConversationID,
+        conversationID: ConversationID?,
         options _: MessageListOptions
     ) async throws -> PaginatedResponse<Message> {
-        guard conversationID == self.conversationID else {
+        guard conversationID == nil || conversationID == self.conversationID else {
             throw RelayServiceError.unknownConversation
         }
         return PaginatedResponse(items: [storedMessage], nextCursor: nil, hasMore: false)
