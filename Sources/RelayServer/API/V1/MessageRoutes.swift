@@ -7,6 +7,7 @@ struct MessageRoutes {
     let reactions: ReactionService
 
     func register(on router: Router<RelayRequestContext>) {
+        Self.searchEndpoint.register(on: router, use: search)
         Self.getEndpoint.register(on: router, use: get)
         Self.requestEndpoint.register(on: router, use: getRequest)
         Self.sendEndpoint.register(on: router, use: send)
@@ -43,6 +44,14 @@ struct MessageRoutes {
     ) async throws -> JSONResponse<SendMessageResponse> {
         let id: RelayCore.RequestID = try pathID("request_id", context: context)
         return relayJSONResponse(try await messages.request(id: id))
+    }
+
+    @Sendable private func search(
+        _ request: Request, context: RelayRequestContext
+    ) async throws -> JSONResponse<PaginatedResponse<Message>> {
+        relayJSONResponse(try await messages.list(
+            conversationID: nil, options: V1Query.messageOptions(request, requiresSearch: true)
+        ))
     }
 
     @Sendable private func get(_ request: Request, context: RelayRequestContext) async throws -> JSONResponse<Message> {

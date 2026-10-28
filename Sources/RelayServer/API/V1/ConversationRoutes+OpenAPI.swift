@@ -33,16 +33,7 @@ extension ConversationRoutes {
         tags: ["Messages"],
         parameters: [
             V1OpenAPI.identifier("conversation_id", type: ConversationID.self),
-            V1OpenAPI.limit(default: messagePageLimit), V1OpenAPI.cursor,
-            V1OpenAPI.boolean("include_attachments", description: "Include attachment metadata in messages and attachment parts."),
-            .init(name: "q", location: .query,
-            description: "Case-insensitive search of decoded message text in this conversation.", schema: .string),
-            .init(name: "search_mode", location: .query, description: "Text search matching mode.",
-                  schema: .string(
-                    allowedValues: MessageSearchMode.allCases.map { AnyCodable($0.rawValue) },
-                    defaultValue: AnyCodable(MessageSearchMode.contains.rawValue)
-                  )),
-        ],
+        ] + V1OpenAPI.messageOptions(),
         responses: V1OpenAPI.responses(description: "A page of messages.", errors: [.badRequest, .notFound, .serviceUnavailable]),
         responseHeaders: V1OpenAPI.responseHeaders
     )

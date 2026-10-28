@@ -65,24 +65,8 @@ struct ConversationRoutes {
         _ request: Request, context: RelayRequestContext
     ) async throws -> JSONResponse<PaginatedResponse<Message>> {
         let conversationID: ConversationID = try pathID("conversation_id", context: context)
-        let rawMode = V1Query.string(request, "search_mode") ?? MessageSearchMode.contains.rawValue
-        guard let searchMode = MessageSearchMode(rawValue: rawMode) else {
-            throw APIHTTPError(
-                status: .badRequest,
-                code: .invalidRequest,
-                message: "search_mode must be contains or exact.",
-                fieldDetails: [APIFieldError(field: "search_mode", message: "Use contains or exact.")]
-            )
-        }
         let page = try await messages.list(
-            conversationID: conversationID,
-            options: MessageListOptions(
-                limit: V1Query.limit(request, default: Self.messagePageLimit),
-                cursor: V1Query.cursor(request),
-                includeAttachments: V1Query.bool(request, "include_attachments"),
-                search: V1Query.string(request, "q"),
-                searchMode: searchMode
-            )
+            conversationID: conversationID, options: V1Query.messageOptions(request)
         )
         return relayJSONResponse(page)
     }
