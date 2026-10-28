@@ -345,6 +345,10 @@
           "delivery_state": {
             "$ref": "#/components/schemas/DeliveryState"
           },
+          "edited_at": {
+            "format": "date-time",
+            "type": "string"
+          },
           "id": {
             "minLength": 1,
             "pattern": "^[^\\p{Cc}\\p{Cf}]+$",
@@ -404,6 +408,10 @@
           },
           "thread": {
             "$ref": "#/components/schemas/ThreadReference"
+          },
+          "unsent_at": {
+            "format": "date-time",
+            "type": "string"
           },
           "url_preview": {
             "$ref": "#/components/schemas/URLPreview"
