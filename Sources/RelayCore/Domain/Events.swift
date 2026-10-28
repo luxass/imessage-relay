@@ -18,6 +18,11 @@ public enum RelayEventType: String, Codable, Equatable, Sendable {
 public enum MessageChangedField: String, Codable, Equatable, Sendable {
     case deliveryState = "delivery_state"
     case readState = "read_state"
+    case editedAt = "edited_at"
+    case unsentAt = "unsent_at"
+    case text
+    case parts
+    case attachments
 }
 
 @OpenAPISchema

@@ -283,7 +283,7 @@ extension SQLiteEventSnapshotStore {
             }
     }
 
-    private static func messageStateSelect(_ schema: SchemaInspector) -> String {
+    static func messageStateSelect(_ schema: SchemaInspector) -> String {
         let error = schema.expression("error", table: "message", alias: "m", fallback: "NULL")
         let sent = schema.expression("is_sent", table: "message", alias: "m", fallback: "NULL")
         let delivered = schema.expression("is_delivered", table: "message", alias: "m", fallback: "NULL")
@@ -301,7 +301,9 @@ extension SQLiteEventSnapshotStore {
         return """
             SELECT m.ROWID, m.guid, c.guid, m.is_from_me, \(error), \(sent),
                    \(delivered), \(read), \(deliveredDate), \(readDate),
-                   \(associatedGUID), \(associatedType)
+                   \(associatedGUID), \(associatedType),
+                   \(schema.expression("date_edited", table: "message", alias: "m", fallback: "NULL")),
+                   \(schema.expression("date_retracted", table: "message", alias: "m", fallback: "NULL"))
             FROM message m
             """
     }
@@ -335,7 +337,7 @@ extension SQLiteEventSnapshotStore {
         )
     }
 
-    private static func observedMessage(_ statement: SQLiteStatement) throws -> ObservedMessage? {
+    static func observedMessage(_ statement: SQLiteStatement) throws -> ObservedMessage? {
         guard let conversationGUID = try statement.optionalText(2) else { return nil }
         let messageID = try MessageID(validating: statement.text(1))
         let isFromMe = try statement.int64(3) != 0
@@ -365,8 +367,8 @@ extension SQLiteEventSnapshotStore {
             associatedMessageGUID: nil,
             associatedMessageType: nil,
             localCallerID: nil,
-            dateEdited: nil,
-            dateRetracted: nil
+            dateEdited: try statement.number(12),
+            dateRetracted: try statement.number(13)
         )
         return ObservedMessage(
             rowID: row.rowID,
@@ -374,7 +376,9 @@ extension SQLiteEventSnapshotStore {
             conversationID: try ConversationID(validating: conversationGUID),
             isFromMe: isFromMe,
             deliveryState: SQLiteRows.deliveryState(row),
-            readState: SQLiteRows.readState(row)
+            readState: SQLiteRows.readState(row),
+            editedStamp: row.dateEdited,
+            retractedStamp: row.dateRetracted
         )
     }
 

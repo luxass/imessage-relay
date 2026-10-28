@@ -34,20 +34,15 @@ func eventServiceSharesOneObserverAndGivesEachSubscriberStreamReady() async thro
     await service.shutdown()
 }
 
-@Test
-func eventServiceResetsAndClosesAClientWhoseBufferOverflows() async throws {
+@Test(arguments: [false, true])
+func eventServiceResetsAndClosesAClientWhoseBufferOverflows(mutation: Bool) async throws {
     let observer = ControlledMessageChangeObserver()
     let service = EventService(observer: observer, subscriberBufferSize: 1)
     var iterator = await service.events().makeAsyncIterator()
     _ = await iterator.next()
 
     for suffix in 1...3 {
-        observer.yield(.messageCreated(MessageCreatedEvent(
-            messageID: try MessageID(validating: "message-\(suffix)"),
-            conversationID: try ConversationID(validating: "chat-guid"),
-            isFromMe: false,
-            observedAt: Timestamp(Date(timeIntervalSince1970: 1_700_000_000))
-        )))
+        observer.yield(try replayTestEvent(suffix: suffix, mutation: mutation))
     }
     try await ContinuousClock().sleep(for: .milliseconds(20))
 
@@ -63,28 +58,19 @@ func eventServiceResetsAndClosesAClientWhoseBufferOverflows() async throws {
     var resumed = await service.events(after: cursor).makeAsyncIterator()
     #expect(await resumed.next()?.event.type == .streamReady)
     let replayed = try #require(await resumed.next())
-    guard case .messageCreated(let payload) = replayed.event else {
-        Issue.record("Expected the retained message to be replayed.")
-        return
-    }
-    #expect(payload.messageID.rawValue == "message-3")
+    #expect(replayed.event == (try replayTestEvent(suffix: 3, mutation: mutation)))
     await service.shutdown()
 }
 
-@Test
-func eventServiceReplaysEventsAfterAValidCursor() async throws {
+@Test(arguments: [false, true])
+func eventServiceReplaysEventsAfterAValidCursor(mutation: Bool) async throws {
     let observer = ControlledMessageChangeObserver()
     let service = EventService(observer: observer)
     var live = await service.events().makeAsyncIterator()
     _ = await live.next()
 
     for suffix in 1...3 {
-        observer.yield(.messageCreated(MessageCreatedEvent(
-            messageID: try MessageID(validating: "message-\(suffix)"),
-            conversationID: try ConversationID(validating: "chat-guid"),
-            isFromMe: false,
-            observedAt: Timestamp(Date(timeIntervalSince1970: 1_700_000_000))
-        )))
+        observer.yield(try replayTestEvent(suffix: suffix, mutation: mutation))
     }
     let first = try #require(await live.next())
     _ = await live.next()
@@ -97,13 +83,8 @@ func eventServiceReplaysEventsAfterAValidCursor() async throws {
     let third = try #require(await replay.next())
     #expect(second.eventID != first.eventID)
     #expect(third.eventID != second.eventID)
-    guard case .messageCreated(let secondPayload) = second.event,
-          case .messageCreated(let thirdPayload) = third.event else {
-        Issue.record("Expected replayed message events.")
-        return
-    }
-    #expect(secondPayload.messageID.rawValue == "message-2")
-    #expect(thirdPayload.messageID.rawValue == "message-3")
+    #expect(second.event == (try replayTestEvent(suffix: 2, mutation: mutation)))
+    #expect(third.event == (try replayTestEvent(suffix: 3, mutation: mutation)))
     await service.shutdown()
 }
 
@@ -123,6 +104,21 @@ func eventServiceClosesSubscribersAfterAReset() async {
     #expect(await iterator.next()?.event == reset)
     #expect(await iterator.next() == nil)
     await service.shutdown()
+}
+
+private func replayTestEvent(suffix: Int, mutation: Bool) throws -> RelayEvent {
+    let id = try MessageID(validating: "message-\(suffix)")
+    let conversation = try ConversationID(validating: "chat-guid")
+    let time = Timestamp(Date(timeIntervalSince1970: 1_700_000_000))
+    if mutation {
+        return .messageUpdated(MessageUpdatedEvent(
+            messageID: id, conversationID: conversation,
+            changedFields: [.unsentAt, .text, .parts, .attachments], observedAt: time
+        ))
+    }
+    return .messageCreated(MessageCreatedEvent(
+        messageID: id, conversationID: conversation, isFromMe: false, observedAt: time
+    ))
 }
 
 private final class ControlledMessageChangeObserver: MessageChangeObserving, @unchecked Sendable {

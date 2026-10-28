@@ -44,7 +44,7 @@ Events contain stable resource IDs instead of full message objects. Fetch
 | Event | Meaning |
 | --- | --- |
 | `message.created` | A new ordinary message appeared. Reaction rows are excluded. |
-| `message.updated` | `delivery_state`, `read_state`, or both changed. |
+| `message.updated` | Delivery, read, edit, or unsend state changed. |
 | `reaction.added` | A reaction event row appeared for a message. |
 | `reaction.removed` | A reaction-removal event row appeared for a message. |
 | `media.available` | A Messages attachment became safe to download through the media endpoint. |
@@ -61,6 +61,18 @@ id: 4f74f9cf-73fb-49d8-a596-3c724a5ce4a2:2
 event: message.updated
 data: {"changed_fields":["delivery_state","read_state"],"conversation_id":"chat-guid","message_id":"message-guid","observed_at":"2026-09-15T12:00:01.000Z"}
 ```
+
+For edits, `changed_fields` includes `edited_at`, `text`, and `parts`. For
+unsends, it includes `unsent_at`, `text`, `parts`, and `attachments`. Fetch the
+message again and replace the cached resource. The stream carries no old body.
+
+Mutation checks compare exact provider stamps, including equal timestamps on
+different rows and delayed updates with older timestamps. They reuse bounded
+periodic checks and full reconciliation (every five minutes by default), so
+updates to older rows can be delayed. Intermediate revisions are not retained.
+Existing mutations at observer startup form the baseline, not new events. After
+a restart or a reset that requires refetch, reconcile cached messages through
+REST; the live stream is not a durable mutation archive.
 
 The server writes `: keep-alive` comments every 15 seconds. If a client falls
 behind its bounded buffer, `stream.reset` includes `resume_after_event_id` and

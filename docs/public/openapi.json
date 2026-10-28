@@ -439,7 +439,12 @@
       "MessageChangedField": {
         "enum": [
           "delivery_state",
-          "read_state"
+          "read_state",
+          "edited_at",
+          "unsent_at",
+          "text",
+          "parts",
+          "attachments"
         ],
         "type": "string"
       },

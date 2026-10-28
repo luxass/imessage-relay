@@ -8,6 +8,21 @@ extension SQLiteEventSnapshotStore {
         let isFromMe: Bool
         let deliveryState: DeliveryState
         let readState: ReadState
+        let editedStamp: SQLiteNumber?
+        let retractedStamp: SQLiteNumber?
+
+        func changedFields(since previous: Self) -> [MessageChangedField] {
+            var fields: [MessageChangedField] = []
+            if previous.deliveryState != deliveryState { fields.append(.deliveryState) }
+            if previous.readState != readState { fields.append(.readState) }
+            let edited = previous.editedStamp != editedStamp
+            let retracted = previous.retractedStamp != retractedStamp
+            if edited { fields.append(.editedAt) }
+            if retracted { fields.append(.unsentAt) }
+            if edited || retracted { fields += [.text, .parts] }
+            if retracted { fields.append(.attachments) }
+            return fields
+        }
     }
 
     struct ObservedReaction: Equatable, Sendable {
@@ -115,9 +130,7 @@ extension SQLiteEventSnapshotStore {
         let updatedMessages = current.messages.values
             .compactMap { currentValue -> (ObservedMessage, [MessageChangedField])? in
                 guard let oldValue = previous.messages[currentValue.messageID] else { return nil }
-                var fields: [MessageChangedField] = []
-                if oldValue.deliveryState != currentValue.deliveryState { fields.append(.deliveryState) }
-                if oldValue.readState != currentValue.readState { fields.append(.readState) }
+                let fields = currentValue.changedFields(since: oldValue)
                 return fields.isEmpty ? nil : (currentValue, fields)
             }
             .sorted { $0.0.rowID < $1.0.rowID }
