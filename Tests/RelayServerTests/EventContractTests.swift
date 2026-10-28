@@ -42,6 +42,26 @@ func eventsRouteStreamsAuthenticatedSSEFrames() async throws {
 }
 
 @Test
+func eventsRouteIncludesMutationChangedFields() async throws {
+    let observer = TestMessageChangeObserver(events: [
+        .streamReady(StreamReadyEvent(databaseIdentity: "fixture-database")),
+        .messageUpdated(MessageUpdatedEvent(
+            messageID: try MessageID(validating: "message-guid"),
+            conversationID: try ConversationID(validating: "chat-guid"),
+            changedFields: [.editedAt, .text, .parts], observedAt: Timestamp(Date())
+        )),
+    ])
+    let harness = ServerTestHarness(eventObserver: observer)
+    try await Application(router: harness.router()).test(.router) { client in
+        let response = try await client.execute(
+            uri: "/v1/events", method: .get, headers: authorizationHeaders()
+        )
+        #expect(response.status == .ok)
+        #expect(String(buffer: response.body).contains(#""changed_fields":["edited_at","text","parts"]"#))
+    }
+}
+
+@Test
 func eventsRouteRequiresAuthenticationAndResetsUnavailableReplayRequests() async throws {
     let harness = ServerTestHarness()
     let app = Application(router: harness.router())

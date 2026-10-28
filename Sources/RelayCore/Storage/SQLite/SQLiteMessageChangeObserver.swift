@@ -506,9 +506,7 @@ public final class SQLiteMessageChangeObserver: MessageChangeObserving, @uncheck
                 observation.previous.messages[message.messageID] = message
                 continue
             }
-            var fields: [MessageChangedField] = []
-            if old.deliveryState != message.deliveryState { fields.append(.deliveryState) }
-            if old.readState != message.readState { fields.append(.readState) }
+            let fields = message.changedFields(since: old)
             if !fields.isEmpty {
                 continuation.yield(.messageUpdated(MessageUpdatedEvent(
                     messageID: message.messageID,
