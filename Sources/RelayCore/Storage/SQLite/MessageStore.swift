@@ -302,7 +302,8 @@ public final class SQLiteMessageStore: MessageStoring, SendCorrelating, Sendable
             m.ROWID, m.guid, c.guid, m.text, \(attributedBody), h.id, \(originalHandle),
             m.is_from_me, m.date, \(error), \(sent), \(delivered), \(read),
             \(deliveredDate), \(readDate), \(reply), \(root), \(partCount),
-            \(balloon), \(audio), \(scheduleType), \(scheduleState), \(associatedGUID), \(associatedType)
+            \(balloon), \(audio), \(scheduleType), \(scheduleState), \(associatedGUID), \(associatedType),
+            \(schema.expression("destination_caller_id", table: "message", alias: "m", fallback: "NULL"))
             """
     }
 
@@ -332,7 +333,8 @@ public final class SQLiteMessageStore: MessageStoring, SendCorrelating, Sendable
             scheduleType: try SQLiteValue.optionalInt64(statement, 20),
             scheduleState: try SQLiteValue.optionalInt64(statement, 21),
             associatedMessageGUID: try SQLiteValue.optionalText(statement, 22),
-            associatedMessageType: try SQLiteValue.optionalInt64(statement, 23)
+            associatedMessageType: try SQLiteValue.optionalInt64(statement, 23),
+            localCallerID: try SQLiteValue.optionalText(statement, 24)
         )
     }
 
@@ -460,7 +462,8 @@ public final class SQLiteMessageStore: MessageStoring, SendCorrelating, Sendable
         return try database.withStatement("""
             SELECT r.guid, r.associated_message_guid, \(normalizedTarget),
                    r.associated_message_type, \(emoji),
-                   h.id, \(originalHandle), r.is_from_me, r.date
+                   h.id, \(originalHandle), r.is_from_me, r.date,
+                   \(schema.expression("destination_caller_id", table: "message", alias: "r", fallback: "NULL"))
             FROM message r
             LEFT JOIN handle h ON h.ROWID = r.handle_id
             WHERE ((r.associated_message_type BETWEEN 2000 AND 2006)
@@ -484,9 +487,11 @@ public final class SQLiteMessageStore: MessageStoring, SendCorrelating, Sendable
                         kind: decoded.kind,
                         emoji: try SQLiteValue.optionalText(statement, 4),
                         action: decoded.action,
-                        sender: SQLiteRows.handle(
+                        sender: SQLiteRows.sender(
                             value: try SQLiteValue.optionalText(statement, 5),
-                            original: try SQLiteValue.optionalText(statement, 6)
+                            original: try SQLiteValue.optionalText(statement, 6),
+                            isFromMe: try statement.int64(7) != 0,
+                            localCallerID: try SQLiteValue.optionalText(statement, 9)
                         ),
                         isFromMe: try statement.int64(7) != 0,
                         createdAt: SQLiteRows.timestamp(try SQLiteNumber.read(statement, 8))

@@ -37,6 +37,13 @@ column as a verified parent relationship. For inline-thread rows,
 `thread_originator_message_id` identifies the verified root. A send request
 still accepts the exact message to target in `reply_to.message_id`.
 
+### Sender identity
+
+For outgoing messages and reactions, `sender` identifies the local account when
+that identity is present in the database. It is null when the local identity is
+unavailable. The recipient's handle is not used as an outgoing sender.
+Incoming messages and reactions retain their correspondent's identity.
+
 ### Native message metadata
 
 Message responses decode additional optional provider metadata:
