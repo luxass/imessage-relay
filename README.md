@@ -13,6 +13,26 @@ Reads go directly to `~/Library/Messages/chat.db`. Sends use Messages.app's
 AppleScript interface. The relay does not use private frameworks or process
 injection.
 
+## Feature support
+
+Support depends on macOS permissions, the Messages version, and available database fields.
+
+| Feature | Support and main limit |
+| --- | --- |
+| History and text search | Conversation and global search, with exact/contains matching and opaque pagination. |
+| Edits and unsends | Current reads and live change notices. No edit/unsend actions or revision archive. |
+| Text and new-group sends | Allowlisted recipients, durable request state, and database correlation. |
+| Replies and media sends | Existing conversations and Accessibility access required. |
+| Reactions | Set/clear six standard reactions. Messages UI compatibility varies. |
+| Read state and typing | Database-confirmed local read changes and short-lived typing leases. |
+| Attachments | Upload references and safe downloads. No attachment analytics. |
+| Native Send Later | Read-only queue for recognized provider states. No scheduling or cancellation. |
+| Message counts | Per conversation and date range. Direction counts are not delivery totals. |
+| Live events | Bounded replay within one process. Refetch after a restart; no durable catch-up feed. |
+
+See [feature support and verification limits](docs/src/content/docs/feature-support.md)
+for sender identity, native metadata, permissions, and macOS coverage.
+
 ## Install
 
 Install the menu bar app and CLI together with Homebrew:
