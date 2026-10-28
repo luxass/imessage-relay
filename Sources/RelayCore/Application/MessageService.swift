@@ -201,7 +201,9 @@ public struct MessageService: Sendable {
             urlPreview: message.urlPreview,
             poll: message.poll,
             schedule: message.schedule,
-            isAudioMessage: message.isAudioMessage
+            isAudioMessage: message.isAudioMessage,
+            editedAt: message.editedAt,
+            unsentAt: message.unsentAt
         )
     }
 

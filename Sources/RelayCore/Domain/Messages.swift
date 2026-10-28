@@ -271,6 +271,8 @@ public struct Message: Codable, Equatable, Sendable {
     public let poll: NativePoll?
     public let schedule: MessageSchedule?
     public let isAudioMessage: Bool?
+    public let editedAt: Timestamp?
+    public let unsentAt: Timestamp?
 
     private enum CodingKeys: String, CodingKey {
         case id
@@ -287,6 +289,8 @@ public struct Message: Codable, Equatable, Sendable {
         case balloonBundleID = "balloon_bundle_id"
         case urlPreview = "url_preview"
         case isAudioMessage = "is_audio_message"
+        case editedAt = "edited_at"
+        case unsentAt = "unsent_at"
     }
 
     public init(
@@ -309,7 +313,9 @@ public struct Message: Codable, Equatable, Sendable {
         urlPreview: URLPreview? = nil,
         poll: NativePoll? = nil,
         schedule: MessageSchedule? = nil,
-        isAudioMessage: Bool? = nil
+        isAudioMessage: Bool? = nil,
+        editedAt: Timestamp? = nil,
+        unsentAt: Timestamp? = nil
     ) {
         self.id = id
         self.providerGUID = providerGUID
@@ -331,6 +337,8 @@ public struct Message: Codable, Equatable, Sendable {
         self.poll = poll
         self.schedule = schedule
         self.isAudioMessage = isAudioMessage
+        self.editedAt = editedAt
+        self.unsentAt = unsentAt
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -355,6 +363,8 @@ public struct Message: Codable, Equatable, Sendable {
         try container.encodeIfPresent(poll, forKey: .poll)
         try container.encodeIfPresent(schedule, forKey: .schedule)
         try container.encodeIfPresent(isAudioMessage, forKey: .isAudioMessage)
+        try container.encodeIfPresent(editedAt, forKey: .editedAt)
+        try container.encodeIfPresent(unsentAt, forKey: .unsentAt)
     }
 }
 

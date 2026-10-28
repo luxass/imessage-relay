@@ -303,7 +303,9 @@ public final class SQLiteMessageStore: MessageStoring, SendCorrelating, Sendable
             m.is_from_me, m.date, \(error), \(sent), \(delivered), \(read),
             \(deliveredDate), \(readDate), \(reply), \(root), \(partCount),
             \(balloon), \(audio), \(scheduleType), \(scheduleState), \(associatedGUID), \(associatedType),
-            \(schema.expression("destination_caller_id", table: "message", alias: "m", fallback: "NULL"))
+            \(schema.expression("destination_caller_id", table: "message", alias: "m", fallback: "NULL")),
+            \(schema.expression("date_edited", table: "message", alias: "m", fallback: "NULL")),
+            \(schema.expression("date_retracted", table: "message", alias: "m", fallback: "NULL"))
             """
     }
 
@@ -334,7 +336,9 @@ public final class SQLiteMessageStore: MessageStoring, SendCorrelating, Sendable
             scheduleState: try SQLiteValue.optionalInt64(statement, 21),
             associatedMessageGUID: try SQLiteValue.optionalText(statement, 22),
             associatedMessageType: try SQLiteValue.optionalInt64(statement, 23),
-            localCallerID: try SQLiteValue.optionalText(statement, 24)
+            localCallerID: try SQLiteValue.optionalText(statement, 24),
+            dateEdited: try SQLiteNumber.read(statement, 25),
+            dateRetracted: try SQLiteNumber.read(statement, 26)
         )
     }
 
@@ -373,7 +377,7 @@ public final class SQLiteMessageStore: MessageStoring, SendCorrelating, Sendable
                 database: database,
                 messageRowIDs: records.map(\.row.rowID)
             )
-            for index in records.indices {
+            for index in records.indices where records[index].message.unsentAt == nil {
                 let attachmentRecords = values[records[index].row.rowID] ?? []
                 records[index].message.attachments = attachmentRecords.map(\.reference)
                 records[index].message.parts = SQLiteRows.messageParts(

@@ -34,6 +34,7 @@ public final class SQLiteMediaStore: MessageMediaStoring, Sendable {
                 SELECT 1 FROM message_attachment_join maj
                 JOIN message m ON m.ROWID = maj.message_id
                 WHERE maj.attachment_id = a.ROWID
+                  AND COALESCE(\(schema.expression("date_retracted", table: "message", alias: "m", fallback: "0")), 0) <= 0
               )
             LIMIT 1
             """) { statement in

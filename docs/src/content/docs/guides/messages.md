@@ -37,6 +37,18 @@ column as a verified parent relationship. For inline-thread rows,
 `thread_originator_message_id` identifies the verified root. A send request
 still accepts the exact message to target in `reply_to.message_id`.
 
+### Edits and unsends
+
+`edited_at` and `unsent_at` report current mutation timestamps when available.
+Edited text comes from the current attributed body, not the original plain-text
+column. If that body cannot be decoded, text is null rather than stale.
+
+An unsent message keeps its ID and conversation. Its text is null, its parts and
+attachments are empty, and attachments linked only to unsent messages cannot be
+downloaded. Search uses the same current text. These fields describe observed
+Messages database state; they are not a revision archive or an Apple API contract.
+Older databases can omit mutation metadata.
+
 ### Sender identity
 
 For outgoing messages and reactions, `sender` identifies the local account when

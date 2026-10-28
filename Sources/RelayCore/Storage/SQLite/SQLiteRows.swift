@@ -39,6 +39,8 @@ struct MessageRow: Sendable {
     let associatedMessageGUID: String?
     let associatedMessageType: Int64?
     let localCallerID: String?
+    let dateEdited: SQLiteNumber?
+    let dateRetracted: SQLiteNumber?
 }
 
 enum SQLiteRows {
@@ -57,6 +59,7 @@ enum SQLiteRows {
         attachmentsByGUID: [String: MediaReference] = [:],
         attachmentsLoaded: Bool = false
     ) -> [MessagePart]? {
+        if timestamp(row.dateRetracted) != nil { return [] }
         if let attributed = row.decodedBody?.parts, !attributed.isEmpty {
             var mapped = Dictionary(uniqueKeysWithValues: attributed.map { part in
                 let value: MessagePart
@@ -78,7 +81,7 @@ enum SQLiteRows {
             return mapped.keys.sorted().compactMap { mapped[$0] }
         }
 
-        let text = row.text ?? row.decodedBody?.text
+        let text = currentText(row)
         if let text, validPartCount(row.partCount) == 1 {
             return [.text(index: 0, text: text)]
         }
@@ -110,6 +113,12 @@ enum SQLiteRows {
     ) -> RecipientHandle? {
         if isFromMe { return handle(value: localCallerID, original: nil) }
         return handle(value: value, original: original)
+    }
+
+    static func currentText(_ row: MessageRow) -> String? {
+        if timestamp(row.dateRetracted) != nil { return nil }
+        if timestamp(row.dateEdited) != nil { return row.decodedBody?.text }
+        return row.text ?? row.decodedBody?.text
     }
 
     static func message(_ row: MessageRow) throws -> Message {
@@ -150,7 +159,7 @@ enum SQLiteRows {
             id: messageID,
             providerGUID: row.guid,
             conversationID: conversationID,
-            text: row.text ?? row.decodedBody?.text,
+            text: currentText(row),
             sender: sender(
                 value: row.handle, original: row.originalHandle,
                 isFromMe: row.isFromMe, localCallerID: row.localCallerID
@@ -168,7 +177,9 @@ enum SQLiteRows {
             balloonBundleID: row.balloonBundleID,
             poll: poll,
             schedule: schedule,
-            isAudioMessage: row.isAudioMessage
+            isAudioMessage: row.isAudioMessage,
+            editedAt: timestamp(row.dateEdited),
+            unsentAt: timestamp(row.dateRetracted)
         )
     }
 
