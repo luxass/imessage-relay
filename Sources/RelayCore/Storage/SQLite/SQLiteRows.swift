@@ -38,6 +38,7 @@ struct MessageRow: Sendable {
     let scheduleState: Int64?
     let associatedMessageGUID: String?
     let associatedMessageType: Int64?
+    let localCallerID: String?
 }
 
 enum SQLiteRows {
@@ -101,6 +102,16 @@ enum SQLiteRows {
         return try? RecipientHandle.stored(value: value, originalValue: original)
     }
 
+    static func sender(
+        value: String?,
+        original: String?,
+        isFromMe: Bool,
+        localCallerID: String?
+    ) -> RecipientHandle? {
+        if isFromMe { return handle(value: localCallerID, original: nil) }
+        return handle(value: value, original: original)
+    }
+
     static func message(_ row: MessageRow) throws -> Message {
         let messageID = try MessageID(validating: row.guid)
         let conversationID = try ConversationID(validating: row.conversationGUID)
@@ -140,7 +151,10 @@ enum SQLiteRows {
             providerGUID: row.guid,
             conversationID: conversationID,
             text: row.text ?? row.decodedBody?.text,
-            sender: handle(value: row.handle, original: row.originalHandle),
+            sender: sender(
+                value: row.handle, original: row.originalHandle,
+                isFromMe: row.isFromMe, localCallerID: row.localCallerID
+            ),
             isFromMe: row.isFromMe,
             createdAt: timestamp(row.date),
             deliveryState: deliveryState(row),

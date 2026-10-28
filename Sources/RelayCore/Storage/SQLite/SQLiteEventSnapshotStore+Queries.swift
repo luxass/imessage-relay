@@ -56,7 +56,9 @@ extension SQLiteEventSnapshotStore {
                     scheduleType: nil,
                     scheduleState: nil,
                     associatedMessageGUID: nil,
-                    associatedMessageType: nil
+                    associatedMessageType: nil,
+
+                    localCallerID: nil
                 )
                 values[messageID] = ObservedMessage(
                     rowID: row.rowID,
