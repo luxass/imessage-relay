@@ -158,7 +158,7 @@ enum SQLiteRows {
         )
     }
 
-    private static func normalizedAssociatedGUID(_ value: String?) -> String? {
+    static func normalizedAssociatedGUID(_ value: String?) -> String? {
         guard let value else { return nil }
         if value.hasPrefix("p:"), let slash = value.firstIndex(of: "/") {
             return String(value[value.index(after: slash)...])

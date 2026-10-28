@@ -313,7 +313,7 @@ extension SQLiteEventSnapshotStore {
         let associatedType = try statement.optionalInt64(11)
         if isReaction(associatedType) {
             let reactionID = try MessageID(validating: statement.text(1))
-            let target = normalizedAssociatedGUID(try statement.optionalText(10))
+            let target = SQLiteRows.normalizedAssociatedGUID(try statement.optionalText(10))
                 .flatMap { try? MessageID(validating: $0) }
             return MessageCandidate(
                 rowID: rowID,
@@ -392,14 +392,5 @@ extension SQLiteEventSnapshotStore {
     private static func isReaction(_ value: Int64?) -> Bool {
         guard let value else { return false }
         return (2000...2006).contains(value) || (3000...3006).contains(value)
-    }
-
-    private static func normalizedAssociatedGUID(_ value: String?) -> String? {
-        guard let value else { return nil }
-        if value.hasPrefix("p:"), let slash = value.firstIndex(of: "/") {
-            return String(value[value.index(after: slash)...])
-        }
-        if value.hasPrefix("bp:") { return String(value.dropFirst(3)) }
-        return value
     }
 }
