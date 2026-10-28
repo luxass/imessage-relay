@@ -91,7 +91,7 @@ extension MessageRoutes {
     )
 
     static var endpoints: [EndpointDefinition] {
-        [searchEndpoint.definition, scheduledEndpoint.definition, getEndpoint.definition, requestEndpoint.definition, sendEndpoint.definition,
-         setReactionEndpoint.definition, clearReactionEndpoint.definition]
+        [searchEndpoint.definition, scheduledEndpoint.definition, getEndpoint.definition,
+         requestEndpoint.definition, sendEndpoint.definition, setReactionEndpoint.definition, clearReactionEndpoint.definition]
     }
 }
