@@ -25,6 +25,26 @@ Search uses edited text and excludes the former text of unsent messages. It does
 not search revision history, attachment filenames, or stored voice transcripts.
 Cursors do not provide restart catch-up or replay of missed changes.
 
+## List native Send Later messages
+
+```http
+GET /v1/messages/scheduled?limit=50&include_attachments=true
+```
+
+This read-only queue spans visible conversations. Each message includes
+`conversation_id` and `schedule.scheduled_at`. Earlier scheduled times come
+first. Follow `next_cursor` while `has_more` is true. The queue can change
+between requests; it is not a frozen snapshot.
+
+The relay recognizes the provider marker `schedule_type=2, schedule_state=1`.
+It excludes past, incoming, sent, delivered, failed, retracted, and reaction rows.
+Unknown markers are omitted, not assumed pending. A database without the required
+schedule and sent-state columns returns `501`. These markers describe an
+observed database shape, not a documented Apple API or a promise that every
+macOS version exposes the same queue.
+
+This endpoint cannot schedule, cancel, or reschedule messages.
+
 ## List messages
 
 ```http

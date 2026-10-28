@@ -14,6 +14,22 @@ extension MessageRoutes {
         responseHeaders: V1OpenAPI.responseHeaders
     )
 
+    static let scheduledEndpoint = JSONEndpoint<PaginatedResponse<Message>>(
+        method: .get, path: "/v1/messages/scheduled", operationID: "listScheduledMessages",
+        summary: "List pending native Send Later messages.",
+        description: "Read-only, across visible conversations, earliest scheduled time first. "
+            + "Recognizes schedule_type 2 and schedule_state 1, excluding past, sent, delivered, failed, and retracted rows. "
+            + "Unknown provider states are omitted; unavailable schedule/sent-state columns return 501. "
+            + "The queue is current state, not a snapshot. This operation cannot schedule, cancel, or reschedule messages.",
+        tags: ["Messages"], parameters: [
+            V1OpenAPI.limit(default: ConversationRoutes.messagePageLimit), V1OpenAPI.cursor,
+            V1OpenAPI.boolean("include_attachments", description: "Include attachment metadata."),
+        ],
+        responses: V1OpenAPI.responses(description: "Messages with conversation_id and schedule.scheduled_at.",
+            errors: [.badRequest, .notImplemented, .serviceUnavailable]),
+        responseHeaders: V1OpenAPI.responseHeaders
+    )
+
     static let getEndpoint = JSONEndpoint<Message>(
         method: .get, path: "/v1/messages/:message_id", operationID: "getMessage", summary: "Read one message.",
         tags: ["Messages"], parameters: [V1OpenAPI.identifier("message_id", type: MessageID.self)],
@@ -75,7 +91,7 @@ extension MessageRoutes {
     )
 
     static var endpoints: [EndpointDefinition] {
-        [searchEndpoint.definition, getEndpoint.definition, requestEndpoint.definition, sendEndpoint.definition,
-         setReactionEndpoint.definition, clearReactionEndpoint.definition]
+        [searchEndpoint.definition, scheduledEndpoint.definition, getEndpoint.definition,
+         requestEndpoint.definition, sendEndpoint.definition, setReactionEndpoint.definition, clearReactionEndpoint.definition]
     }
 }

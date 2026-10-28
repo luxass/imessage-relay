@@ -131,6 +131,9 @@ final class APIStore: ConversationStoring, MessageStoring, MessageMediaStoring,
     private let lock = NSLock()
     private var storedConversationListOptions: ConversationListOptions?
     private var storedMessageListOptions: MessageListOptions?
+    private var storedScheduledOptions: ScheduledMessageListOptions?
+
+    var lastScheduledOptions: ScheduledMessageListOptions? { lock.withLock { storedScheduledOptions } }
     private var storedMessages: [Message]
     private var storedConversation: Conversation
 
@@ -204,6 +207,13 @@ final class APIStore: ConversationStoring, MessageStoring, MessageMediaStoring,
             nextCursor: nil,
             hasMore: false
         )
+    }
+
+    func listScheduledMessages(options: ScheduledMessageListOptions) async throws -> PaginatedResponse<Message> {
+        lock.withLock { storedScheduledOptions = options }
+        if let readError { throw readError }
+        if options.cursor != nil { throw SQLiteStorageError.invalidCursor }
+        return PaginatedResponse(items: messages.filter { $0.schedule != nil }, nextCursor: nil, hasMore: false)
     }
 
     func message(id: MessageID) async throws -> Message? {

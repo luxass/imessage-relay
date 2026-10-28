@@ -45,6 +45,17 @@ public final class SQLiteMessageStore: MessageStoring, SendCorrelating, Sendable
         }
     }
 
+    public func listScheduledMessages(
+        options: ScheduledMessageListOptions
+    ) async throws -> PaginatedResponse<Message> {
+        let now = Date()
+        return try await executor.run { database in
+            try database.withReadTransaction {
+                try Self.scheduled(database: database, options: options, asOf: now)
+            }
+        }
+    }
+
     public func checkpoint() async throws -> OutgoingMessageCheckpoint {
         try await executor.run { database in
             let rowID = try database.withStatement("SELECT COALESCE(MAX(ROWID), 0) FROM message") { statement in

@@ -3962,6 +3962,165 @@
         ]
       }
     },
+    "/v1/messages/scheduled": {
+      "get": {
+        "description": "Read-only, across visible conversations, earliest scheduled time first. Recognizes schedule_type 2 and schedule_state 1, excluding past, sent, delivered, failed, and retracted rows. Unknown provider states are omitted; unavailable schedule/sent-state columns return 501. The queue is current state, not a snapshot. This operation cannot schedule, cancel, or reschedule messages.",
+        "operationId": "listScheduledMessages",
+        "parameters": [
+          {
+            "description": "Maximum number of items in this page.",
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque next_cursor from the previous page, bound to the route, query, and database.",
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "minLength": 1,
+              "pattern": "^[^\\p{Cc}\\p{Cf}]+$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Include attachment metadata. Accepts true, false, 1, or 0. Word spellings are case-insensitive.",
+            "in": "query",
+            "name": "include_attachments",
+            "schema": {
+              "default": "false",
+              "pattern": "^([Tt][Rr][Uu][Ee]|[Ff][Aa][Ll][Ss][Ee]|[01])$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedResponseOfMessage"
+                }
+              }
+            },
+            "description": "Messages with conversation_id and schedule.scheduled_at.",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier.",
+                "required": true,
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Malformed JSON, query parameter, cursor, destination selection, or resource identifier.",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier.",
+                "required": true,
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token.",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier.",
+                "required": true,
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "The request failed.",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier.",
+                "required": true,
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "The sender or platform does not support the requested capability.",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier.",
+                "required": true,
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "The database, sender, Messages access, or request store is unavailable.",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier.",
+                "required": true,
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "summary": "List pending native Send Later messages.",
+        "tags": [
+          "Messages"
+        ]
+      }
+    },
     "/v1/requests/{request_id}": {
       "get": {
         "description": "Retries provider-message identification for pending or partial correlation, then refreshes identified message lifecycle states. Durable request state survives relay restarts. Polling never sends the message again.",
