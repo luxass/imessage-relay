@@ -1,4 +1,8 @@
 extension SQLiteMessageStore {
+    static func timestampSecondsSQL(_ column: String) -> String {
+        "(CASE WHEN ABS(\(column)) > 10000000000 THEN CAST(\(column) AS REAL) / 1000000000 ELSE \(column) END)"
+    }
+
     static func collectionSQL(schema: SchemaInspector, conversationID: ConversationID?) -> String {
         var sql = """
             SELECT \(projection(schema))

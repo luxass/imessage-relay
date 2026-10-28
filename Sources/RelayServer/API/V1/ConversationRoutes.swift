@@ -14,6 +14,7 @@ struct ConversationRoutes {
         Self.listEndpoint.register(on: router, use: list)
         Self.getEndpoint.register(on: router, use: get)
         Self.messagesEndpoint.register(on: router, use: listMessages)
+        Self.countsEndpoint.register(on: router, use: counts)
         Self.readEndpoint.register(on: router, use: markRead)
         Self.startTypingEndpoint.register(on: router, use: startTyping)
         Self.stopTypingEndpoint.register(on: router, use: stopTyping)
@@ -59,6 +60,20 @@ struct ConversationRoutes {
     @Sendable private func get(_ request: Request, context: RelayRequestContext) async throws -> JSONResponse<Conversation> {
         let id: ConversationID = try pathID("conversation_id", context: context)
         return relayJSONResponse(try await conversations.get(id: id))
+    }
+
+    @Sendable private func counts(
+        _ request: Request, context: RelayRequestContext
+    ) async throws -> JSONResponse<MessageCounts> {
+        let conversationID: ConversationID = try pathID("conversation_id", context: context)
+        let range: MessageCountRange
+        do {
+            range = try MessageCountRange(from: V1Query.timestamp(request, "from"), to: V1Query.timestamp(request, "to"))
+        } catch RelayServiceError.invalidRequest(let fields) {
+            throw APIHTTPError(status: .badRequest, code: .invalidRequest,
+                               message: "The message-count range is invalid.", fieldDetails: fields)
+        }
+        return relayJSONResponse(try await messages.counts(conversationID: conversationID, range: range))
     }
 
     @Sendable private func listMessages(

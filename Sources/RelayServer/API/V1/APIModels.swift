@@ -94,6 +94,21 @@ enum V1Query {
         }
     }
 
+    static func timestamp(_ request: Request, _ name: String) throws -> Timestamp {
+        let invalid = APIHTTPError(
+            status: .badRequest, code: .invalidRequest,
+            message: "The \(name) query parameter must be an ISO 8601 timestamp with a time zone.",
+            fieldDetails: [APIFieldError(field: name, message: "Include Z or an explicit UTC offset.")]
+        )
+        guard let raw = string(request, name),
+              raw.range(of: #"(Z|[+-][0-9]{2}:[0-9]{2})$"#, options: .regularExpression) != nil else { throw invalid }
+        do {
+            return try RelayJSON.decoder.decode(Timestamp.self, from: RelayJSON.encoder.encode(raw))
+        } catch {
+            throw invalid
+        }
+    }
+
     static func messageOptions(_ request: Request, requiresSearch: Bool = false) throws -> MessageListOptions {
         let search = string(request, "q")
         if requiresSearch, search?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false {

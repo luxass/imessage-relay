@@ -132,6 +132,9 @@ final class APIStore: ConversationStoring, MessageStoring, MessageMediaStoring,
     private var storedConversationListOptions: ConversationListOptions?
     private var storedMessageListOptions: MessageListOptions?
     private var storedScheduledOptions: ScheduledMessageListOptions?
+    private var storedCountRange: MessageCountRange?
+
+    var lastCountRange: MessageCountRange? { lock.withLock { storedCountRange } }
 
     var lastScheduledOptions: ScheduledMessageListOptions? { lock.withLock { storedScheduledOptions } }
     private var storedMessages: [Message]
@@ -214,6 +217,13 @@ final class APIStore: ConversationStoring, MessageStoring, MessageMediaStoring,
         if let readError { throw readError }
         if options.cursor != nil { throw SQLiteStorageError.invalidCursor }
         return PaginatedResponse(items: messages.filter { $0.schedule != nil }, nextCursor: nil, hasMore: false)
+    }
+
+    func countMessages(conversationID: ConversationID, range: MessageCountRange) async throws -> MessageCounts {
+        lock.withLock { storedCountRange = range }
+        if let readError { throw readError }
+        guard conversationID == conversation.id else { throw RelayServiceError.unknownConversation }
+        return MessageCounts(conversationID: conversationID, range: range, sent: 12, received: 34)
     }
 
     func message(id: MessageID) async throws -> Message? {

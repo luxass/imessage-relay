@@ -448,6 +448,37 @@
         ],
         "type": "string"
       },
+      "MessageCounts": {
+        "properties": {
+          "conversation_id": {
+            "minLength": 1,
+            "pattern": "^[^\\p{Cc}\\p{Cf}]+$",
+            "type": "string"
+          },
+          "from": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "received": {
+            "type": "integer"
+          },
+          "sent": {
+            "type": "integer"
+          },
+          "to": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "conversation_id",
+          "from",
+          "to",
+          "sent",
+          "received"
+        ],
+        "type": "object"
+      },
       "MessageCreatedEvent": {
         "properties": {
           "conversation_id": {
@@ -1600,6 +1631,165 @@
         "summary": "Read one conversation.",
         "tags": [
           "Conversations"
+        ]
+      }
+    },
+    "/v1/conversations/{conversation_id}/message-counts": {
+      "get": {
+        "description": "from is inclusive; to is exclusive. Both require an ISO 8601 timestamp with an explicit time zone. Counts use message direction, not delivery confirmation. Reactions, duplicate memberships, folded previews, and recognized pending Send Later rows do not add messages. Retained unsent messages count once. The operation reads conversation rows and current text for preview classification, without attachment-file scans.",
+        "operationId": "countConversationMessages",
+        "parameters": [
+          {
+            "description": "Percent-encoded public resource identifier, not a database row ID.",
+            "in": "path",
+            "name": "conversation_id",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "pattern": "^[^\\p{Cc}\\p{Cf}]+$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Inclusive start timestamp.",
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Exclusive end timestamp, later than from.",
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageCounts"
+                }
+              }
+            },
+            "description": "Sent and received counts for the requested conversation and range.",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier.",
+                "required": true,
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Malformed JSON, query parameter, cursor, destination selection, or resource identifier.",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier.",
+                "required": true,
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token.",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier.",
+                "required": true,
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "The requested resource was not found.",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier.",
+                "required": true,
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "The request failed.",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier.",
+                "required": true,
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            },
+            "description": "The database, sender, Messages access, or request store is unavailable.",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier.",
+                "required": true,
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Count outgoing and incoming messages in a date range.",
+        "tags": [
+          "Messages"
         ]
       }
     },

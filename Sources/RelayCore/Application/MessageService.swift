@@ -90,6 +90,10 @@ public struct MessageService: Sendable {
         return await addingContactNames(to: page)
     }
 
+    public func counts(conversationID: ConversationID, range: MessageCountRange) async throws -> MessageCounts {
+        try await messages.countMessages(conversationID: conversationID, range: range)
+    }
+
     public func get(id: MessageID) async throws -> Message {
         guard let message = try await messages.message(id: id) else {
             throw RelayServiceError.unknownMessage

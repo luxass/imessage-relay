@@ -56,6 +56,17 @@ public final class SQLiteMessageStore: MessageStoring, SendCorrelating, Sendable
         }
     }
 
+    public func countMessages(conversationID: ConversationID, range: MessageCountRange) async throws -> MessageCounts {
+        try await executor.run { database in
+            try database.withReadTransaction {
+                guard try Self.conversationExists(database: database, id: conversationID) else {
+                    throw RelayServiceError.unknownConversation
+                }
+                return try Self.messageCounts(database: database, conversationID: conversationID, range: range)
+            }
+        }
+    }
+
     public func checkpoint() async throws -> OutgoingMessageCheckpoint {
         try await executor.run { database in
             let rowID = try database.withStatement("SELECT COALESCE(MAX(ROWID), 0) FROM message") { statement in
