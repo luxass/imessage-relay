@@ -153,30 +153,53 @@ extension MacOSAccessibilityMessagesDriver {
         in window: AXUIElement,
         beforePress: @MainActor () -> Void
     ) async throws {
-        try perform(kAXShowMenuAction, on: messageCell, failure: "The message context menu did not open.")
-        let tapbackItem = try await waitUntilValue("The message context menu has no Tapback item.") {
-            try self.descendants(of: window).first {
-                guard try self.stringAttribute("AXRole", of: $0) == kAXMenuItemRole else { return false }
-                return try Self.reactionPickerActionTitles.contains(self.stringAttribute("AXTitle", of: $0) ?? "")
-                    && self.boolAttribute("AXEnabled", of: $0)
+        try await Self.withReactionContextMenu(
+            open: {
+                try self.perform(kAXShowMenuAction, on: messageCell, failure: "The message context menu did not open.")
+            },
+            dismiss: { self.dismissReactionContextMenuIfPresent(in: window) },
+            operation: {
+                let tapbackItem = try await self.waitUntilValue("The message context menu has no Tapback item.") {
+                    try self.descendants(of: window).first {
+                        guard try self.stringAttribute("AXRole", of: $0) == kAXMenuItemRole else { return false }
+                        return try Self.reactionPickerActionTitles.contains(self.stringAttribute("AXTitle", of: $0) ?? "")
+                            && self.boolAttribute("AXEnabled", of: $0)
+                    }
+                }
+                try self.perform(kAXPressAction, on: tapbackItem, failure: "The Tapback submenu did not open.")
+                let identifier = Self.reactionMenuIdentifier(reaction)
+                let item = try await self.waitUntilValue("The requested reaction menu item was not found.") {
+                    try self.descendants(of: window).first {
+                        guard try self.stringAttribute("AXRole", of: $0) == kAXMenuItemRole else { return false }
+                        return try self.stringAttribute("AXIdentifier", of: $0) == identifier
+                            && self.boolAttribute("AXEnabled", of: $0)
+                    }
+                }
+                // Menu items toggle the reaction and disappear after selection. ReactionService
+                // checks the current state before dispatch and confirms the resulting database row.
+                beforePress()
+                try self.perform(kAXPressAction, on: item, failure: "The reaction menu item failed.")
             }
-        }
-        defer {
-            try? perform(kAXCancelAction, on: tapbackItem, failure: "The reaction menu did not close.")
-        }
-        try perform(kAXPressAction, on: tapbackItem, failure: "The Tapback submenu did not open.")
-        let identifier = Self.reactionMenuIdentifier(reaction)
-        let item = try await waitUntilValue("The requested reaction menu item was not found.") {
-            try self.descendants(of: window).first {
-                guard try self.stringAttribute("AXRole", of: $0) == kAXMenuItemRole else { return false }
-                return try self.stringAttribute("AXIdentifier", of: $0) == identifier
-                    && self.boolAttribute("AXEnabled", of: $0)
-            }
-        }
-        // Menu items toggle the reaction and disappear after selection. ReactionService
-        // checks the current state before dispatch and confirms the resulting database row.
-        beforePress()
-        try perform(kAXPressAction, on: item, failure: "The reaction menu item failed.")
+        )
+    }
+
+    @MainActor static func withReactionContextMenu(
+        open: @MainActor () throws -> Void,
+        dismiss: @MainActor () -> Void,
+        operation: @MainActor () async throws -> Void
+    ) async throws {
+        try open()
+        defer { dismiss() }
+        try await operation()
+    }
+
+    private func dismissReactionContextMenuIfPresent(in window: AXUIElement) {
+        // A message cell can report AXCancel success without dismissing its menu.
+        guard let menu = try? descendants(of: window).first(where: {
+            guard try stringAttribute("AXRole", of: $0) == kAXMenuRole else { return false }
+            return try actionNames(of: $0).contains(kAXCancelAction)
+        }) else { return }
+        try? perform(kAXCancelAction, on: menu, failure: "The reaction menu did not close.")
     }
 
     static func reactionMenuIdentifier(_ reaction: WritableReaction) -> String {
