@@ -304,7 +304,7 @@ extension MacOSAccessibilityMessagesDriver {
         }
     }
 
-    private func descendants(of root: AXUIElement) throws -> [AXUIElement] {
+    func descendants(of root: AXUIElement) throws -> [AXUIElement] {
         var result: [AXUIElement] = []
         var pending: [(AXUIElement, Int)] = [(root, 0)]
         var index = 0

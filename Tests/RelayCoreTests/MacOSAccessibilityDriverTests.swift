@@ -1,3 +1,4 @@
+import ApplicationServices
 import Foundation
 import Testing
 
@@ -100,6 +101,48 @@ func accessibilityActionMatchingAcceptsLocalizedTitlesExactly() {
     #expect(accessibilityAction(namedOneOf: ["Reply", "Svar"], in: actions) == actions[1])
     #expect(accessibilityAction(namedOneOf: ["React", "Tapback"], in: actions) == actions[2])
     #expect(accessibilityAction(namedOneOf: ["Svar senere"], in: actions) == nil)
+}
+
+@Test
+func reactionPickerUsesContextMenuWhenMessageOnlyExposesTapbackDetails() {
+    let actions = [
+        "AXScrollToVisible", "AXCancel", "AXShowMenu",
+        "Name:Tapback Details…\nTarget:0x0\nSelector:(null)",
+        "Name:Reply…\nTarget:0x0\nSelector:(null)",
+    ]
+
+    #expect(MacOSAccessibilityMessagesDriver.reactionPickerAction(in: actions) == kAXShowMenuAction)
+    #expect(accessibilityAction(namedOneOf: ["React", "Tapback"], in: actions) == nil)
+}
+
+@Test
+func reactionPickerPrefersExistingPickerActionOverContextMenu() {
+    let action = "Name:Tapback\nTarget:0x0\nSelector:(null)"
+    let actions = ["AXShowMenu", "Name:Reply…", action]
+
+    #expect(MacOSAccessibilityMessagesDriver.reactionPickerAction(in: actions) == action)
+}
+
+@Test(arguments: [
+    [String](),
+    ["AXShowMenu", "AXPress"],
+    ["AXShowMenu", "Name:Tapback Details…"],
+    ["Name:Reply…"],
+])
+func reactionPickerRejectsElementsWithoutMessageContextMenu(actions: [String]) {
+    #expect(MacOSAccessibilityMessagesDriver.reactionPickerAction(in: actions) == nil)
+}
+
+@Test(arguments: [
+    (WritableReaction.love, "heart"),
+    (.like, "thumbs_up"),
+    (.dislike, "thumbs_down"),
+    (.laugh, "ha_ha!"),
+    (.emphasis, "exclamation_mark"),
+    (.question, "question_mark"),
+])
+func reactionMenuUsesVerifiedMenuIdentifiers(reaction: WritableReaction, identifier: String) {
+    #expect(MacOSAccessibilityMessagesDriver.reactionMenuIdentifier(reaction) == identifier)
 }
 
 @Test
