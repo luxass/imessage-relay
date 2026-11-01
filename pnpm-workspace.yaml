@@ -26,4 +26,4 @@ catalogs:
     "wrangler": "4.129.0"
 
 overrides:
-  "chokidar": "5.0.0"
+  "chokidar": "6.0.0"
